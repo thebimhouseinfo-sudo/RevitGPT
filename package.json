@@ -1,0 +1,15 @@
+{
+  "name": "revitgpt-session-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "probe": "node scripts/session-probe-server.mjs",
+    "report": "node scripts/session-stability-report.mjs report"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "express": "5.2.1",
+    "zod": "4.4.3"
+  }
+}
