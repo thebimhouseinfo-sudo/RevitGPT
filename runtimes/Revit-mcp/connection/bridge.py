@@ -1,0 +1,515 @@
+"""HTTP client for the local Revit add-in/pyRevit bridge."""
+
+from __future__ import annotations
+
+import json
+import uuid
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+from config import BRIDGE_TIMEOUT_SECONDS, BRIDGE_URL
+
+WRITE_TIMEOUT = float(BRIDGE_TIMEOUT_SECONDS * 10)
+
+
+class RevitBridgeError(RuntimeError):
+    """Raised when the Revit bridge returns an error response."""
+
+
+class RevitBridgeUnavailableError(RuntimeError):
+    """Raised when the Revit bridge cannot be reached."""
+
+
+def _make_request_id() -> str:
+    return str(uuid.uuid4())
+
+
+def _send_request(
+    endpoint: str,
+    payload: dict | None = None,
+    method: str = "GET",
+    timeout: float | None = None,
+) -> dict:
+    url = f"{BRIDGE_URL}/{endpoint.lstrip('/')}"
+    request_id = _make_request_id()
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Request-ID": request_id,
+    }
+
+    data = None
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+
+    request = Request(url, data=data, headers=headers, method=method)
+    effective_timeout = timeout or BRIDGE_TIMEOUT_SECONDS
+
+    try:
+        with urlopen(request, timeout=effective_timeout) as response:
+            response_body = response.read().decode("utf-8")
+            result = json.loads(response_body)
+    except HTTPError as exc:
+        if exc.code >= 400 and exc.code < 500:
+            try:
+                error_body = exc.read().decode("utf-8")
+                error_result = json.loads(error_body)
+                if "error" in error_result:
+                    error_info = error_result["error"]
+                    raise RevitBridgeError(
+                        f"Bridge error: {error_info.get('message', 'Unknown error')}"
+                    ) from exc
+            except (ValueError, KeyError):
+                pass
+            raise RevitBridgeError(f"Bridge returned HTTP {exc.code}") from exc
+        raise RevitBridgeUnavailableError(
+            f"Cannot reach Revit bridge at {url}: {exc}"
+        ) from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        raise RevitBridgeUnavailableError(
+            f"Cannot reach Revit bridge at {url}: {exc}"
+        ) from exc
+    except ValueError as exc:
+        raise RevitBridgeError(f"Invalid JSON response from bridge: {exc}") from exc
+
+    if not isinstance(result, dict):
+        raise RevitBridgeError("Bridge response must be a JSON object.")
+
+    if "error" in result:
+        error_info = result["error"]
+        raise RevitBridgeError(
+            f"Bridge error: {error_info.get('message', 'Unknown error')}"
+        )
+
+    return result
+
+
+def health_check() -> dict:
+    try:
+        result = _send_request("/health")
+        return {
+            "available": True,
+            "bridge_url": BRIDGE_URL,
+            "bridge": result.get("data", result),
+        }
+    except (RevitBridgeUnavailableError, RevitBridgeError) as exc:
+        return {
+            "available": False,
+            "bridge_url": BRIDGE_URL,
+            "error": str(exc),
+        }
+
+
+def get_active_document() -> dict:
+    result = _send_request("/document/active")
+    return result.get("data", result)
+
+
+def get_documents() -> list[dict]:
+    result = _send_request("/documents")
+    return result.get("data", [])
+
+
+def get_views(document_id: str | None = None) -> list[dict]:
+    payload = {"document_id": document_id} if document_id else None
+    result = _send_request("/views", payload=payload, method="POST" if payload else "GET")
+    return result.get("data", [])
+
+
+def get_levels(document_id: str | None = None) -> list[dict]:
+    payload = {"document_id": document_id} if document_id else None
+    result = _send_request("/levels", payload=payload, method="POST" if payload else "GET")
+    return result.get("data", [])
+
+
+def get_elements(
+    document_id: str | None = None,
+    category: str | None = None,
+    class_name: str | None = None,
+    family: str | None = None,
+    type_name: str | None = None,
+    view_id: str | None = None,
+    parameters: list[str] | None = None,
+) -> list[dict]:
+    payload: dict[str, Any] = {}
+    if document_id:
+        payload["document_id"] = document_id
+    if category:
+        payload["category"] = category
+    if class_name:
+        payload["class"] = class_name
+    if family:
+        payload["family"] = family
+    if type_name:
+        payload["type"] = type_name
+    if view_id:
+        payload["view_id"] = view_id
+    if parameters:
+        payload["parameters"] = parameters
+
+    result = _send_request("/elements", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def get_element(
+    element_id: str,
+    document_id: str | None = None,
+    include_connectors: bool = False,
+) -> dict:
+    payload: dict[str, Any] = {"element_id": element_id}
+    if document_id:
+        payload["document_id"] = document_id
+    if include_connectors:
+        payload["include_connectors"] = True
+    result = _send_request("/element", payload=payload, method="POST")
+    return result.get("data", result)
+
+
+def get_element_connectors(element_id: str, document_id: str | None = None) -> list[dict]:
+    payload: dict[str, Any] = {"element_id": element_id}
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/element/connectors", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def get_families(
+    document_id: str | None = None,
+    category: str | None = None,
+) -> list[dict]:
+    payload: dict[str, Any] = {}
+    if document_id:
+        payload["document_id"] = document_id
+    if category:
+        payload["category"] = category
+    result = _send_request("/families", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def get_family_types(
+    family: str | None = None,
+    category: str | None = None,
+    document_id: str | None = None,
+) -> list[dict]:
+    payload: dict[str, Any] = {}
+    if family:
+        payload["family"] = family
+    if category:
+        payload["category"] = category
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/family/types", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def get_system_types(
+    classification: str | None = None,
+    document_id: str | None = None,
+) -> list[dict]:
+    payload: dict[str, Any] = {}
+    if classification:
+        payload["classification"] = classification
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/system/types", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def place_family_instance(
+    family: str,
+    type: str,
+    x: float,
+    y: float,
+    z: float = 0,
+    level_id: str | None = None,
+    rotation: float = 0,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "family": family,
+        "type": type,
+        "x": x,
+        "y": y,
+        "z": z,
+        "rotation": rotation,
+    }
+    if level_id:
+        payload["level_id"] = level_id
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/place", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_duct(
+    start_x: float,
+    start_y: float,
+    start_z: float,
+    end_x: float,
+    end_y: float,
+    end_z: float,
+    width: float = 0.3,
+    height: float = 0.15,
+    duct_type: str | None = None,
+    system_type: str | None = None,
+    level_id: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "start_x": start_x,
+        "start_y": start_y,
+        "start_z": start_z,
+        "end_x": end_x,
+        "end_y": end_y,
+        "end_z": end_z,
+        "width": width,
+        "height": height,
+    }
+    if duct_type:
+        payload["duct_type"] = duct_type
+    if system_type:
+        payload["system_type"] = system_type
+    if level_id:
+        payload["level_id"] = level_id
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/create/duct", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_pipe(
+    start_x: float,
+    start_y: float,
+    start_z: float,
+    end_x: float,
+    end_y: float,
+    end_z: float,
+    diameter: float = 0.05,
+    pipe_type: str | None = None,
+    system_type: str | None = None,
+    level_id: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "start_x": start_x,
+        "start_y": start_y,
+        "start_z": start_z,
+        "end_x": end_x,
+        "end_y": end_y,
+        "end_z": end_z,
+        "diameter": diameter,
+    }
+    if pipe_type:
+        payload["pipe_type"] = pipe_type
+    if system_type:
+        payload["system_type"] = system_type
+    if level_id:
+        payload["level_id"] = level_id
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/create/pipe", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def set_parameter(
+    element_id: str,
+    parameter: str,
+    value: Any,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "element_id": element_id,
+        "parameter": parameter,
+        "value": value,
+    }
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/parameter/set", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def delete_elements(
+    element_ids: list[str],
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {"element_ids": element_ids}
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/delete", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def move_element(
+    element_id: str,
+    dx: float = 0,
+    dy: float = 0,
+    dz: float = 0,
+    x: float | None = None,
+    y: float | None = None,
+    z: float | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "element_id": element_id,
+        "dx": dx,
+        "dy": dy,
+        "dz": dz,
+    }
+    if x is not None:
+        payload["x"] = x
+    if y is not None:
+        payload["y"] = y
+    if z is not None:
+        payload["z"] = z
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/move", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def get_annotations(
+    view_id: str,
+    annotation_type: str | None = None,
+    document_id: str | None = None,
+) -> list[dict]:
+    payload: dict[str, Any] = {"view_id": view_id}
+    if annotation_type:
+        payload["type"] = annotation_type
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotations", payload=payload, method="POST")
+    return result.get("data", [])
+
+
+def create_text_note(
+    view_id: str,
+    text: str,
+    x: float,
+    y: float,
+    z: float = 0,
+    text_type: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "view_id": view_id,
+        "text": text,
+        "x": x,
+        "y": y,
+        "z": z,
+    }
+    if text_type:
+        payload["text_type"] = text_type
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotation/text", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_tag(
+    view_id: str,
+    element_id: str,
+    x: float,
+    y: float,
+    z: float = 0,
+    tag_type: str | None = None,
+    has_leader: bool = False,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "view_id": view_id,
+        "element_id": element_id,
+        "x": x,
+        "y": y,
+        "z": z,
+        "has_leader": has_leader,
+    }
+    if tag_type:
+        payload["tag_type"] = tag_type
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotation/tag", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_dimension(
+    view_id: str,
+    references: list[dict],
+    dimension_type: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "view_id": view_id,
+        "references": references,
+    }
+    if dimension_type:
+        payload["dimension_type"] = dimension_type
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotation/dimension", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_spot_elevation(
+    view_id: str,
+    element_id: str,
+    point_x: float,
+    point_y: float,
+    point_z: float,
+    bend_x: float,
+    bend_y: float,
+    bend_z: float,
+    end_x: float,
+    end_y: float,
+    end_z: float,
+    spot_type: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "view_id": view_id,
+        "element_id": element_id,
+        "point_x": point_x,
+        "point_y": point_y,
+        "point_z": point_z,
+        "bend_x": bend_x,
+        "bend_y": bend_y,
+        "bend_z": bend_z,
+        "end_x": end_x,
+        "end_y": end_y,
+        "end_z": end_z,
+    }
+    if spot_type:
+        payload["spot_type"] = spot_type
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotation/spot_elevation", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def create_detail_line(
+    view_id: str,
+    start_x: float,
+    start_y: float,
+    start_z: float,
+    end_x: float,
+    end_y: float,
+    end_z: float,
+    line_style: str | None = None,
+    document_id: str | None = None,
+) -> dict:
+    payload: dict[str, Any] = {
+        "view_id": view_id,
+        "start_x": start_x,
+        "start_y": start_y,
+        "start_z": start_z,
+        "end_x": end_x,
+        "end_y": end_y,
+        "end_z": end_z,
+    }
+    if line_style:
+        payload["line_style"] = line_style
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/annotation/detail_line", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
