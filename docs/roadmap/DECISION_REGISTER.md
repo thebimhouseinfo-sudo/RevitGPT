@@ -11,7 +11,7 @@
 | D-07 | Control-plane restart/crash drops leases | HUMAN | Simplicity decision; no WIP recovery need | E4 |
 | D-08 | 1 candidate model fast-binds; 0/>1 shows Welcome | HUMAN | Product decision | E3 + E4 |
 | D-09 | View/tab/window is not model authority | HUMAN + EVIDENCE_REQUIRED | Real Revit workflow observation | E3 |
-| D-10 | x-openai-session is stable enough for long-lived chat identity | UNKNOWN | Short CadGPT evidence only | E0 1h/4h/8h |
+| D-10 | x-openai-session is sufficient as chat_identity for the 15-minute lease | EVIDENCE | Chat A kept one x-openai-session fingerprint for ~14h14m across 5 MCP transports; Chat B had a distinct session fingerprint while sharing the same subject fingerprint | E0 complete; retain restart=>fresh-bind fallback |
 | D-11 | One runtime can enumerate models across multiple Revit processes | UNKNOWN | No solid ref | E3 |
 | D-12 | Exact RVT model authority key | UNKNOWN | Must be measured | E3 |
 | D-13 | Exact observable GPT/plugin liveness signal | UNKNOWN | Chat UI open/closed is not observable contract | E2 |
