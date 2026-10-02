@@ -1,0 +1,5 @@
+# -*- coding: utf-8 -*-
+"""Revit MCP Bridge - pyRevit Extension Configuration"""
+
+__title__ = "Revit\nMCP Bridge"
+__author__ = "Revit MCP"
