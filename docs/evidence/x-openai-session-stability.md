@@ -1,133 +1,123 @@
 # x-openai-session stability test
 
-## Purpose
+## Mục tiêu
 
-Establish how long the connector-provided `x-openai-session` identity remains stable inside **one ChatGPT conversation** before RevitGPT uses it for:
+Đo xem cùng một ChatGPT conversation có giữ được logical identity sau khi user rời chat một thời gian rồi quay lại và reconnect plugin hay không.
 
-- lease refresh on every message in the same conversation;
-- same-chat reconnect after an idle period;
-- separation between one ChatGPT conversation and another.
+Bài test **không phụ thuộc Revit** và không yêu cầu giữ chat mở liên tục.
 
-This test is intentionally **independent of Revit**.
+## Cách test đúng
 
-## Reference basis
+Mỗi mốc thời gian là một bài test continuity tự nhiên của cùng chat:
 
-CadGPT already has production continuity diagnostics that:
+1. Mở chat cần test.
+2. Connect CG/CadGPT plugin.
+3. Gửi một lệnh nhẹ, ví dụ `cg/status`.
+4. Ghi checkpoint `t0`.
+5. Có thể rời/đóng chat.
+6. Sau thời gian cần đo, mở lại **đúng chat đó**.
+7. Reconnect/call plugin lại nếu cần.
+8. Gửi lại một lệnh nhẹ.
+9. Ghi checkpoint tương ứng.
+10. So sánh logical identity trước/sau.
 
-- fingerprints `x-openai-session`;
-- fingerprints `x-openai-subject`;
-- fingerprints `mcp-session-id` separately;
-- records a `runtime_id` and timestamp;
-- previously showed the same `x-openai-session` across replacement MCP transports in a short test.
+Không cần giữ MCP transport cũ sống. Transport rotate/reconnect là một phần của bài test.
 
-This RevitGPT test does not invent a new identity mechanism. It extends that existing observation to longer durations.
+## Các mốc Human sẽ đo
 
-## Important limitation
+- 1 giờ
+- 4 giờ
+- 8 giờ
 
-CadGPT continuity fingerprints are salted per CadGPT runtime. **Do not restart CadGPT during the 8-hour test.**
+Có thể thực hiện thành ba bài độc lập hoặc cùng một chat theo chuỗi thời gian, tùy thuận tiện.
 
-If CadGPT restarts, the analyzer reports `UNCOMPARABLE_RUNTIME_RESTART`; those rows cannot prove whether the raw header changed.
+Ví dụ bài 4h:
 
-Revit is not required. AutoCAD does not need to be open.
+```text
+Chat A
+t0:
+  connect plugin
+  send cg/status
+  capture t0
 
-## Test procedure
+rời chat
 
-Use **one ChatGPT conversation** for the main timeline.
+4h sau:
+  mở lại đúng Chat A
+  reconnect plugin
+  send cg/status
+  capture 4h
 
-### Start
-
-1. Ensure CadGPT/CG slim control plane is running.
-2. From this repository run:
-
-   ```bat
-   session-test.bat reset
-   ```
-
-3. In the ChatGPT conversation being tested, invoke **CG/CadGPT** once with a lightweight command such as `cg/status`.
-4. Immediately run:
-
-   ```bat
-   session-test.bat capture t0
-   ```
-
-### 1-hour checkpoint
-
-In the **same ChatGPT conversation**:
-
-1. invoke CG again with `cg/status`;
-2. run:
-
-   ```bat
-   session-test.bat capture 1h
-   ```
-
-### 4-hour checkpoint
-
-Repeat in the same conversation:
-
-```bat
-session-test.bat capture 4h
+compare
 ```
 
-### 8-hour checkpoint
+## Lệnh capture
 
-Repeat in the same conversation:
+Khởi tạo evidence:
 
 ```bat
+session-test.bat reset
+```
+
+Sau lần gọi đầu tiên:
+
+```bat
+session-test.bat capture t0
+```
+
+Sau khi quay lại cùng chat:
+
+```bat
+session-test.bat capture 1h
+session-test.bat capture 4h
 session-test.bat capture 8h
 ```
 
-### Different-chat control
+Chỉ chạy label tương ứng với bài test đang làm.
 
-At any convenient point while the same CadGPT runtime is still running:
+## Control chat khác
 
-1. open a **different ChatGPT conversation**;
-2. invoke CG/CadGPT there;
-3. run:
+Để xác nhận hai chat khác nhau thực sự có identity khác nhau:
 
-   ```bat
-   session-test.bat capture control-new-chat
-   ```
+1. Mở chat khác.
+2. Connect plugin.
+3. Gửi `cg/status`.
+4. Capture:
 
-The control should have a different `x-openai-session` fingerprint. `x-openai-subject` is expected to remain account/user-scoped based on the prior CadGPT observation, but this test records rather than assumes that result.
+```bat
+session-test.bat capture control-new-chat
+```
 
 ## Report
-
-Run:
 
 ```bat
 session-test.bat report
 ```
 
-The report compares every checkpoint against `t0`.
+Cần quan sát:
 
-Desired evidence:
+- cùng chat trước/sau idle có cùng `x-openai-session` hay không;
+- `mcp-session-id` có thể đổi và điều đó không phải lỗi;
+- chat khác phải có logical session khác;
+- nếu `x-openai-session` đổi nhưng continuity vẫn có một identifier khác đáng tin cậy, ghi nhận để nghiên cứu tiếp.
 
-- `t0`, `1h`, `4h`, `8h` => `SAME_CHAT_ID`;
-- `control-new-chat` => `DIFFERENT_CHAT_ID`;
-- transport fingerprint is allowed to rotate while the logical `x-openai-session` fingerprint remains stable.
+## Evidence source
 
-## Evidence location
+CadGPT hiện đã log fingerprint của:
 
-Captured checkpoints are stored at:
+- `x-openai-session`
+- `x-openai-subject`
+- `mcp-session-id`
+- timestamp/runtime id
 
-```text
-%LOCALAPPDATA%\RevitGPT\session-probe\checkpoints.ndjson
-```
-
-CadGPT source evidence remains at:
-
-```text
-%LOCALAPPDATA%\CadGPT\logs\continuity.ndjson
-```
-
-No raw OpenAI identity header is copied into RevitGPT evidence; only CadGPT's existing fingerprints are recorded.
+RevitGPT analyzer chỉ đọc các fingerprint này, không lưu raw OpenAI identity header.
 
 ## Decision gate
 
-Do not promote `x-openai-session` to RevitGPT's long-lived `chat_identity` contract until this test is complete.
+- Same chat giữ cùng logical identity sau 1h/4h/8h -> có evidence để dùng cho reconnect/lease refresh.
+- Identity rotate nhưng có mapping continuity đáng tin -> nghiên cứu cơ chế rotate/rebind.
+- Không chứng minh được continuity -> binding cũ chết và fresh-bind; không workaround bằng giả thuyết.
 
-- Stable through 8h + different-chat control behaves correctly -> strong evidence to use it.
-- Stable only through a shorter checkpoint -> use only within proven duration or collect more evidence.
-- Changes unexpectedly in the same chat -> do not use it as sole reconnect/lease-refresh identity.
-- Runtime restart during test -> rerun; result is inconclusive because fingerprints are not comparable across CadGPT runtimes.
+## Lưu ý runtime
+
+Nếu CadGPT runtime bị restart giữa hai checkpoint, fingerprint hiện tại dùng salt theo runtime nên report không thể so trực tiếp trước/sau restart. Trường hợp đó chỉ có nghĩa **probe hiện tại chưa đủ để kết luận**, không có nghĩa ChatGPT conversation identity đã đổi.
