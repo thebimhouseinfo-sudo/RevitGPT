@@ -50,7 +50,7 @@ No UNKNOWN may be silently promoted to implementation contract.
 
 ## Evidence gates and implementation phases
 
-### E0 — x-openai-session duration gate (NOW)
+### E0 — x-openai-session duration gate (COMPLETE)
 
 Independent of Revit.
 
@@ -61,9 +61,7 @@ t0 -> 1h -> 4h -> 8h
 + different-chat control
 ```
 
-Gate:
-- if same conversation remains stable through 8h and control chat differs, promote `x-openai-session` to the leading `chat_identity` candidate;
-- otherwise do not build lease refresh/reconnect around it as sole identity.
+Result: Chat A retained one `x-openai-session` fingerprint for ~14h14m across five MCP transport identities; Chat B had a distinct `x-openai-session` while sharing the same `x-openai-subject`. This is sufficient evidence for the Human-approved 15-minute lease. Control-plane restart/crash still drops leases and uses fresh bind.
 
 ### P1 — Bootstrap proven Revit MCP
 
