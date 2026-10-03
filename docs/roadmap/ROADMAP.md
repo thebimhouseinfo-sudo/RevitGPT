@@ -181,3 +181,22 @@ Complete E0 first. The test code is already committed in this repository:
 - `session-test.bat`
 - `scripts/session-stability-report.mjs`
 - `docs/evidence/x-openai-session-stability.md`
+
+
+### Revit MCP activation truth table
+
+```text
+Revit OFF
+-> full Revit MCP OFF
+
+Revit ON + @rg not invoked
+-> full Revit MCP OFF
+
+Revit ON + @rg invoked
+-> activate full Revit MCP
+
+Revit turns OFF after activation
+-> full Revit MCP OFF
+```
+
+Revit process state is lifecycle authority. @rg / admission is the activation trigger.
