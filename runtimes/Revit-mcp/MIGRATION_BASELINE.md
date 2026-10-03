@@ -41,3 +41,16 @@ Bridge connectivity is not lifecycle authority.
 - Once the full Revit MCP has been activated, bridge loss alone must not stop it.
 - Full MCP shutdown requires an actual Revit-OFF signal or the observable GPT/plugin-runtime end signal established by E2.
 - Lease expiry/release is also independent and never shuts down the full MCP.
+
+
+## Revit OFF lifecycle authority
+
+Human-approved direction: use Windows process state, not bridge health.
+
+P1 implementation currently checks for `Revit.exe` with Windows `tasklist.exe`.
+If no Revit process is observed while full MCP is active, the full MCP may shut
+down. Bridge failure/restart alone still does not shut down full MCP.
+
+E2 must record the actual process name, PID behavior, and multi-Revit-session
+behavior on the Human machine before this becomes a hardened production
+contract.
