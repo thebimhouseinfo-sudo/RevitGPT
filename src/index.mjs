@@ -70,16 +70,16 @@ function createServer(sessionKey) {
     async () => {
       const bridge = await bridgeHealth();
       if (!bridge.available) {
-        await revitUpstream.deactivate();
+        const upstream = revitUpstream.status();
         return {
-          content: [{ type: "text", text: "RevitGPT\nBRIDGE OFF\nREVIT MCP OFF" }],
+          content: [{ type: "text", text: `RevitGPT\nBRIDGE OFF\nREVIT MCP ${upstream.connected ? "ON" : "OFF"}` }],
           structuredContent: {
             status: "BRIDGE_OFF",
             bridge_available: false,
-            revit_mcp_on: false,
-            tool_count: 0,
-            tool_names: [],
-            text: "Revit is not reachable through the RevitGPT bridge. Open Revit, open an RVT model, and start the Revit MCP Bridge."
+            revit_mcp_on: upstream.connected,
+            tool_count: upstream.tool_count,
+            tool_names: revitUpstream.cachedTools().map((tool) => tool.name),
+            text: "Revit bridge is not reachable. P1 does not treat bridge loss as proof that Revit is OFF, so an already-running full Revit MCP is not stopped here."
           }
         };
       }
@@ -259,27 +259,16 @@ app.delete(route, async (req, res) => {
   await session.transport.handleRequest(req, res);
 });
 
-const revitWatch = setInterval(async () => {
-  if (!revitUpstream.status().connected) return;
-  const bridge = await bridgeHealth();
-  if (!bridge.available) {
-    console.log("[RevitGPT] Revit bridge disappeared; stopping full Revit MCP.");
-    await revitUpstream.deactivate();
-  }
-}, 5000);
-revitWatch.unref?.();
-
 const httpServer = app.listen(PORT, HOST, () => {
   console.log("=== RevitGPT P1 Bootstrap Control Plane ===");
   console.log(`MCP:    http://${HOST}:${PORT}${route}`);
   console.log(`Health: http://${HOST}:${PORT}/health`);
-  console.log("Full Revit MCP remains sleeping until revitgpt_admission sees a live Revit bridge.");
+  console.log("Full Revit MCP remains sleeping until revitgpt_admission sees a live Revit bridge. After activation, bridge health loss alone does not shut it down.");
 });
 
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  clearInterval(revitWatch);
   console.log("[RevitGPT] " + signal + ": shutting down");
   await revitUpstream.deactivate().catch(() => undefined);
   for (const session of sessions.values()) {
