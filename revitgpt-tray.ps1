@@ -16,6 +16,8 @@ $TrayScriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
 $TrayLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "revitgpt-tray.vbs"))
 $IconPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "icon.png"))
 $IndexPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "src\index.mjs"))
+$TunnelExe = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "bin\tunnel-client.exe"))
+$TunnelProfilePath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "profiles\revitgpt.yaml"))
 $StateRoot = Join-Path $env:LOCALAPPDATA "RevitGPT"
 $LogDir = Join-Path $StateRoot "logs"
 $StateDir = Join-Path $StateRoot "state"
@@ -53,6 +55,8 @@ function Get-DotEnvValue([string]$Name) {
 
 $PortValue = Get-DotEnvValue "PORT"
 $Port = if ($PortValue) { [int]$PortValue } else { 3300 }
+$TunnelHealthValue = Get-DotEnvValue "OPENAI_TUNNEL_HEALTH_PORT"
+$TunnelHealthPort = if ($TunnelHealthValue) { [int]$TunnelHealthValue } else { 8280 }
 
 function Write-TrayLog([string]$Message) {
     Add-Content -Path $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8
@@ -109,6 +113,245 @@ function Get-RevitGptHealth {
 
 function Get-RevitProcesses {
     return @(Get-Process -Name "Revit" -ErrorAction SilentlyContinue)
+}
+
+function Test-TunnelHealthy {
+    try {
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:$TunnelHealthPort/readyz" -UseBasicParsing -TimeoutSec 2
+        return ($r.StatusCode -eq 200 -and $r.Content -match "ready")
+    } catch { return $false }
+}
+
+function Test-OwnedTunnel([int]$ProcessId) {
+    if ($ProcessId -le 0) { return $false }
+    $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (-not $proc -or $proc.ProcessName -notmatch '^tunnel-client(?:\.exe)?
+function Write-TrayState {
+    $health = Get-RevitGptHealth
+    $revit = Get-RevitProcesses
+    $payload = @{
+        pid = $PID
+        ready = $true
+        started_at = $script:TrayStartedAt
+        runtime_pid = $script:RuntimePid
+        runtime_ready = [bool]$health
+        tunnel_ready = [bool](Test-TunnelHealthy)
+        tunnel_pid = $script:TunnelPid
+        revit_running = ($revit.Count -gt 0)
+        revit_process_count = $revit.Count
+        revit_pids = @($revit | ForEach-Object { $_.Id })
+        revit_mcp_connected = if ($health) { [bool]$health.revit_mcp.connected } else { $false }
+    } | ConvertTo-Json -Depth 5
+    $temp = "$TrayReadyPath.tmp"
+    [System.IO.File]::WriteAllText($temp, $payload, (New-Object System.Text.UTF8Encoding($false)))
+    Move-Item $temp $TrayReadyPath -Force
+}
+
+function Start-RevitGptRuntime {
+    $health = Get-RevitGptHealth
+    if ($health) {
+        $pid = Get-PortOwnerPid -TargetPort $Port
+        if ($pid -and (Test-OwnedRuntime -ProcessId $pid)) {
+            $script:RuntimePid = $pid
+            return
+        }
+    }
+
+    $occupied = Get-PortOwnerPid -TargetPort $Port
+    if ($occupied) {
+        throw "Port $Port is occupied by another process."
+    }
+
+    $proc = Start-Process -FilePath "node.exe" -ArgumentList @($IndexPath) -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru
+    $script:RuntimePid = $proc.Id
+
+    $deadline = (Get-Date).AddSeconds(15)
+    do {
+        Start-Sleep -Milliseconds 500
+        $health = Get-RevitGptHealth
+        if ($health) { return }
+    } while ((Get-Date) -lt $deadline)
+
+    throw "RevitGPT runtime did not become healthy on port $Port."
+}
+
+function Stop-RevitGptRuntime {
+    $pid = $script:RuntimePid
+    if (-not $pid) { $pid = Get-PortOwnerPid -TargetPort $Port }
+    if ($pid -and (Test-OwnedRuntime -ProcessId $pid)) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    }
+    $script:RuntimePid = $null
+}
+
+if ($InstallStartup) { Install-StartupRegistration; exit 0 }
+if ($RemoveStartup) { Remove-StartupRegistration; exit 0 }
+if ($StopInstalled) {
+    Stop-RevitGptTunnel
+    $pid = Get-PortOwnerPid -TargetPort $Port
+    if ($pid -and (Test-OwnedRuntime -ProcessId $pid)) { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $TrayReadyPath) {
+        try {
+            $state = Get-Content $TrayReadyPath -Raw | ConvertFrom-Json
+            if ($state.pid -and $state.pid -ne $PID) {
+                Stop-Process -Id ([int]$state.pid) -Force -ErrorAction SilentlyContinue
+            }
+        } catch {}
+        Remove-Item $TrayReadyPath -Force -ErrorAction SilentlyContinue
+    }
+    exit 0
+}
+if ($StatusOnly) {
+    $health = Get-RevitGptHealth
+    $revit = Get-RevitProcesses
+    Write-Host "Tray             : $(if (Test-Path $TrayReadyPath) { 'READY' } else { 'OFFLINE' })"
+    Write-Host "Slim MCP         : $(if ($health) { 'READY' } else { 'OFFLINE' })"
+    Write-Host "Secure tunnel    : $(if (Test-TunnelHealthy) { 'READY' } else { 'OFFLINE' })"
+    Write-Host "Revit            : $(if ($revit.Count -gt 0) { 'ON' } else { 'OFF' })"
+    if ($health) {
+        Write-Host "Full Revit MCP   : $(if ($health.revit_mcp.connected) { 'ON' } else { 'OFF' })"
+    }
+    exit 0
+}
+
+if ($env:OS -ne "Windows_NT") { throw "RevitGPT tray is Windows-only." }
+if (-not (Test-Path ".env")) { throw ".env is missing. Run setup.bat first." }
+if (-not (Test-Path $IndexPath)) { throw "src\index.mjs is missing." }
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
+
+$createdNew = $false
+$mutex = [System.Threading.Mutex]::new($true, "Local\RevitGPTTray", [ref]$createdNew)
+if (-not $createdNew) { exit 0 }
+
+$script:TrayStartedAt = (Get-Date).ToString("o")
+$script:RuntimePid = $null
+$script:TunnelPid = $null
+
+try { Start-RevitGptRuntime }
+catch {
+    Write-TrayLog $_.Exception.Message
+}
+try { Start-RevitGptTunnel }
+catch {
+    Write-TrayLog $_.Exception.Message
+}
+
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$script:TrayBitmap = $null
+$script:TrayIcon = $null
+if (Test-Path $IconPath) {
+    try {
+        $script:TrayBitmap = New-Object System.Drawing.Bitmap($IconPath)
+        $iconHandle = $script:TrayBitmap.GetHicon()
+        $script:TrayIcon = [System.Drawing.Icon]::FromHandle($iconHandle)
+        $notify.Icon = $script:TrayIcon
+    } catch {
+        Write-TrayLog "Failed to load icon.png; using Windows fallback icon. $($_.Exception.Message)"
+        $notify.Icon = [System.Drawing.SystemIcons]::Application
+    }
+} else {
+    $notify.Icon = [System.Drawing.SystemIcons]::Application
+}
+$notify.Visible = $true
+
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+$statusItem = $menu.Items.Add("RevitGPT: Starting")
+$revitItem = $menu.Items.Add("Revit: checking")
+$tunnelItem = $menu.Items.Add("Secure Tunnel: checking")
+$mcpItem = $menu.Items.Add("Full Revit MCP: checking")
+$menu.Items.Add("-") | Out-Null
+$restartItem = $menu.Items.Add("Restart RevitGPT")
+$exitItem = $menu.Items.Add("Exit RevitGPT")
+$notify.ContextMenuStrip = $menu
+
+function Update-Ui {
+    $health = Get-RevitGptHealth
+    $revit = Get-RevitProcesses
+    $statusItem.Text = "RevitGPT: $(if ($health) { 'READY' } else { 'OFFLINE' })"
+    $revitItem.Text = "Revit: $(if ($revit.Count -gt 0) { 'ON (' + $revit.Count + ')' } else { 'OFF' })"
+    $tunnelItem.Text = "Secure Tunnel: $(if (Test-TunnelHealthy) { 'READY' } else { 'OFFLINE' })"
+    $mcpItem.Text = "Full Revit MCP: $(if ($health -and $health.revit_mcp.connected) { 'ON' } else { 'OFF' })"
+    $tip = "RevitGPT $(if ($health) { 'READY' } else { 'OFF' }) | Revit $(if ($revit.Count -gt 0) { 'ON' } else { 'OFF' })"
+    if ($tip.Length -gt 63) { $tip = $tip.Substring(0,63) }
+    $notify.Text = $tip
+    Write-TrayState
+}
+
+$restartItem.Add_Click({
+    try {
+        Stop-RevitGptTunnel
+        Stop-RevitGptRuntime
+        Start-Sleep -Milliseconds 500
+        Start-RevitGptRuntime
+        Start-RevitGptTunnel
+        Update-Ui
+    } catch {
+        Write-TrayLog $_.Exception.Message
+    }
+})
+
+$exitItem.Add_Click({
+    Stop-RevitGptTunnel
+    Stop-RevitGptRuntime
+    $notify.Visible = $false
+    $notify.Dispose()
+    if ($script:TrayIcon) { $script:TrayIcon.Dispose() }
+    if ($script:TrayBitmap) { $script:TrayBitmap.Dispose() }
+    Remove-Item $TrayReadyPath -Force -ErrorAction SilentlyContinue
+    [System.Windows.Forms.Application]::Exit()
+})
+
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 3000
+$timer.Add_Tick({ Update-Ui })
+$timer.Start()
+Update-Ui
+[System.Windows.Forms.Application]::Run()
+) { return $false }
+    $info = Get-ProcessInfo -ProcessId $ProcessId
+    return [bool]($info -and $info.CommandLine -and $info.CommandLine.IndexOf($TunnelProfilePath,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+function Start-RevitGptTunnel {
+    if (Test-TunnelHealthy) {
+        $pid = Get-PortOwnerPid -TargetPort $TunnelHealthPort
+        if ($pid -and (Test-OwnedTunnel -ProcessId $pid)) { $script:TunnelPid = $pid; return }
+    }
+    if (-not (Test-Path $TunnelExe)) { throw "tunnel-client.exe missing. Run setup.bat." }
+    if (-not (Test-Path $TunnelProfilePath)) { throw "RevitGPT tunnel profile missing. Run setup.bat." }
+    $apiKey = Get-DotEnvValue "OPENAI_TUNNEL_API_KEY"
+    if (-not $apiKey) { throw "OPENAI_TUNNEL_API_KEY missing. Run setup.bat." }
+    $occupied = Get-PortOwnerPid -TargetPort $TunnelHealthPort
+    if ($occupied) { throw "Tunnel health port $TunnelHealthPort is occupied by another process." }
+
+    $saved = $env:OPENAI_TUNNEL_API_KEY
+    try {
+        $env:OPENAI_TUNNEL_API_KEY = $apiKey
+        $stdout = Join-Path $LogDir "tunnel.out.log"
+        $stderr = Join-Path $LogDir "tunnel.err.log"
+        $proc = Start-Process -FilePath $TunnelExe -ArgumentList @("run","--profile-file",$TunnelProfilePath) -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $script:TunnelPid = $proc.Id
+    } finally {
+        $env:OPENAI_TUNNEL_API_KEY = $saved
+    }
+    $deadline = (Get-Date).AddSeconds(20)
+    do {
+        if (Test-TunnelHealthy) { return }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+    throw "RevitGPT Secure Tunnel did not become healthy."
+}
+
+function Stop-RevitGptTunnel {
+    $pid = $script:TunnelPid
+    if (-not $pid) { $pid = Get-PortOwnerPid -TargetPort $TunnelHealthPort }
+    if ($pid -and (Test-OwnedTunnel -ProcessId $pid)) {
+        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    }
+    $script:TunnelPid = $null
 }
 
 function Write-TrayState {
