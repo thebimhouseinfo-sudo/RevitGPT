@@ -1,6 +1,8 @@
 import "dotenv/config";
 import crypto from "node:crypto";
 import express from "express";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -12,6 +14,7 @@ const PORT = Number(process.env.PORT || 3300);
 const TOKEN = (process.env.MCP_TOKEN || "").trim();
 const BRIDGE_URL = (process.env.REVIT_BRIDGE_URL || "http://127.0.0.1:8765").replace(/\/$/, "");
 const STARTED_AT = Date.now();
+const execFileAsync = promisify(execFile);
 
 if (!TOKEN) {
   throw new Error("MCP_TOKEN is required. Copy .env.example to .env and set a private random value.");
@@ -20,6 +23,51 @@ if (!TOKEN) {
 const sessions = new Map();
 const admitted = new Set();
 let shuttingDown = false;
+
+async function revitProcessState() {
+  if (process.platform !== "win32") {
+    return { observable: false, running: null, processes: [], reason: "WINDOWS_ONLY" };
+  }
+
+  try {
+    const { stdout } = await execFileAsync(
+      "tasklist.exe",
+      ["/FI", "IMAGENAME eq Revit.exe", "/FO", "CSV", "/NH"],
+      { windowsHide: true, timeout: 3000 }
+    );
+
+    const lines = String(stdout || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter((line) => !line.startsWith("INFO:"));
+
+    const processes = lines.flatMap((line) => {
+      const match = line.match(/^"([^"]+)","([^"]+)","([^"]+)","([^"]+)","([^"]+)"$/);
+      if (!match) return [];
+      return [{
+        image_name: match[1],
+        pid: Number(match[2]) || null,
+        session_name: match[3],
+        session_number: Number(match[4]) || null,
+        memory: match[5]
+      }];
+    });
+
+    return {
+      observable: true,
+      running: processes.length > 0,
+      processes
+    };
+  } catch (error) {
+    return {
+      observable: false,
+      running: null,
+      processes: [],
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
 
 async function bridgeHealth() {
   const controller = new AbortController();
@@ -109,7 +157,7 @@ function createServer(sessionKey) {
       inputSchema: {}
     },
     async () => {
-      const bridge = await bridgeHealth();
+      const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);
       const upstream = revitUpstream.status();
       return {
         content: [{
@@ -123,6 +171,7 @@ function createServer(sessionKey) {
         }],
         structuredContent: {
           bridge,
+          revit_process: revitProcess,
           revit_mcp: upstream,
           admitted: admitted.has(sessionKey)
         }
@@ -188,7 +237,7 @@ app.use(express.json({ limit: "10mb" }));
 const route = "/mcp/" + TOKEN;
 
 app.get("/health", async (_req, res) => {
-  const bridge = await bridgeHealth();
+  const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);
   res.json({
     status: "ok",
     name: "revitgpt",
@@ -196,6 +245,7 @@ app.get("/health", async (_req, res) => {
     pid: process.pid,
     uptime_seconds: Math.floor((Date.now() - STARTED_AT) / 1000),
     bridge,
+    revit_process: revitProcess,
     revit_mcp: revitUpstream.status(),
     active_mcp_sessions: sessions.size
   });
@@ -259,16 +309,27 @@ app.delete(route, async (req, res) => {
   await session.transport.handleRequest(req, res);
 });
 
+const revitProcessWatch = setInterval(async () => {
+  if (!revitUpstream.status().connected) return;
+  const revitProcess = await revitProcessState();
+  if (revitProcess.observable && revitProcess.running === false) {
+    console.log("[RevitGPT] Revit.exe is no longer running; stopping full Revit MCP.");
+    await revitUpstream.deactivate();
+  }
+}, 5000);
+revitProcessWatch.unref?.();
+
 const httpServer = app.listen(PORT, HOST, () => {
   console.log("=== RevitGPT P1 Bootstrap Control Plane ===");
   console.log(`MCP:    http://${HOST}:${PORT}${route}`);
   console.log(`Health: http://${HOST}:${PORT}/health`);
-  console.log("Full Revit MCP remains sleeping until revitgpt_admission sees a live Revit bridge. After activation, bridge health loss alone does not shut it down.");
+  console.log("Full Revit MCP remains sleeping until revitgpt_admission sees a live Revit bridge. After activation, bridge loss alone does not shut it down; Windows Revit.exe process absence does.");
 });
 
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(revitProcessWatch);
   console.log("[RevitGPT] " + signal + ": shutting down");
   await revitUpstream.deactivate().catch(() => undefined);
   for (const session of sessions.values()) {
