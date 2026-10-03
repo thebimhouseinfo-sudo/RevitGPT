@@ -24,6 +24,20 @@ jobs:
         run: |
           node --check src/index.mjs
           node --check src/revit-upstream.mjs
+          node --check src/appdata.mjs
+          node --check src/log-store.mjs
+          node --check src/managed-tools.mjs
+          node --check src/revit-mcp-dev.mjs
+          node --check scripts/verify-appdata.mjs
+
+      - name: Verify AppData contract
+        shell: pwsh
+        run: node scripts/verify-appdata.mjs
+
+      - name: Parse tray PowerShell
+        shell: pwsh
+        run: |
+          $null = [scriptblock]::Create((Get-Content revitgpt-tray.ps1 -Raw))
 
       - uses: actions/setup-python@v5
         with:
