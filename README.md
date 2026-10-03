@@ -12,3 +12,16 @@ See:
 - `scripts/session-stability-report.mjs`
 
 The purpose is to establish whether `x-openai-session` remains stable in the same ChatGPT conversation over **1h / 4h / 8h** before RevitGPT uses it as a long-lived reconnect/lease-refresh identity.
+
+
+## P1 local setup
+
+Run:
+
+```bat
+setup.bat
+```
+
+This single installer prepares the RevitGPT control plane, Python Revit MCP
+runtime, and pyRevit bridge. No separate runtime/bridge installer is required
+for the normal P1 setup flow.
