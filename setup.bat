@@ -127,6 +127,20 @@ if errorlevel 1 exit /b %ERRORLEVEL%
 
 echo [OK] RevitGPT tray registered for Windows sign-in.
 
+REM Temporary icon reuse from sibling CadGPT repo.
+REM Replace RevitGPT\icon.png later with the real product icon.
+if not exist "%CD%\icon.png" (
+  if exist "%CD%\..\Cadgpt\icon.png" (
+    copy /Y "%CD%\..\Cadgpt\icon.png" "%CD%\icon.png" >nul
+    echo [OK] Copied temporary tray icon from sibling Cadgpt repo.
+  ) else if exist "%CD%\..\cadgpt\icon.png" (
+    copy /Y "%CD%\..\cadgpt\icon.png" "%CD%\icon.png" >nul
+    echo [OK] Copied temporary tray icon from sibling cadgpt repo.
+  ) else (
+    echo [INFO] CadGPT icon.png not found beside RevitGPT; tray will use the Windows fallback icon.
+  )
+)
+
 echo.
 echo [5/5] Starting RevitGPT tray now...
 wscript.exe "%CD%\revitgpt-tray.vbs"
