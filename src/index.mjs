@@ -93,7 +93,9 @@ function createServer(sessionKey) {
     {
       instructions: [
         "RevitGPT P1 bootstrap surface.",
-        "Bare RevitGPT/plugin invocation should call revitgpt_admission first.",
+        "Bare @rg / RevitGPT invocation must call revitgpt_admission first.",
+        "Only @rg / revitgpt_admission may activate the full Revit MCP when Revit is running.",
+        "Revit being ON by itself must not auto-start the full Revit MCP.",
         "This phase proves real Revit connectivity before final model lease/binding hardening.",
         "Do not assume the active Revit view/tab is model authority."
       ].join("\n")
@@ -116,18 +118,36 @@ function createServer(sessionKey) {
       }
     },
     async () => {
-      const bridge = await bridgeHealth();
-      if (!bridge.available) {
-        const upstream = revitUpstream.status();
+      const [revitProcess, bridge] = await Promise.all([
+        revitProcessState(),
+        bridgeHealth()
+      ]);
+
+      if (!revitProcess.observable || revitProcess.running !== true) {
+        await revitUpstream.deactivate();
         return {
-          content: [{ type: "text", text: `RevitGPT\nBRIDGE OFF\nREVIT MCP ${upstream.connected ? "ON" : "OFF"}` }],
+          content: [{ type: "text", text: "RevitGPT\nREVIT OFF\nREVIT MCP OFF" }],
+          structuredContent: {
+            status: "REVIT_OFF",
+            bridge_available: bridge.available,
+            revit_mcp_on: false,
+            tool_count: 0,
+            tool_names: [],
+            text: "Revit is not running. Start Revit, then invoke RevitGPT again."
+          }
+        };
+      }
+
+      if (!bridge.available) {
+        return {
+          content: [{ type: "text", text: "RevitGPT\nREVIT ON\nBRIDGE OFF\nREVIT MCP OFF" }],
           structuredContent: {
             status: "BRIDGE_OFF",
             bridge_available: false,
-            revit_mcp_on: upstream.connected,
-            tool_count: upstream.tool_count,
-            tool_names: revitUpstream.cachedTools().map((tool) => tool.name),
-            text: "Revit bridge is not reachable. P1 does not treat bridge loss as proof that Revit is OFF, so an already-running full Revit MCP is not stopped here."
+            revit_mcp_on: false,
+            tool_count: 0,
+            tool_names: [],
+            text: "Revit is running, but the Revit bridge is not reachable yet. Start the Revit MCP Bridge, then invoke RevitGPT again."
           }
         };
       }
@@ -323,7 +343,7 @@ const httpServer = app.listen(PORT, HOST, () => {
   console.log("=== RevitGPT P1 Bootstrap Control Plane ===");
   console.log(`MCP:    http://${HOST}:${PORT}${route}`);
   console.log(`Health: http://${HOST}:${PORT}/health`);
-  console.log("Full Revit MCP remains sleeping until revitgpt_admission sees a live Revit bridge. After activation, bridge loss alone does not shut it down; Windows Revit.exe process absence does.");
+  console.log("Full Revit MCP stays OFF until @rg/revitgpt_admission is invoked while Revit is running. Revit process absence shuts it down; Revit being ON alone never auto-starts it.");
 });
 
 async function shutdown(signal) {
