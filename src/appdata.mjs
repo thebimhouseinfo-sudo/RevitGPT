@@ -56,6 +56,10 @@ export async function ensureAppDataLayout() {
   await Promise.all(dirs.map(d=>fs.mkdir(d,{recursive:true})));
   await ensureJson(registryCapabilitiesPath(),{version:1,entries:[]});
   await ensureJson(registryLibrariesPath(),{version:1,libraries:[]});
+  await seedFile(path.join(REPO_ROOT,"knowledge","revit","WORKING_KNOWLEDGE.md"),path.join(knowledgeRoot(),"revit","WORKING_KNOWLEDGE.md"));
+  await seedFile(path.join(REPO_ROOT,"knowledge","revit","SELF_IMPROVEMENT.md"),path.join(knowledgeRoot(),"revit","SELF_IMPROVEMENT.md"));
+  await seedFile(path.join(REPO_ROOT,"knowledge","jobs","JOB_RULES.md"),path.join(knowledgeRoot(),"api","JOB_RULES.md"));
+  await seedFile(path.join(REPO_ROOT,"diagnostics","revit","ERROR_LOG.md"),path.join(knowledgeRoot(),"failures","ERROR_LOG.md"));
 }
 
 async function ensureJson(target,value){
@@ -73,4 +77,16 @@ export function allowedManagedRoots(){
     logs:logsRoot(),
     state:stateRoot()
   };
+}
+
+
+async function seedFile(source,target){
+  try { await fs.access(target); return; } catch {}
+  try {
+    const content=await fs.readFile(source);
+    await fs.mkdir(path.dirname(target),{recursive:true});
+    await fs.writeFile(target,content,{flag:"wx"});
+  } catch (error) {
+    if (error?.code!=="EEXIST" && error?.code!=="ENOENT") throw error;
+  }
 }
