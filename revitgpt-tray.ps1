@@ -22,7 +22,25 @@ $StateDir = Join-Path $StateRoot "state"
 $TrayLog = Join-Path $LogDir "tray.log"
 $TrayReadyPath = Join-Path $StateDir "tray-ready.json"
 
-New-Item -ItemType Directory -Force -Path $LogDir,$StateDir | Out-Null
+foreach ($relative in @(
+    "libraries\python",
+    "libraries\dynamo",
+    "libraries\jobs",
+    "registry\user",
+    "workspace\python-draft",
+    "workspace\dynamo-draft",
+    "workspace\job-draft",
+    "runtime\dynamic-python",
+    "data\runs",
+    "knowledge\revit",
+    "knowledge\api",
+    "knowledge\failures",
+    "knowledge\learned",
+    "state",
+    "logs"
+)) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot $relative) | Out-Null
+}
 
 function Get-DotEnvValue([string]$Name) {
     if (-not (Test-Path ".env")) { return $null }
