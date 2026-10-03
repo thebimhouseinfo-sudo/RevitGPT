@@ -189,4 +189,33 @@ Draft only. Promote after validation and real Revit test.
     const p=path.join(runDataRoot(),a.kind,a.id+".ndjson"); await fs.mkdir(path.dirname(p),{recursive:true});
     await fs.appendFile(p,JSON.stringify({timestamp:new Date().toISOString(),...a.record})+"\n","utf8"); return textResult({path:p});
   })));
+
+  server.registerTool("knowledge_failure_append",{description:"Append one real failure/workaround as raw improvement evidence in AppData knowledge/failures.",inputSchema:{title:z.string(),context:z.string(),observed:z.string(),expected:z.string(),evidence:z.string(),workaround:z.string().optional(),candidate_improvement:z.string().optional()}},async(a=>guarded("knowledge_failure_append",a,async()=>{
+    const p=path.join(getAppDataRoot(),"knowledge","failures","ERROR_LOG.md");
+    const block=`\n---\n\n## ${new Date().toISOString()} — ${a.title}\n\n**Context:** ${a.context}\n\n**Observed:** ${a.observed}\n\n**Expected:** ${a.expected}\n\n**Evidence:** ${a.evidence}\n\n**Workaround:** ${a.workaround||"None"}\n\n**Candidate improvement:** ${a.candidate_improvement||"Unclassified"}\n\n**Status:** OPEN\n`;
+    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,block,"utf8"); return textResult({path:p});
+  })));
+
+  server.registerTool("knowledge_promote",{description:"Promote a stable lesson from failure evidence into AppData Working Knowledge. This does not mutate MCP source.",inputSchema:{title:z.string(),lesson:z.string(),evidence_ref:z.string()}},async(a=>guarded("knowledge_promote",a,async()=>{
+    const p=path.join(getAppDataRoot(),"knowledge","revit","WORKING_KNOWLEDGE.md");
+    const block=`\n## ${a.title}\n\n${a.lesson}\n\nEvidence: ${a.evidence_ref}\n`;
+    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,block,"utf8"); return textResult({path:p});
+  })));
+
+  server.registerTool("job_get",{description:"Read one registered Job record and source.",inputSchema:{id:z.string()}},async(a=>guarded("job_get",a,async()=>{
+    const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]}); const entry=(reg.entries||[]).find(x=>x.id===a.id&&x.kind==="job");
+    if(!entry)throw new Error("JOB_NOT_FOUND"); const source=await fs.readFile(entry.path,"utf8"); return textResult({entry,source,sha256:sha256(source)});
+  })));
+
+  server.registerTool("job_draft_validate",{description:"Validate a direct Python or reasoning Markdown Job draft structurally.",inputSchema:{path:z.string(),mode:z.enum(["reasoning","direct"])}},async(a=>guarded("job_draft_validate",a,async()=>{
+    const p=path.resolve(a.path); if(!inside(jobDraftRoot(),p))throw new Error("JOB_DRAFT_PATH_REQUIRED");
+    const source=await fs.readFile(p,"utf8");
+    if(a.mode==="direct"){
+      const python=process.env.REVIT_MCP_PYTHON||path.join(REPO_ROOT,"runtimes","Revit-mcp",".venv","Scripts","python.exe");
+      await execFileAsync(python,["-m","py_compile",p],{timeout:10000});
+    } else {
+      for(const heading of ["## Goal","## Preconditions","## Steps","## Final validation"]) if(!source.includes(heading)) throw new Error("JOB_STRUCTURE_MISSING: "+heading);
+    }
+    return textResult({valid:true,path:p,mode:a.mode,sha256:sha256(source)});
+  })));
 }
