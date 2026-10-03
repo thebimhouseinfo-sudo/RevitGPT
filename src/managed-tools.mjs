@@ -79,6 +79,60 @@ async function guarded(name,args,fn){
   }
 }
 
+
+function acceptedAsset(kind,file){
+  const ext=path.extname(file).toLowerCase();
+  if(kind==="python") return ext===".py";
+  if(kind==="dynamo") return ext===".dyn";
+  return ext===".md" || ext===".py";
+}
+async function safeWalkAssets(root,kind,out=[]){
+  const entries=await fs.readdir(root,{withFileTypes:true});
+  for(const entry of entries){
+    if(entry.name===".git"||entry.name===".svn"||entry.name.startsWith(".")) continue;
+    const full=path.join(root,entry.name), stat=await fs.lstat(full);
+    if(stat.isSymbolicLink()) throw new Error("ASSET_SOURCE_SYMLINK_REJECTED: "+full);
+    if(stat.isDirectory()) await safeWalkAssets(full,kind,out);
+    else if(stat.isFile()&&acceptedAsset(kind,full)) out.push(full);
+    if(out.length>10000) throw new Error("ASSET_IMPORT_TOO_MANY_FILES");
+  }
+  return out;
+}
+function assetSlug(v){return v.toLowerCase().replaceAll("\\","/").replace(/\.[^.]+$/,"").replace(/[^a-z0-9]+/g,".").replace(/^\.+|\.+$/g,"")||"asset";}
+async function discoverAssets(kind,libraryId,root){
+  const files=(await safeWalkAssets(root,kind)).sort(), result=[]; let bytes=0;
+  for(const file of files){
+    const content=await fs.readFile(file); bytes+=content.length;
+    if(bytes>256*1024*1024) throw new Error("ASSET_IMPORT_TOO_LARGE");
+    const relative=path.relative(root,file).replaceAll("\\","/");
+    let title=path.basename(file,path.extname(file));
+    if(kind==="jobs"&&path.extname(file).toLowerCase()===".md"){
+      try{const text=content.toString("utf8");title=text.match(/^#\s+(?:Job:\s*)?(.+)$/mi)?.[1]?.trim()||title;}catch{}
+    }
+    result.push({
+      id:libraryId+"."+kind+"."+assetSlug(relative),
+      kind:kind==="jobs"?"job":kind,
+      registry:"user",
+      library_id:libraryId,
+      relative_path:relative,
+      title,
+      summary:"Imported user capability; semantic/runtime behavior requires review before trusted use.",
+      semantic_status:"indexed",
+      risk:"unknown",
+      implementation_sha256:sha256(content)
+    });
+  }
+  return result;
+}
+async function replaceLibraryRegistry(kind,libraryId,entries){
+  const p=registryCapabilitiesPath(), reg=await readJson(p,{version:1,entries:[]});
+  const normalizedKind=kind==="jobs"?"job":kind;
+  reg.entries=(reg.entries||[]).filter(x=>!(x.kind===normalizedKind&&x.library_id===libraryId));
+  reg.entries.push(...entries);
+  reg.entries.sort((a,b)=>String(a.id||"").localeCompare(String(b.id||"")));
+  await atomicWrite(p,JSON.stringify(reg,null,2)+"\n");
+}
+
 export function registerManagedTools(server){
   server.registerTool("file_roots",{description:"Show RevitGPT managed AppData roots.",inputSchema:{}},async()=>guarded("file_roots",{},async()=>textResult({appdata_root:getAppDataRoot(),roots:allowedManagedRoots()})));
 
@@ -118,6 +172,51 @@ export function registerManagedTools(server){
     const roots={python:pythonLibrariesRoot(),dynamo:dynamoLibrariesRoot(),jobs:jobLibrariesRoot()};
     const root=roots[a.kind], target=path.join(root,a.id); await fs.mkdir(target,{recursive:true});
     const lib={id:a.id,kind:a.kind,path:target,created_at:new Date().toISOString()}; await registerLibrary(lib); return textResult(lib);
+  })));
+
+
+  server.registerTool("asset_import",{description:"Copy an explicitly user-approved Python, Dynamo or Job folder into managed RevitGPT AppData and index User Registry.",inputSchema:{kind:z.enum(["python","dynamo","jobs"]),library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),name:z.string(),source_path:z.string(),user_approved_source:z.literal(true),replace_existing:z.boolean().optional().default(false)}},async (a)=>guarded("asset_import",a,async()=>{
+    if(!path.isAbsolute(a.source_path)) throw new Error("ABSOLUTE_SOURCE_PATH_REQUIRED");
+    const source=await fs.realpath(a.source_path), stat=await fs.stat(source); if(!stat.isDirectory())throw new Error("SOURCE_DIRECTORY_REQUIRED");
+    const roots={python:pythonLibrariesRoot(),dynamo:dynamoLibrariesRoot(),jobs:jobLibrariesRoot()}, target=path.join(roots[a.kind],a.library_id);
+    await safeWalkAssets(source,a.kind);
+    let exists=true;try{await fs.stat(target);}catch{exists=false;}
+    if(exists&&!a.replace_existing)throw new Error("MANAGED_LIBRARY_EXISTS");
+    const staging=target+".importing-"+process.pid; await fs.rm(staging,{recursive:true,force:true});
+    await fs.cp(source,staging,{recursive:true,filter:(item)=>![".git",".svn"].includes(path.basename(item))});
+    if(exists)await fs.rm(target,{recursive:true,force:true}); await fs.rename(staging,target);
+    const entries=await discoverAssets(a.kind,a.library_id,target);
+    await registerLibrary({id:a.library_id,kind:a.kind,name:a.name,mode:"managed",managed_path:target,enabled:true,origin:"imported",imported_from:source,imported_at:new Date().toISOString()});
+    await replaceLibraryRegistry(a.kind,a.library_id,entries);
+    return textResult({library_id:a.library_id,kind:a.kind,managed_path:target,registered:entries.length});
+  })));
+
+  server.registerTool("asset_register_external",{description:"Register/index an explicitly user-approved external Python, Dynamo or Job folder in place as read-only source.",inputSchema:{kind:z.enum(["python","dynamo","jobs"]),library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),name:z.string(),source_path:z.string(),user_approved_source:z.literal(true)}},async (a)=>guarded("asset_register_external",a,async()=>{
+    if(!path.isAbsolute(a.source_path))throw new Error("ABSOLUTE_SOURCE_PATH_REQUIRED");
+    const source=await fs.realpath(a.source_path),stat=await fs.stat(source);if(!stat.isDirectory())throw new Error("SOURCE_DIRECTORY_REQUIRED");
+    const entries=await discoverAssets(a.kind,a.library_id,source);
+    await registerLibrary({id:a.library_id,kind:a.kind,name:a.name,mode:"external",root_path:source,enabled:true,source_access:"read-only"});
+    await replaceLibraryRegistry(a.kind,a.library_id,entries);
+    return textResult({library_id:a.library_id,kind:a.kind,root_path:source,registered:entries.length});
+  })));
+
+  server.registerTool("asset_export",{description:"Export one managed AppData Python, Dynamo or Job library to a user-selected absolute folder.",inputSchema:{kind:z.enum(["python","dynamo","jobs"]),library_id:z.string(),destination_path:z.string(),overwrite:z.boolean().optional().default(false)}},async (a)=>guarded("asset_export",a,async()=>{
+    if(!path.isAbsolute(a.destination_path))throw new Error("ABSOLUTE_DESTINATION_PATH_REQUIRED");
+    const manifest=await readJson(registryLibrariesPath(),{version:1,libraries:[]});
+    const rec=(manifest.libraries||[]).find(x=>x.id===a.library_id&&x.kind===a.kind&&x.enabled!==false);if(!rec)throw new Error("LIBRARY_NOT_FOUND");
+    if(rec.mode==="external")throw new Error("EXTERNAL_LIBRARY_EXPORT_NOT_REQUIRED");
+    const roots={python:pythonLibrariesRoot(),dynamo:dynamoLibrariesRoot(),jobs:jobLibrariesRoot()},source=await fs.realpath(path.join(roots[a.kind],a.library_id)),dest=path.resolve(a.destination_path);
+    if(inside(source,dest)||inside(dest,source))throw new Error("EXPORT_PATH_OVERLAPS_SOURCE");
+    await fs.mkdir(dest,{recursive:true});await fs.cp(source,dest,{recursive:true,force:a.overwrite,errorOnExist:!a.overwrite});
+    return textResult({exported:true,library_id:a.library_id,destination_path:dest});
+  })));
+
+  server.registerTool("python_checkout",{description:"Copy a registered managed Python capability into workspace/python-draft for controlled refinement.",inputSchema:{id:z.string(),overwrite_existing:z.boolean().optional().default(false)}},async (a)=>guarded("python_checkout",a,async()=>{
+    const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]}),entry=(reg.entries||[]).find(x=>x.id===a.id&&x.kind==="python");if(!entry)throw new Error("PYTHON_CAPABILITY_NOT_FOUND");
+    const source=entry.path || (entry.library_id&&entry.relative_path?path.join(pythonLibrariesRoot(),entry.library_id,entry.relative_path):null);if(!source)throw new Error("PYTHON_SOURCE_UNRESOLVED");
+    const target=path.join(pythonDraftRoot(),entry.library_id||"imported",entry.relative_path||path.basename(source));await fs.mkdir(path.dirname(target),{recursive:true});
+    let exists=true;try{await fs.stat(target);}catch{exists=false;}if(exists&&!a.overwrite_existing)throw new Error("DRAFT_ALREADY_EXISTS");
+    await fs.copyFile(source,target);const content=await fs.readFile(target);return textResult({draft_path:target,sha256:sha256(content),source_id:a.id});
   })));
 
   server.registerTool("registry_list",{description:"List effective user capabilities registered in AppData.",inputSchema:{}},async()=>guarded("registry_list",{},async()=>textResult(await readJson(registryCapabilitiesPath(),{version:1,entries:[]}))));
