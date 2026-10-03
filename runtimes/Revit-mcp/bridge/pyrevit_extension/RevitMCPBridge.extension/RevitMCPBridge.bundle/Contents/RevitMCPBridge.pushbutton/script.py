@@ -1,29 +1,19 @@
-"""pyRevit script entry point - starts the HTTP bridge."""
+"""Manual RevitGPT bridge status/start button."""
 
 import os
 import sys
-import threading
 from pyrevit import script
 
-bridge_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if bridge_dir not in sys.path:
-    sys.path.insert(0, bridge_dir)
+contents_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if contents_dir not in sys.path:
+    sys.path.insert(0, contents_dir)
 
 logger = script.get_logger()
 
-
-def run_bridge():
-    try:
-        import revit_mcp_bridge
-        revit_mcp_bridge.run_server()
-    except Exception as e:
-        logger.error("Bridge error: {}".format(e))
-
-
-if not hasattr(run_bridge, '_thread') or not run_bridge._thread.is_alive():
-    run_bridge._thread = threading.Thread(target=run_bridge)
-    run_bridge._thread.daemon = True
-    run_bridge._thread.start()
-    script.print_md("**Revit MCP Bridge started** on http://127.0.0.1:8765")
-else:
-    script.print_md("**Revit MCP Bridge already running**")
+try:
+    import revit_mcp_bridge
+    state = revit_mcp_bridge.ensure_server_started()
+    script.print_md("**Revit MCP Bridge running** on http://127.0.0.1:{}".format(state["port"]))
+except Exception as exc:
+    logger.error("Bridge error: {}".format(exc))
+    raise
