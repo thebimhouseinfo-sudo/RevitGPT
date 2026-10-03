@@ -14,6 +14,7 @@ $StartupKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $StartupName = "RevitGPT"
 $TrayScriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
 $TrayLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "revitgpt-tray.vbs"))
+$IconPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "icon.png"))
 $IndexPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "src\index.mjs"))
 $StateRoot = Join-Path $env:LOCALAPPDATA "RevitGPT"
 $LogDir = Join-Path $StateRoot "logs"
@@ -197,7 +198,21 @@ catch {
 }
 
 $notify = New-Object System.Windows.Forms.NotifyIcon
-$notify.Icon = [System.Drawing.SystemIcons]::Application
+$script:TrayBitmap = $null
+$script:TrayIcon = $null
+if (Test-Path $IconPath) {
+    try {
+        $script:TrayBitmap = New-Object System.Drawing.Bitmap($IconPath)
+        $iconHandle = $script:TrayBitmap.GetHicon()
+        $script:TrayIcon = [System.Drawing.Icon]::FromHandle($iconHandle)
+        $notify.Icon = $script:TrayIcon
+    } catch {
+        Write-TrayLog "Failed to load icon.png; using Windows fallback icon. $($_.Exception.Message)"
+        $notify.Icon = [System.Drawing.SystemIcons]::Application
+    }
+} else {
+    $notify.Icon = [System.Drawing.SystemIcons]::Application
+}
 $notify.Visible = $true
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -236,6 +251,8 @@ $exitItem.Add_Click({
     Stop-RevitGptRuntime
     $notify.Visible = $false
     $notify.Dispose()
+    if ($script:TrayIcon) { $script:TrayIcon.Dispose() }
+    if ($script:TrayBitmap) { $script:TrayBitmap.Dispose() }
     Remove-Item $TrayReadyPath -Force -ErrorAction SilentlyContinue
     [System.Windows.Forms.Application]::Exit()
 })
