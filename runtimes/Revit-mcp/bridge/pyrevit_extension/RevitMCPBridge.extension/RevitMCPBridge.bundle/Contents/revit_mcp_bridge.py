@@ -18,6 +18,7 @@ import os
 import sys
 import threading
 import traceback
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 try:
@@ -78,6 +79,24 @@ except ImportError:
 
 
 PORT = int(os.getenv("REVIT_MCP_PORT", "8765"))
+_APPDATA_ROOT = os.getenv("REVITGPT_APPDATA_ROOT") or os.path.join(
+    os.getenv("LOCALAPPDATA") or os.path.expanduser("~"), "RevitGPT"
+)
+BRIDGE_LOG_PATH = os.path.join(_APPDATA_ROOT, "logs", "bridge.ndjson")
+
+
+def bridge_log(event, **fields):
+    try:
+        log_dir = os.path.dirname(BRIDGE_LOG_PATH)
+        if not os.path.isdir(log_dir):
+            os.makedirs(log_dir)
+        record = {"timestamp": datetime.utcnow().isoformat() + "Z", "event": event}
+        record.update(fields)
+        with open(BRIDGE_LOG_PATH, "a") as stream:
+            stream.write(json.dumps(record, default=str) + "\n")
+    except Exception:
+        pass
+
 
 MEP_CATEGORIES = {
     "duct": "Ducts",
@@ -396,6 +415,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
     def send_error_response(self, message: str, status: int = 500):
+        bridge_log("error", method=getattr(self, "command", None), path=getattr(self, "path", None), status=status, error=message)
         self.send_json({"error": {"message": message, "code": status}}, status)
 
     def read_json_body(self) -> dict:
@@ -407,6 +427,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        bridge_log("request", method="GET", path=path)
 
         try:
             if path == "/health":
@@ -448,6 +469,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
+        bridge_log("request", method="POST", path=path)
         try:
             payload = self.read_json_body()
         except json.JSONDecodeError:
@@ -1363,11 +1385,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
 def run_server():
     server = HTTPServer(("127.0.0.1", PORT), BridgeHandler)
+    bridge_log("bridge_start", port=PORT, revit_available=REVIT_AVAILABLE)
     print(f"Revit MCP Bridge running on http://127.0.0.1:{PORT}")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        bridge_log("bridge_stop", reason="KeyboardInterrupt")
         print("\nShutting down bridge...")
         server.shutdown()
 
