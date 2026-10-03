@@ -20,3 +20,5 @@
 | D-16 | Dynamo .dyn is user-owned, not bundled toolkit | HUMAN | Product decision | P3 |
 
 | D-17 | Revit OFF lifecycle authority is Windows process absence, not bridge health | HUMAN + EVIDENCE_REQUIRED | Human states Windows process can be read; P1 uses Revit.exe process absence as the current candidate | E2 confirms actual process naming/PID/session behavior |
+
+| D-18 | Full Revit MCP activation requires both Revit ON and explicit @rg/admission invocation | HUMAN | Product lifecycle decision | P1 implementation |
