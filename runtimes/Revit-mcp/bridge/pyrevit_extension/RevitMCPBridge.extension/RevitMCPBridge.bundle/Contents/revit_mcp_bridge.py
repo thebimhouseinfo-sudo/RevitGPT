@@ -79,6 +79,7 @@ except ImportError:
 
 
 PORT = int(os.getenv("REVIT_MCP_PORT", "8765"))
+_SERVER_THREAD = None
 _APPDATA_ROOT = os.getenv("REVITGPT_APPDATA_ROOT") or os.path.join(
     os.getenv("LOCALAPPDATA") or os.path.expanduser("~"), "RevitGPT"
 )
@@ -1394,6 +1395,17 @@ def run_server():
         bridge_log("bridge_stop", reason="KeyboardInterrupt")
         print("\nShutting down bridge...")
         server.shutdown()
+
+
+def ensure_server_started():
+    global _SERVER_THREAD
+    if _SERVER_THREAD is not None and _SERVER_THREAD.is_alive():
+        return {"started": False, "running": True, "port": PORT}
+    _SERVER_THREAD = threading.Thread(target=run_server)
+    _SERVER_THREAD.daemon = True
+    _SERVER_THREAD.start()
+    bridge_log("bridge_thread_started", port=PORT)
+    return {"started": True, "running": True, "port": PORT}
 
 
 if __name__ == "__main__":
