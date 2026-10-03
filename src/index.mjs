@@ -8,6 +8,10 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { revitUpstream } from "./revit-upstream.mjs";
+import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
+import { registerManagedTools } from "./managed-tools.mjs";
+import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
+import { logControl, logError, logToolCall } from "./log-store.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -15,6 +19,8 @@ const TOKEN = (process.env.MCP_TOKEN || "").trim();
 const BRIDGE_URL = (process.env.REVIT_BRIDGE_URL || "http://127.0.0.1:8765").replace(/\/$/, "");
 const STARTED_AT = Date.now();
 const execFileAsync = promisify(execFile);
+await ensureAppDataLayout();
+await logControl({event:"runtime_start",pid:process.pid,appdata_root:getAppDataRoot(),dev_mode:isDevMode()});
 
 if (!TOKEN) {
   throw new Error("MCP_TOKEN is required. Copy .env.example to .env and set a private random value.");
@@ -102,6 +108,9 @@ function createServer(sessionKey) {
     }
   );
 
+  registerManagedTools(server);
+  registerRevitMcpDevTools(server);
+
   server.registerTool(
     "revitgpt_admission",
     {
@@ -118,12 +127,14 @@ function createServer(sessionKey) {
       }
     },
     async () => {
+      const started=Date.now();
       const [revitProcess, bridge] = await Promise.all([
         revitProcessState(),
         bridgeHealth()
       ]);
 
       if (!revitProcess.observable || revitProcess.running !== true) {
+        await logToolCall({tool:"revitgpt_admission",ok:true,status:"REVIT_OFF",duration_ms:Date.now()-started});
         await revitUpstream.deactivate();
         return {
           content: [{ type: "text", text: "RevitGPT\nREVIT OFF\nREVIT MCP OFF" }],
@@ -139,6 +150,7 @@ function createServer(sessionKey) {
       }
 
       if (!bridge.available) {
+        await logToolCall({tool:"revitgpt_admission",ok:true,status:"BRIDGE_OFF",duration_ms:Date.now()-started});
         return {
           content: [{ type: "text", text: "RevitGPT\nREVIT ON\nBRIDGE OFF\nREVIT MCP OFF" }],
           structuredContent: {
@@ -154,6 +166,7 @@ function createServer(sessionKey) {
 
       const tools = await revitUpstream.activate();
       admitted.add(sessionKey);
+      await logToolCall({tool:"revitgpt_admission",ok:true,status:"READY",tool_count:tools.length,duration_ms:Date.now()-started});
       const names = tools.map((tool) => tool.name);
       return {
         content: [{ type: "text", text: `RevitGPT READY\nREVIT MCP ON\nTOOLS ${names.length}` }],
@@ -240,7 +253,17 @@ function createServer(sessionKey) {
       }
       const known = revitUpstream.cachedTools().some((tool) => tool.name === name);
       if (!known) throw new Error("REVIT_MCP_TOOL_NOT_DISCOVERED: " + name);
-      const result = await revitUpstream.callTool(name, args || {});
+      const started=Date.now();
+      let result;
+      try {
+        result = await revitUpstream.callTool(name, args || {});
+        await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
+      } catch (error) {
+        const message=error instanceof Error?error.message:String(error);
+        await logToolCall({tool:"revitgpt_call",upstream:name,ok:false,error:message,duration_ms:Date.now()-started});
+        await logError({source:"revit-upstream",tool:name,error:message});
+        throw error;
+      }
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         structuredContent: { result }
@@ -261,7 +284,8 @@ app.get("/health", async (_req, res) => {
   res.json({
     status: "ok",
     name: "revitgpt",
-    mode: "p1-bootstrap",
+    mode: isDevMode() ? "development" : "production",
+    appdata_root: getAppDataRoot(),
     pid: process.pid,
     uptime_seconds: Math.floor((Date.now() - STARTED_AT) / 1000),
     bridge,
@@ -305,6 +329,7 @@ app.post(route, async (req, res) => {
     await transport.handleRequest(req, res, req.body);
   } catch (error) {
     console.error("[MCP POST]", error);
+    await logError({source:"mcp-http",error:error instanceof Error?error.message:String(error)}).catch(()=>undefined);
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: "2.0",
@@ -362,3 +387,5 @@ async function shutdown(signal) {
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("uncaughtException",(error)=>{void logError({source:"process",kind:"uncaughtException",error:error?.stack||String(error)});});
+process.on("unhandledRejection",(reason)=>{void logError({source:"process",kind:"unhandledRejection",error:String(reason)});});
