@@ -54,3 +54,18 @@ down. Bridge failure/restart alone still does not shut down full MCP.
 E2 must record the actual process name, PID behavior, and multi-Revit-session
 behavior on the Human machine before this becomes a hardened production
 contract.
+
+
+## Activation contract
+
+Full Revit MCP is never auto-started merely because Revit is running.
+
+```text
+Revit OFF -> MCP OFF
+Revit ON, no @rg -> MCP OFF
+Revit ON + @rg -> MCP ON
+Revit later OFF -> MCP OFF
+```
+
+The current P1 admission path checks Windows Revit process presence first, then
+requires bridge connectivity to complete activation.
