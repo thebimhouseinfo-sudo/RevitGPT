@@ -69,3 +69,14 @@ Revit later OFF -> MCP OFF
 
 The current P1 admission path checks Windows Revit process presence first, then
 requires bridge connectivity to complete activation.
+
+
+## Installation contract
+
+`setup.bat` is the one-shot local installer for the P1 runtime. It installs:
+
+- Node dependencies for the RevitGPT control plane;
+- the Python virtual environment and Revit MCP dependencies;
+- the pyRevit bridge extension into a local pyRevit Extensions root.
+
+Running `runtimes\Revit-mcp\install_bridge.bat` separately is not required.
