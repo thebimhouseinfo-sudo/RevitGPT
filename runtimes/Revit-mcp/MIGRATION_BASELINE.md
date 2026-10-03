@@ -31,3 +31,13 @@ On a real RVT model prove:
 6. record actual Revit version/process/model identity fields.
 
 Only then harden admission, model binding, and the 15-minute chat lease.
+
+
+## Lifecycle correction
+
+Bridge connectivity is not lifecycle authority.
+
+- A bridge health failure or bridge restart does **not** prove that Revit is OFF.
+- Once the full Revit MCP has been activated, bridge loss alone must not stop it.
+- Full MCP shutdown requires an actual Revit-OFF signal or the observable GPT/plugin-runtime end signal established by E2.
+- Lease expiry/release is also independent and never shuts down the full MCP.
