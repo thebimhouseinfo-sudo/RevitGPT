@@ -118,18 +118,33 @@ echo [OK] Revit MCP Bridge installed to:
 echo      !BRIDGE_DST!
 
 REM ------------------------------------------------------------
-REM 5. Final instructions
+REM 5. Install and start Windows tray host
 REM ------------------------------------------------------------
 echo.
-echo [4/4] Setup complete.
+echo [4/5] Installing RevitGPT Windows tray auto-start...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\revitgpt-tray.ps1" -InstallStartup
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo [OK] RevitGPT tray registered for Windows sign-in.
+
+echo.
+echo [5/5] Starting RevitGPT tray now...
+wscript.exe "%CD%\revitgpt-tray.vbs"
+
+REM ------------------------------------------------------------
+REM 6. Final instructions
+REM ------------------------------------------------------------
+echo.
+echo Setup complete.
 echo.
 echo Next:
 echo   1. Edit .env and set a private MCP_TOKEN.
 echo   2. Restart Revit so pyRevit reloads the installed bridge.
 echo   3. Open an RVT model.
 echo   4. In Revit, start "Revit MCP Bridge" from pyRevit.
-echo   5. Run:
-echo        run.bat
+echo.
+echo RevitGPT tray/control plane is already docked and running.
+echo You do NOT need to run run.bat for normal use.
 echo.
 echo RevitGPT runtime:
 echo   http://127.0.0.1:3300
