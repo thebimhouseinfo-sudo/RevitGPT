@@ -9,6 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from config import BRIDGE_TIMEOUT_SECONDS, BRIDGE_URL
+from utils.logger import log_runtime
 
 WRITE_TIMEOUT = float(BRIDGE_TIMEOUT_SECONDS * 10)
 
@@ -47,11 +48,14 @@ def _send_request(
     request = Request(url, data=data, headers=headers, method=method)
     effective_timeout = timeout or BRIDGE_TIMEOUT_SECONDS
 
+    log_runtime("bridge_request", endpoint=endpoint, method=method, request_id=request_id)
     try:
         with urlopen(request, timeout=effective_timeout) as response:
             response_body = response.read().decode("utf-8")
             result = json.loads(response_body)
+        log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=True)
     except HTTPError as exc:
+        log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
         if exc.code >= 400 and exc.code < 500:
             try:
                 error_body = exc.read().decode("utf-8")
@@ -68,10 +72,12 @@ def _send_request(
             f"Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except (URLError, TimeoutError, OSError) as exc:
+        log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
         raise RevitBridgeUnavailableError(
             f"Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except ValueError as exc:
+        log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
         raise RevitBridgeError(f"Invalid JSON response from bridge: {exc}") from exc
 
     if not isinstance(result, dict):
