@@ -39,6 +39,11 @@ jobs:
         run: |
           $null = [scriptblock]::Create((Get-Content revitgpt-tray.ps1 -Raw))
 
+      - name: Parse tunnel PowerShell
+        shell: pwsh
+        run: |
+          $null = [scriptblock]::Create((Get-Content openai-tunnel.ps1 -Raw))
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
