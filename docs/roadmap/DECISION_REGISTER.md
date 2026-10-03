@@ -15,6 +15,6 @@
 | D-11 | One runtime can enumerate models across multiple Revit processes | UNKNOWN | No solid ref | E3 |
 | D-12 | Exact RVT model authority key | UNKNOWN | Must be measured | E3 |
 | D-13 | Exact observable GPT/plugin liveness signal | UNKNOWN | Chat UI open/closed is not observable contract | E2 |
-| D-14 | MCP ON is independent from model lease | HUMAN | Product lifecycle decision | E2 |
+| D-14 | MCP ON is independent from model lease and bridge connectivity | HUMAN | Product lifecycle decision: bridge loss alone is not Revit OFF and must not stop full MCP | E2 |
 | D-15 | CAD-Agent Revit MCP is migration baseline | REF/HUMAN-EVIDENCE | Previously used for real read/write/delete | E1 regression |
 | D-16 | Dynamo .dyn is user-owned, not bundled toolkit | HUMAN | Product decision | P3 |
