@@ -118,14 +118,18 @@ echo [OK] Revit MCP Bridge installed to:
 echo      !BRIDGE_DST!
 
 REM ------------------------------------------------------------
-REM 5. Install and start Windows tray host
+REM 5. Configure OpenAI Secure MCP Tunnel
 REM ------------------------------------------------------------
 echo.
-echo [4/5] Installing RevitGPT Windows tray auto-start...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\revitgpt-tray.ps1" -InstallStartup
+echo [4/6] Configuring RevitGPT Secure MCP Tunnel...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\openai-tunnel.ps1" -Init
 if errorlevel 1 exit /b %ERRORLEVEL%
 
-echo [OK] RevitGPT tray registered for Windows sign-in.
+REM ------------------------------------------------------------
+REM 6. Install and start Windows tray host
+REM ------------------------------------------------------------
+echo.
+echo [5/6] Installing RevitGPT Windows tray auto-start...
 
 REM Temporary icon reuse from sibling CadGPT repo.
 REM Replace RevitGPT\icon.png later with the real product icon.
@@ -142,22 +146,27 @@ if not exist "%CD%\icon.png" (
 )
 
 echo.
-echo [5/5] Starting RevitGPT tray now...
-wscript.exe "%CD%\revitgpt-tray.vbs"
+call "%CD%\run.bat" install
+if errorlevel 1 exit /b %ERRORLEVEL%
+
+echo.
+echo [6/6] Running RevitGPT doctor...
+call "%CD%\doctor.bat"
+if errorlevel 1 exit /b %ERRORLEVEL%
 
 REM ------------------------------------------------------------
-REM 6. Final instructions
+REM 7. Final instructions
 REM ------------------------------------------------------------
 echo.
 echo Setup complete.
 echo.
 echo Next:
-echo   1. Edit .env and set a private MCP_TOKEN.
-echo   2. Restart Revit so pyRevit reloads the installed bridge.
-echo   3. Open an RVT model.
-echo   4. In Revit, start "Revit MCP Bridge" from pyRevit.
+echo   1. Restart Revit so pyRevit loads the installed RevitGPT startup bridge.
+echo   2. Open an RVT model.
+echo   3. Invoke @rg / RevitGPT from ChatGPT.
 echo.
-echo RevitGPT tray/control plane is already docked and running.
+echo RevitGPT tray + slim MCP + Secure Tunnel are already docked and running.
+echo The Revit bridge auto-starts with pyRevit; no manual bridge button is required.
 echo You do NOT need to run run.bat for normal use.
 echo.
 echo RevitGPT runtime:
