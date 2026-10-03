@@ -17,6 +17,11 @@ if not exist ".env" (
   echo [OK] .env already exists
 )
 
+REM Source checkout runs with development-only Revit MCP improvement tools enabled.
+powershell.exe -NoProfile -Command "$p='.env';$lines=@(Get-Content $p);$found=$false;$out=foreach($line in $lines){if($line -match '^\s*REVITGPT_DEV_MODE\s*='){$found=$true;'REVITGPT_DEV_MODE=1'}else{$line}};if(-not $found){$out+='REVITGPT_DEV_MODE=1'};Set-Content $p $out -Encoding UTF8"
+if errorlevel 1 exit /b %ERRORLEVEL%
+echo [OK] Enabled source-development profile ^(revit-mcp-dev^).
+
 REM ------------------------------------------------------------
 REM 2. Node runtime
 REM ------------------------------------------------------------
