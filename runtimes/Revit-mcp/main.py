@@ -3,6 +3,7 @@
 from mcp.server.fastmcp import FastMCP
 
 from tools import annotation_tools, document_tools, element_tools, family_tools, mep_tools, runtime_tools, view_tools
+from utils.logger import log_runtime
 
 
 mcp = FastMCP("revit-mcp")
@@ -16,4 +17,11 @@ annotation_tools.register(mcp)
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    log_runtime("runtime_start", pid=__import__("os").getpid())
+    try:
+        mcp.run(transport="stdio")
+    except Exception as exc:
+        log_runtime("runtime_error", error=repr(exc))
+        raise
+    finally:
+        log_runtime("runtime_stop")
