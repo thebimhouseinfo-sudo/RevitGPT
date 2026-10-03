@@ -18,3 +18,5 @@
 | D-14 | MCP ON is independent from model lease and bridge connectivity | HUMAN | Product lifecycle decision: bridge loss alone is not Revit OFF and must not stop full MCP | E2 |
 | D-15 | CAD-Agent Revit MCP is migration baseline | REF/HUMAN-EVIDENCE | Previously used for real read/write/delete | E1 regression |
 | D-16 | Dynamo .dyn is user-owned, not bundled toolkit | HUMAN | Product decision | P3 |
+
+| D-17 | Revit OFF lifecycle authority is Windows process absence, not bridge health | HUMAN + EVIDENCE_REQUIRED | Human states Windows process can be read; P1 uses Revit.exe process absence as the current candidate | E2 confirms actual process naming/PID/session behavior |
