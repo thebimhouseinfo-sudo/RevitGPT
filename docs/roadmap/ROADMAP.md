@@ -68,9 +68,13 @@ Result: Chat A retained one `x-openai-session` fingerprint for ~14h14m across fi
 Migrate the working CAD-Agent Revit MCP baseline first.
 
 Deliver:
-- compatible Revit bridge/add-in for actual host version;
-- known read/write/delete tools;
-- development-only `revit-mcp-dev`;
+- proven Revit MCP read/write/delete baseline;
+- pyRevit bridge with extension startup;
+- slim control plane + Secure Tunnel + Windows tray;
+- managed AppData skeleton for Python, Dynamo, Jobs, registry, workspace, knowledge, logs and run evidence;
+- internal `write-python`, `dynamo`, `jobcreate` skills;
+- development-only `revit-mcp-dev` snapshot/edit/validate/rollback lifecycle;
+- structured control-plane, tool-call, bridge, MCP and error logs;
 - runtime instrumentation for Revit process/model enumeration and MCP state.
 
 Do not implement final lease/model binding here.
@@ -141,11 +145,11 @@ Test:
 - control-plane restart makes model free;
 - full MCP can remain ON with no lease.
 
-### P3 — User registry + Dynamo + Jobs
+### P3 — Bound-model execution integration
 
-Add:
-- user `.dyn` registry/lifecycle;
-- Dynamo Player execution under bound-model authority;
+The user registry/AppData/authoring skeleton is established in P1. After binding exists, complete:
+- Dynamo execution under bound-model authority;
+- Python capability execution under bound-model authority;
 - Reasoning Jobs and supported Direct Jobs;
 - all operations verify current lease + bound model;
 - MCP ON alone never grants model authority.
@@ -176,11 +180,14 @@ Human acceptance is the final gate.
 
 ## Current immediate action
 
-Complete E0 first. The test code is already committed in this repository:
+P1 skeleton is implemented on the work branch and E0 is complete. Next gate is **E1 real Revit capability testing** through the actual ChatGPT connector/tunnel:
 
-- `session-test.bat`
-- `scripts/session-stability-report.mjs`
-- `docs/evidence/x-openai-session-stability.md`
+- setup/doctor PASS on the Human Windows machine;
+- @rg admission activates full Revit MCP only while Revit is running;
+- real RVT read;
+- controlled write + readback;
+- controlled delete + readback;
+- capture Revit version/process/model identity and any runtime limitations.
 
 
 ### Revit MCP activation truth table
