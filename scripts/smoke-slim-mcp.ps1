@@ -83,17 +83,38 @@ try {
     $sessionId = $init.Headers["Mcp-Session-Id"]
     if (-not $sessionId) { throw "MCP initialize missing Mcp-Session-Id" }
 
+    $initializedBody = @{
+        jsonrpc = "2.0"
+        method = "notifications/initialized"
+    } | ConvertTo-Json -Depth 8
+    $initialized = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
+        Accept = "application/json, text/event-stream"
+        "Mcp-Session-Id" = $sessionId
+        "Mcp-Protocol-Version" = "2025-03-26"
+    } -Body $initializedBody -UseBasicParsing -TimeoutSec 5
+    if ($initialized.StatusCode -ne 200 -and $initialized.StatusCode -ne 202) {
+        throw "notifications/initialized HTTP $($initialized.StatusCode)"
+    }
+
     $toolsBody = @{
         jsonrpc = "2.0"
         id = 2
         method = "tools/list"
         params = @{}
     } | ConvertTo-Json -Depth 8
-    $tools = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
-        Accept = "application/json, text/event-stream"
-        "Mcp-Session-Id" = $sessionId
-        "Mcp-Protocol-Version" = "2025-03-26"
-    } -Body $toolsBody -UseBasicParsing -TimeoutSec 5
+    try {
+        $tools = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
+            Accept = "application/json, text/event-stream"
+            "Mcp-Session-Id" = $sessionId
+            "Mcp-Protocol-Version" = "2025-03-26"
+        } -Body $toolsBody -UseBasicParsing -TimeoutSec 5
+    } catch {
+        Write-Host "=== slim MCP stderr ==="
+        Get-Content $stderr -ErrorAction SilentlyContinue
+        Write-Host "=== slim MCP stdout ==="
+        Get-Content $stdout -ErrorAction SilentlyContinue
+        throw
+    }
     if ($tools.StatusCode -ne 200) { throw "tools/list HTTP $($tools.StatusCode)" }
     $toolsJson = $tools.Content | ConvertFrom-Json
     if (-not ($toolsJson.result.tools.name -contains "revitgpt_admission")) {
