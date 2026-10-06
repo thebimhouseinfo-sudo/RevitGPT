@@ -76,4 +76,17 @@ if (!tools.json?.result?.tools?.some((tool) => tool.name === "revitgpt_admission
   throw new Error("revitgpt_admission missing from tools/list");
 }
 
-console.log("[PASS] RevitGPT MCP server/discover + initialize + initialized + tools/list");
+const staleId = "00000000-0000-4000-8000-000000000099";
+const recovered = await post(
+  { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} },
+  staleId,
+  "2025-03-26"
+);
+if (recovered.status !== 200) {
+  throw new Error(`stale-session recovery HTTP ${recovered.status}: ${recovered.text}`);
+}
+if (!recovered.json?.result?.tools?.some((tool) => tool.name === "revitgpt_admission")) {
+  throw new Error("stale-session recovery missing revitgpt_admission");
+}
+
+console.log("[PASS] RevitGPT MCP server/discover + initialize + initialized + tools/list + stale-session recovery");
