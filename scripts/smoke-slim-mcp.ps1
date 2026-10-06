@@ -41,7 +41,18 @@ try {
     if ($health.name -ne "revitgpt") { throw "Unexpected health name: $($health.name)" }
     if ($health.revit_mcp.running) { throw "Full Revit MCP must not auto-start while Revit is absent." }
 
-    Write-Host "[PASS] Slim MCP real startup from Windows path with spaces"
+    $envFile = Join-Path $junction ".env"
+    Copy-Item (Join-Path $junction ".env.example") $envFile -Force
+    $statusOut = & cmd.exe /d /c ('"' + (Join-Path $junction "run.bat") + '" status') 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $statusOut | ForEach-Object { Write-Host $_ }
+        throw "run.bat status failed through a Windows path containing spaces."
+    }
+    if (($statusOut -join "`n") -notmatch "Tray\s+:") {
+        throw "run.bat status did not produce expected status output."
+    }
+
+    Write-Host "[PASS] Slim MCP real startup + run.bat status from Windows path with spaces"
 }
 finally {
     if ($proc -and -not $proc.HasExited) {
