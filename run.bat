@@ -34,6 +34,8 @@ goto :start
 :start
 call :preflight
 if errorlevel 1 exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openai-tunnel.ps1" -VerifyClient
+if errorlevel 1 exit /b 1
 wscript "%~dp0revitgpt-tray.vbs"
 powershell -NoProfile -Command "$ok=$false; foreach($i in 1..120){ try{$h=Invoke-RestMethod 'http://127.0.0.1:%RG_PORT%/health' -TimeoutSec 1; $t=Invoke-WebRequest 'http://127.0.0.1:%RG_TUNNEL_PORT%/readyz' -UseBasicParsing -TimeoutSec 1; if($h.status -eq 'ok' -and $h.name -eq 'revitgpt' -and $t.StatusCode -eq 200){$ok=$true;break}}catch{}; Start-Sleep -Milliseconds 500}; if(-not $ok){exit 1}"
 if errorlevel 1 exit /b 1
@@ -47,6 +49,8 @@ exit /b %ERRORLEVEL%
 
 :restart
 call :stop
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openai-tunnel.ps1" -VerifyClient
+if errorlevel 1 exit /b 1
 wscript "%~dp0revitgpt-tray.vbs"
 powershell -NoProfile -Command "$ok=$false; foreach($i in 1..120){ try{$h=Invoke-RestMethod 'http://127.0.0.1:%RG_PORT%/health' -TimeoutSec 1; $t=Invoke-WebRequest 'http://127.0.0.1:%RG_TUNNEL_PORT%/readyz' -UseBasicParsing -TimeoutSec 1; if($h.status -eq 'ok' -and $h.name -eq 'revitgpt' -and $t.StatusCode -eq 200){$ok=$true;break}}catch{}; Start-Sleep -Milliseconds 500}; if(-not $ok){exit 1}"
 if errorlevel 1 exit /b 1
