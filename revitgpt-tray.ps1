@@ -204,10 +204,10 @@ function Start-RevitGptRuntime {
 }
 
 function Stop-RevitGptRuntime {
-    $pid = $script:RuntimePid
-    if (-not $pid) { $pid = Get-PortOwnerPid -TargetPort $Port }
-    if ($pid -and (Test-OwnedRuntime -ProcessId $pid)) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    $runtimePid = $script:RuntimePid
+    if (-not $runtimePid) { $runtimePid = Get-PortOwnerPid -TargetPort $Port }
+    if ($runtimePid -and (Test-OwnedRuntime -ProcessId $runtimePid)) {
+        Stop-Process -Id $runtimePid -Force -ErrorAction SilentlyContinue
     }
     $script:RuntimePid = $null
 }
@@ -251,10 +251,10 @@ function Start-RevitGptTunnel {
 }
 
 function Stop-RevitGptTunnel {
-    $pid = $script:TunnelPid
-    if (-not $pid) { $pid = Get-PortOwnerPid -TargetPort $TunnelHealthPort }
-    if ($pid -and (Test-OwnedTunnel -ProcessId $pid)) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    $tunnelPid = $script:TunnelPid
+    if (-not $tunnelPid) { $tunnelPid = Get-PortOwnerPid -TargetPort $TunnelHealthPort }
+    if ($tunnelPid -and (Test-OwnedTunnel -ProcessId $tunnelPid)) {
+        Stop-Process -Id $tunnelPid -Force -ErrorAction SilentlyContinue
     }
     $script:TunnelPid = $null
 }
