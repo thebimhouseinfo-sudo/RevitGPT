@@ -17,7 +17,14 @@ powershell -NoProfile -Command "try{$h=Invoke-RestMethod 'http://127.0.0.1:%RG_P
 if errorlevel 1 (echo [FAIL] Slim MCP offline&set "FAILED=1") else echo [OK] Slim MCP READY
 
 powershell -NoProfile -Command "try{$r=Invoke-WebRequest 'http://127.0.0.1:%RG_TUNNEL_PORT%/readyz' -UseBasicParsing -TimeoutSec 2;if($r.StatusCode -eq 200){exit 0}else{exit 1}}catch{exit 1}"
-if errorlevel 1 (echo [FAIL] Secure Tunnel offline&set "FAILED=1") else echo [OK] Secure Tunnel READY
+if errorlevel 1 (
+  echo [FAIL] Secure Tunnel offline
+  echo --- Secure Tunnel doctor ---
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0openai-tunnel.ps1" -Doctor
+  if errorlevel 1 echo [INFO] Secure Tunnel doctor reported a configuration, authentication, permission, or network failure.
+  echo --- End Secure Tunnel doctor ---
+  set "FAILED=1"
+) else echo [OK] Secure Tunnel READY
 
 if exist "%APPDATA%\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
   echo [OK] pyRevit bridge installed
