@@ -87,10 +87,12 @@ mcp:
   Set-Content $ProfileFile -Value $yaml -Encoding UTF8
 }
 
-function Redact-Secret([string]$Text,[string]$Secret){
+function Redact-Secrets([string]$Text,[object[]]$Secrets){
   if($null -eq $Text){return ""}
   $safe=$Text
-  if($Secret){$safe=$safe.Replace($Secret,"<redacted>")}
+  foreach($secret in @($Secrets)){
+    if($secret){$safe=$safe.Replace([string]$secret,"<redacted>")}
+  }
   return $safe
 }
 function Get-PortOwnerInfo([int]$Port){
@@ -120,11 +122,13 @@ function Get-PortOwnerInfo([int]$Port){
 }
 function Show-RuntimeDiagnostics([string]$ApiKey){
   $health=if(Get-EnvValue "OPENAI_TUNNEL_HEALTH_PORT"){[int](Get-EnvValue "OPENAI_TUNNEL_HEALTH_PORT")}else{8280}
+  $mcpToken=Get-EnvValue "MCP_TOKEN"
+  $secrets=@($ApiKey,$mcpToken)
   $owner=Get-PortOwnerInfo $health
   if($owner){
     $owned=($owner.command_line -and $owner.command_line.IndexOf($ProfileFile,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
     Write-Host ("[INFO] Tunnel health port {0} owner PID={1} name={2} revitgpt_owned={3}" -f $health,$owner.pid,$owner.name,$owned)
-    if($owner.command_line){Write-Host ("[INFO] Owner command: " + (Redact-Secret $owner.command_line $ApiKey))}
+    if($owner.command_line){Write-Host ("[INFO] Owner command: " + (Redact-Secrets $owner.command_line $secrets))}
   }else{
     Write-Host ("[INFO] Tunnel health port {0} has no LISTENING owner." -f $health)
   }
@@ -136,7 +140,7 @@ function Show-RuntimeDiagnostics([string]$ApiKey){
     $path=Join-Path (Join-Path $appData "logs") $name
     if(Test-Path $path){
       Write-Host ("--- " + $name + " (last 20) ---")
-      Get-Content $path -Tail 20 -ErrorAction SilentlyContinue|ForEach-Object{Write-Host (Redact-Secret ([string]$_) $ApiKey)}
+      Get-Content $path -Tail 20 -ErrorAction SilentlyContinue|ForEach-Object{Write-Host (Redact-Secrets ([string]$_) $secrets)}
     }
   }
 }
@@ -150,7 +154,7 @@ function Probe-ControlPlane([string]$TunnelId,[string]$ApiKey){
     $env:OPENAI_ADMIN_KEY=$null
     $output=& $TunnelExe admin --json tunnels get $TunnelId 2>&1|Out-String
     $code=$LASTEXITCODE
-    $safe=Redact-Secret $output $ApiKey
+    $safe=Redact-Secrets $output @($ApiKey,(Get-EnvValue "MCP_TOKEN"))
     if($code -eq 0){
       Write-Host ("[PASS] Live control-plane lookup succeeded for " + $TunnelId)
       try{
@@ -201,7 +205,13 @@ $id=Get-EnvValue "OPENAI_TUNNEL_ID";$key=Get-EnvValue "OPENAI_TUNNEL_API_KEY"
 if(-not $id -or -not $key){throw "Tunnel not configured. Run openai-tunnel.ps1 -Init"}
 Ensure-Profile $id
 $env:OPENAI_TUNNEL_API_KEY=$key
-if($Doctor){& $TunnelExe doctor --profile-file $ProfileFile --health.listen-addr 127.0.0.1:0 --explain;exit $LASTEXITCODE}
+if($Doctor){
+  $doctorOutput=& $TunnelExe doctor --profile-file $ProfileFile --health.listen-addr 127.0.0.1:0 --explain 2>&1|Out-String
+  $doctorCode=$LASTEXITCODE
+  $safeDoctor=Redact-Secrets $doctorOutput @($key,(Get-EnvValue "MCP_TOKEN"))
+  if($safeDoctor.Trim()){Write-Host $safeDoctor.TrimEnd()}
+  exit $doctorCode
+}
 if($RuntimeDiagnostics){Show-RuntimeDiagnostics $key;exit 0}
 if($ProbeControlPlane){
   if(Probe-ControlPlane $id $key){exit 0}else{exit 3}
