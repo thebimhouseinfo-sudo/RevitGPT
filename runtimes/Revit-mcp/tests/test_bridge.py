@@ -22,6 +22,7 @@ from connection.bridge import (
     create_text_note,
     delete_elements,
     get_active_document,
+    get_documents,
     get_annotations,
     get_element,
     get_element_connectors,
@@ -36,6 +37,7 @@ from connection.bridge import (
     place_family_instance,
     set_parameter,
 )
+from tools.runtime_tools import get_runtime_info
 
 
 class FakeBridgeHandler(BaseHTTPRequestHandler):
@@ -52,22 +54,57 @@ class FakeBridgeHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            self.send_json({"status": "ok", "version": "1.2.0"})
+            self.send_json({
+                "status": "ok",
+                "version": "1.2.0",
+                "process_id": 4321,
+                "revit_version": "2024",
+                "open_document_count": 2,
+                "active_document_id": "12345",
+                "active_document_title": "Test Project",
+            })
         elif self.path == "/document/active":
             self.send_json({
                 "data": {
                     "id": "12345",
+                    "runtime_id": "12345",
                     "title": "Test Project",
                     "path": "C:/Projects/test.rvt",
                     "is_workshared": False,
+                    "is_family_document": False,
+                    "is_read_only": False,
+                    "is_modified": False,
+                    "is_linked": False,
                     "revit_version": "2024",
                 }
             })
         elif self.path == "/documents":
             self.send_json({
                 "data": [
-                    {"id": "12345", "title": "Test Project"},
-                    {"id": "67890", "title": "Another Project"},
+                    {
+                        "id": "12345",
+                        "runtime_id": "12345",
+                        "title": "Test Project",
+                        "path": "C:/Projects/test.rvt",
+                        "is_workshared": False,
+                        "is_family_document": False,
+                        "is_read_only": False,
+                        "is_modified": False,
+                        "is_linked": False,
+                        "revit_version": "2024",
+                    },
+                    {
+                        "id": "67890",
+                        "runtime_id": "67890",
+                        "title": "Another Project",
+                        "path": "C:/Projects/another.rvt",
+                        "is_workshared": True,
+                        "is_family_document": False,
+                        "is_read_only": False,
+                        "is_modified": True,
+                        "is_linked": False,
+                        "revit_version": "2024",
+                    },
                 ]
             })
         elif self.path == "/views":
@@ -375,6 +412,20 @@ class FakeBridgeTests(unittest.TestCase):
         result = get_active_document()
         self.assertEqual(result["title"], "Test Project")
         self.assertEqual(result["revit_version"], "2024")
+        self.assertEqual(result["runtime_id"], "12345")
+
+    def test_get_documents(self):
+        result = get_documents()
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["runtime_id"], "12345")
+        self.assertEqual(result[1]["is_workshared"], True)
+
+    def test_runtime_info_includes_document_diagnostics(self):
+        result = get_runtime_info()
+        self.assertEqual(result["document_access"], "available")
+        self.assertEqual(result["bridge"]["process_id"], 4321)
+        self.assertEqual(result["active_document"]["runtime_id"], "12345")
+        self.assertEqual(len(result["open_documents"]), 2)
 
     def test_get_views(self):
         result = get_views()
