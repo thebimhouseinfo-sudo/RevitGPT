@@ -197,14 +197,23 @@ function Start-RevitGptRuntime {
     $deadline = (Get-Date).AddSeconds(20)
     do {
         if (Get-RevitGptHealth) { return }
-        if ($proc.HasExited) { throw "RevitGPT slim MCP exited before becoming ready." }
+        if ($proc.HasExited) {
+            $script:RuntimePid = $null
+            throw "RevitGPT slim MCP exited before becoming ready. See $stderr"
+        }
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
-    throw "RevitGPT slim MCP did not become ready on port $Port."
+    if (-not $proc.HasExited) {
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    $script:RuntimePid = $null
+    throw "RevitGPT slim MCP did not become ready on port $Port. See $stderr"
 }
 
 function Stop-RevitGptRuntime {
+    $state = Read-TrayState
     $runtimePid = $script:RuntimePid
+    if (-not $runtimePid -and $state -and $state.runtime_pid) { $runtimePid = [int]$state.runtime_pid }
     if (-not $runtimePid) { $runtimePid = Get-PortOwnerPid -TargetPort $Port }
     if ($runtimePid -and (Test-OwnedRuntime -ProcessId $runtimePid)) {
         Stop-Process -Id $runtimePid -Force -ErrorAction SilentlyContinue
@@ -244,14 +253,23 @@ function Start-RevitGptTunnel {
     $deadline = (Get-Date).AddSeconds(20)
     do {
         if (Test-TunnelHealthy) { return }
-        if ($proc.HasExited) { throw "RevitGPT tunnel-client exited before becoming ready." }
+        if ($proc.HasExited) {
+            $script:TunnelPid = $null
+            throw "RevitGPT tunnel-client exited before becoming ready. See $stderr and $stdout"
+        }
         Start-Sleep -Milliseconds 500
     } while ((Get-Date) -lt $deadline)
-    throw "RevitGPT Secure Tunnel did not become ready."
+    if (-not $proc.HasExited) {
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    $script:TunnelPid = $null
+    throw "RevitGPT Secure Tunnel did not become ready. See $stderr and $stdout"
 }
 
 function Stop-RevitGptTunnel {
+    $state = Read-TrayState
     $tunnelPid = $script:TunnelPid
+    if (-not $tunnelPid -and $state -and $state.tunnel_pid) { $tunnelPid = [int]$state.tunnel_pid }
     if (-not $tunnelPid) { $tunnelPid = Get-PortOwnerPid -TargetPort $TunnelHealthPort }
     if ($tunnelPid -and (Test-OwnedTunnel -ProcessId $tunnelPid)) {
         Stop-Process -Id $tunnelPid -Force -ErrorAction SilentlyContinue
