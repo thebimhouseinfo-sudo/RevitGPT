@@ -108,10 +108,10 @@ function Get-PortOwnerInfo([int]$Port){
       $line=netstat -ano|Select-String ":$Port\s"|Select-String "LISTENING"|Select-Object -First 1
       if(-not $line){return $null}
       $parts=(($line.ToString()-replace '\s+',' ').Trim().Split(' '))
-      $pid=[int]$parts[-1]
-      $proc=Get-CimInstance Win32_Process -Filter "ProcessId = $pid" -ErrorAction SilentlyContinue
+      $ownerPid=[int]$parts[-1]
+      $proc=Get-CimInstance Win32_Process -Filter "ProcessId = $ownerPid" -ErrorAction SilentlyContinue
       return [pscustomobject]@{
-        pid=$pid
+        pid=$ownerPid
         name=if($proc){$proc.Name}else{"unknown"}
         command_line=if($proc){$proc.CommandLine}else{""}
       }
