@@ -154,11 +154,17 @@ def resolve_doc(doc_id: str = None):
 def doc_to_dict(doc) -> dict:
     if doc is None:
         return {"error": "No document available"}
+    runtime_id = str(doc.GetHashCode())
     return {
-        "id": str(doc.GetHashCode()),
+        "id": runtime_id,
+        "runtime_id": runtime_id,
         "title": doc.Title,
         "path": doc.PathName if doc.PathName else "",
-        "is_workshared": doc.IsWorkshared,
+        "is_workshared": bool(doc.IsWorkshared),
+        "is_family_document": bool(getattr(doc, "IsFamilyDocument", False)),
+        "is_read_only": bool(getattr(doc, "IsReadOnly", False)),
+        "is_modified": bool(getattr(doc, "IsModified", False)),
+        "is_linked": bool(getattr(doc, "IsLinked", False)),
         "revit_version": str(doc.Application.VersionNumber),
     }
 
@@ -432,10 +438,33 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
         try:
             if path == "/health":
+                uiapp = get_ui_app()
+                active_doc = get_active_doc()
                 self.send_json({
                     "status": "ok",
                     "revit_available": REVIT_AVAILABLE,
-                    "version": "1.1.0",
+                    "version": "1.2.0",
+                    "process_id": os.getpid(),
+                    "revit_version": (
+                        str(uiapp.Application.VersionNumber)
+                        if uiapp is not None
+                        else ""
+                    ),
+                    "open_document_count": (
+                        sum(1 for _ in uiapp.Application.Documents)
+                        if uiapp is not None
+                        else 0
+                    ),
+                    "active_document_id": (
+                        str(active_doc.GetHashCode())
+                        if active_doc is not None
+                        else None
+                    ),
+                    "active_document_title": (
+                        active_doc.Title
+                        if active_doc is not None
+                        else None
+                    ),
                 })
             elif path == "/document/active":
                 doc = get_active_doc()
