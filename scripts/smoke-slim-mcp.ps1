@@ -57,69 +57,16 @@ try {
     if ($health.name -ne "revitgpt") { throw "Unexpected health name: $($health.name)" }
     if ($health.revit_mcp.running) { throw "Full Revit MCP must not auto-start while Revit is absent." }
 
-    $mcpUri = "http://127.0.0.1:$port/mcp/ci-smoke-token"
-    $initBody = @{
-        jsonrpc = "2.0"
-        id = 1
-        method = "initialize"
-        params = @{
-            protocolVersion = "2025-03-26"
-            capabilities = @{}
-            clientInfo = @{ name = "revitgpt-ci-smoke"; version = "1.0.0" }
-        }
-    } | ConvertTo-Json -Depth 8
-    try {
-        $init = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
-            Accept = "application/json, text/event-stream"
-        } -Body $initBody -UseBasicParsing -TimeoutSec 5
-    } catch {
+    $sessionTest = & node.exe (Join-Path $repoRoot "scripts\test-mcp-session.mjs") 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $sessionTest | ForEach-Object { Write-Host $_ }
         Write-Host "=== slim MCP stderr ==="
         Get-Content $stderr -ErrorAction SilentlyContinue
         Write-Host "=== slim MCP stdout ==="
         Get-Content $stdout -ErrorAction SilentlyContinue
-        throw "RevitGPT MCP initialize failed: $($_.Exception.Message)"
+        throw "RevitGPT MCP session integration test failed."
     }
-    if ($init.StatusCode -ne 200) { throw "MCP initialize HTTP $($init.StatusCode)" }
-    $sessionId = $init.Headers["Mcp-Session-Id"]
-    if (-not $sessionId) { throw "MCP initialize missing Mcp-Session-Id" }
-
-    $initializedBody = @{
-        jsonrpc = "2.0"
-        method = "notifications/initialized"
-    } | ConvertTo-Json -Depth 8
-    $initialized = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
-        Accept = "application/json, text/event-stream"
-        "Mcp-Session-Id" = $sessionId
-        "Mcp-Protocol-Version" = "2025-03-26"
-    } -Body $initializedBody -UseBasicParsing -TimeoutSec 5
-    if ($initialized.StatusCode -ne 200 -and $initialized.StatusCode -ne 202) {
-        throw "notifications/initialized HTTP $($initialized.StatusCode)"
-    }
-
-    $toolsBody = @{
-        jsonrpc = "2.0"
-        id = 2
-        method = "tools/list"
-        params = @{}
-    } | ConvertTo-Json -Depth 8
-    try {
-        $tools = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
-            Accept = "application/json, text/event-stream"
-            "Mcp-Session-Id" = $sessionId
-            "Mcp-Protocol-Version" = "2025-03-26"
-        } -Body $toolsBody -UseBasicParsing -TimeoutSec 5
-    } catch {
-        Write-Host "=== slim MCP stderr ==="
-        Get-Content $stderr -ErrorAction SilentlyContinue
-        Write-Host "=== slim MCP stdout ==="
-        Get-Content $stdout -ErrorAction SilentlyContinue
-        throw
-    }
-    if ($tools.StatusCode -ne 200) { throw "tools/list HTTP $($tools.StatusCode)" }
-    $toolsJson = $tools.Content | ConvertFrom-Json
-    if (-not ($toolsJson.result.tools.name -contains "revitgpt_admission")) {
-        throw "revitgpt_admission not present in tools/list"
-    }
+    $sessionTest | ForEach-Object { Write-Host $_ }
 
     if (-not (Test-Path $envPath)) {
         Copy-Item (Join-Path $repoRoot ".env.example") $envPath
