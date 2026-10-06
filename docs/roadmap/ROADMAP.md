@@ -16,14 +16,18 @@ No UNKNOWN may be silently promoted to implementation contract.
 
 ### Chat/session ownership
 
-- **HUMAN:** one ChatGPT conversation binds one RVT model.
-- **HUMAN:** model lease idle timeout is 15 minutes.
-- **HUMAN:** every message in the same bound conversation should refresh the 15-minute lease, **provided a stable same-conversation identity is proven**.
-- **REF:** CadGPT already observed `x-openai-session` stable across replacement MCP transports in a short test and different across another conversation.
-- **UNKNOWN:** stability duration beyond the short CadGPT test. Evidence gate E0 tests 1h/4h/8h.
-- **HUMAN:** after lease expiry the model is free for any chat; historical owner has no priority.
-- **HUMAN:** `rg/stop` may explicitly release a still-valid lease so another chat can bind immediately.
-- **HUMAN:** control-plane restart/crash drops leases immediately; lease persistence/recovery is not required.
+Canonical lifecycle contract: [`docs/architecture/AUTHORITY_LIFECYCLE.md`](../architecture/AUTHORITY_LIFECYCLE.md).
+
+- **HUMAN:** one logical ChatGPT conversation binds one primary RVT model at a time.
+- **HUMAN:** ordinary browser/plugin sessions use **BROWSER_TTL** with a 15-minute model-authority idle timeout.
+- **HUMAN:** a WebView conversation successfully paired to the Revit add-in uses **ADDIN_MANAGED** with **no RevitGPT idle timeout while the pair remains valid**.
+- **HUMAN:** `ADDIN_MANAGED` is lifecycle-driven, not kept alive by a synthetic heartbeat.
+- **EVIDENCE:** CadGPT proved the host-neutral pattern: a paired add-in logical session survives wall-clock idle/sleep while an ordinary browser session still expires.
+- **EVIDENCE:** `x-openai-session` remained stable for ~14h14m across replacement MCP transports in E0 and distinguishes conversations under the tested conditions.
+- **HUMAN:** valid same-chat turns refresh only `BROWSER_TTL`; `ADDIN_MANAGED` does not need activity refresh.
+- **HUMAN:** after `BROWSER_TTL` expiry the model is free for any chat; historical owner has no priority.
+- **HUMAN:** `rg/stop` releases model authority immediately. For `ADDIN_MANAGED`, the add-in pair may remain managed for a later bind as defined by the canonical lifecycle contract.
+- **HUMAN:** control-plane restart drops in-memory authority. An add-in may fresh-pair/rebind after restart, but prior idle duration is never interpreted as managed-session expiry.
 
 ### Fast connect
 
@@ -61,7 +65,19 @@ t0 -> 1h -> 4h -> 8h
 + different-chat control
 ```
 
-Result: Chat A retained one `x-openai-session` fingerprint for ~14h14m across five MCP transport identities; Chat B had a distinct `x-openai-session` while sharing the same `x-openai-subject`. This is sufficient evidence for the Human-approved 15-minute lease. Control-plane restart/crash still drops leases and uses fresh bind.
+Result: Chat A retained one `x-openai-session` fingerprint for ~14h14m across five MCP transport identities; Chat B had a distinct `x-openai-session` while sharing the same `x-openai-subject`. This is sufficient for logical-conversation identity in the current two-mode contract. Browser sessions use the 15-minute TTL; add-in pairing supplies the separate managed-session lifetime.
+
+### P0 — Authority/add-in policy convergence
+
+Create and maintain the canonical contract in `docs/architecture/AUTHORITY_LIFECYCLE.md`.
+
+Deliver:
+- one explicit `BROWSER_TTL` vs `ADDIN_MANAGED` contract;
+- lifecycle/release state table for idle, sleep, transport replacement, WebView recovery, stop, rebind, model close, host close, restart and stale conversation recovery;
+- add-in architecture migrated into the active implementation line;
+- ROADMAP and DECISION_REGISTER references to the canonical contract instead of duplicated timeout semantics.
+
+P0 must complete before the rest of the migrated J-8A2C execution chain proceeds.
 
 ### P1 — Bootstrap proven Revit MCP
 
@@ -119,31 +135,51 @@ Output:
 - process/session relationship;
 - explicit unresolved cases if any.
 
-### P2 — Admission + lease implementation
+### P2A — Revit add-in managed-session shell
 
-Only after E0 + E2 + E3 provide required evidence.
+Only after E1 + E2 + E3 evidence.
 
 Implement:
-- 0/1/many fast-connect behavior;
-- one chat / one model lease;
-- 15-minute TTL;
-- same-chat message refresh using the proven logical chat identity;
-- model free immediately on expiry;
-- no historical-owner priority;
-- `rg/stop` early release;
-- control-plane restart/crash drops leases;
-- no dependency on chat UI open/closed state.
+- Revit DockablePane + WPF + persistent WebView2 profile;
+- local pair-window handshake completed by normal `@rg` admission;
+- `ADDIN_MANAGED` logical-session/work pinning outside ordinary idle cleanup;
+- sleep, panel hide/show, MCP transport replacement and WebView recreation recovery;
+- one primary bound model with active-vs-bound mismatch observation only;
+- explicit **Lease + Bind Current** with rollback;
+- no authority from WebView cookies/DOM/login state or active Revit tab/view.
 
-### E4 — Lease/reconnect acceptance
+### E4A — Add-in managed-session recovery acceptance
 
-Test:
-- same chat messages refresh TTL;
-- >15m idle frees model;
-- another chat binds freed model;
-- old chat returns and conflicts if model was taken;
-- `rg/stop` releases a still-valid lease;
-- control-plane restart makes model free;
-- full MCP can remain ON with no lease.
+Differentially prove:
+- `ADDIN_MANAGED` idle >15m remains managed;
+- ordinary `BROWSER_TTL` idle >15m still expires;
+- sleep/resume, MCP transport replacement and WebView recreation do not expire managed state;
+- stale/deleted/logged-out WebView conversation establishes a fresh pair and does not inherit authority implicitly.
+
+### P2B — Shared model authority
+
+Implement one authority service with:
+- `BROWSER_TTL`: 15-minute idle lease + same-chat user-turn refresh;
+- `ADDIN_MANAGED`: no idle expiry while pair is valid;
+- 0/1/many model admission using E3 strong identity;
+- atomic Lease + Bind Current;
+- model close releasing model authority without automatically destroying an add-in pair;
+- explicit pair/host lifecycle release rules from the canonical contract.
+
+### E4 — Authority lifecycle acceptance
+
+Execute `AUTHORITY_LIFECYCLE.md` row-by-row, including:
+- browser TTL refresh/expiry/takeover;
+- managed idle >15m;
+- sleep/resume;
+- transport replacement;
+- WebView recreation;
+- `rg/stop`;
+- successful/failed rebind;
+- bound-model close;
+- pair release;
+- Revit/add-in shutdown;
+- control-plane restart/fresh-pair recovery.
 
 ### P3 — Bound-model execution integration
 
@@ -180,14 +216,18 @@ Human acceptance is the final gate.
 
 ## Current immediate action
 
-P1 skeleton is implemented on the work branch and E0 is complete. Next gate is **E1 real Revit capability testing** through the actual ChatGPT connector/tunnel:
+J-8A2C is the active migrated roadmap. The immediate phase is **P0 policy convergence**, then P1/E1.
 
-- setup/doctor PASS on the Human Windows machine;
-- @rg admission activates full Revit MCP only while Revit is running;
-- real RVT read;
-- controlled write + readback;
-- controlled delete + readback;
-- capture Revit version/process/model identity and any runtime limitations.
+P0:
+- canonicalize `BROWSER_TTL` vs `ADDIN_MANAGED`;
+- persist `docs/architecture/AUTHORITY_LIFECYCLE.md`;
+- migrate the current add-in architecture into the implementation line;
+- remove contradictory global timeout wording.
+
+After P0:
+- finish P1 setup/doctor instrumentation;
+- run E1 real RVT read -> controlled write/readback -> controlled delete/readback;
+- continue only through the reviewed dependency chain.
 
 
 ### Revit MCP activation truth table
