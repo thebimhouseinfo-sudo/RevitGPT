@@ -33,6 +33,11 @@ jobs:
         shell: pwsh
         run: node scripts/verify-appdata.mjs
 
+      - name: Smoke Slim MCP startup
+        shell: pwsh
+        run: |
+          ./scripts/smoke-slim-mcp.ps1
+
       - name: Parse tray PowerShell
         shell: pwsh
         run: |
