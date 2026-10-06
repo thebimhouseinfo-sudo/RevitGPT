@@ -213,6 +213,7 @@ function Start-RevitGptRuntime {
 function Stop-RevitGptRuntime {
     $state = Read-TrayState
     $runtimePid = $script:RuntimePid
+    if ($runtimePid -and -not (Test-OwnedRuntime -ProcessId $runtimePid)) { $runtimePid = $null }
 
     if (-not $runtimePid -and $state -and $state.runtime_pid) {
         $candidate = [int]$state.runtime_pid
@@ -278,6 +279,7 @@ function Start-RevitGptTunnel {
 function Stop-RevitGptTunnel {
     $state = Read-TrayState
     $tunnelPid = $script:TunnelPid
+    if ($tunnelPid -and -not (Test-OwnedTunnel -ProcessId $tunnelPid)) { $tunnelPid = $null }
 
     if (-not $tunnelPid -and $state -and $state.tunnel_pid) {
         $candidate = [int]$state.tunnel_pid
