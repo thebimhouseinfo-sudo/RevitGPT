@@ -130,7 +130,10 @@ def get_active_doc():
     uiapp = get_ui_app()
     if uiapp is None:
         return None
-    return uiapp.ActiveUIDocument.Document
+    uidoc = uiapp.ActiveUIDocument
+    if uidoc is None:
+        return None
+    return uidoc.Document
 
 
 def get_doc_by_id(doc_id: str):
