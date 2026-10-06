@@ -80,6 +80,9 @@ except ImportError:
 
 PORT = int(os.getenv("REVIT_MCP_PORT", "8765"))
 _SERVER_THREAD = None
+_SERVER_START_EVENT = threading.Event()
+_SERVER_START_ERROR = None
+_SERVER_READY = False
 _APPDATA_ROOT = os.getenv("REVITGPT_APPDATA_ROOT") or os.path.join(
     os.getenv("LOCALAPPDATA") or os.path.expanduser("~"), "RevitGPT"
 )
@@ -1417,27 +1420,86 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
 
 def run_server():
-    server = HTTPServer(("127.0.0.1", PORT), BridgeHandler)
-    bridge_log("bridge_start", port=PORT, revit_available=REVIT_AVAILABLE)
-    print(f"Revit MCP Bridge running on http://127.0.0.1:{PORT}")
-    print("Press Ctrl+C to stop")
+    global _SERVER_START_ERROR, _SERVER_READY
+    server = None
+    try:
+        server = HTTPServer(("127.0.0.1", PORT), BridgeHandler)
+        _SERVER_READY = True
+        _SERVER_START_ERROR = None
+        bridge_log("bridge_start", port=PORT, revit_available=REVIT_AVAILABLE)
+        print(f"Revit MCP Bridge running on http://127.0.0.1:{PORT}")
+    except Exception as exc:
+        _SERVER_READY = False
+        _SERVER_START_ERROR = str(exc)
+        bridge_log(
+            "bridge_bind_failed",
+            port=PORT,
+            error=str(exc),
+            traceback=traceback.format_exc(),
+        )
+        print(f"Revit MCP Bridge failed to bind 127.0.0.1:{PORT}: {exc}")
+        _SERVER_START_EVENT.set()
+        return
+
+    _SERVER_START_EVENT.set()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         bridge_log("bridge_stop", reason="KeyboardInterrupt")
-        print("\nShutting down bridge...")
-        server.shutdown()
+    except Exception as exc:
+        bridge_log(
+            "bridge_runtime_failed",
+            port=PORT,
+            error=str(exc),
+            traceback=traceback.format_exc(),
+        )
+    finally:
+        _SERVER_READY = False
+        if server is not None:
+            try:
+                server.server_close()
+            except Exception:
+                pass
 
 
 def ensure_server_started():
-    global _SERVER_THREAD
-    if _SERVER_THREAD is not None and _SERVER_THREAD.is_alive():
-        return {"started": False, "running": True, "port": PORT}
+    global _SERVER_THREAD, _SERVER_START_ERROR, _SERVER_READY
+    if _SERVER_THREAD is not None and _SERVER_THREAD.is_alive() and _SERVER_READY:
+        return {"started": False, "running": True, "ready": True, "port": PORT}
+
+    _SERVER_START_EVENT.clear()
+    _SERVER_START_ERROR = None
+    _SERVER_READY = False
     _SERVER_THREAD = threading.Thread(target=run_server)
     _SERVER_THREAD.daemon = True
     _SERVER_THREAD.start()
     bridge_log("bridge_thread_started", port=PORT)
-    return {"started": True, "running": True, "port": PORT}
+
+    if not _SERVER_START_EVENT.wait(2.0):
+        bridge_log("bridge_start_timeout", port=PORT)
+        return {
+            "started": True,
+            "running": _SERVER_THREAD.is_alive(),
+            "ready": False,
+            "port": PORT,
+            "error": "bridge startup timed out",
+        }
+
+    if _SERVER_START_ERROR:
+        return {
+            "started": False,
+            "running": False,
+            "ready": False,
+            "port": PORT,
+            "error": _SERVER_START_ERROR,
+        }
+
+    return {
+        "started": True,
+        "running": _SERVER_THREAD.is_alive(),
+        "ready": _SERVER_READY,
+        "port": PORT,
+    }
 
 
 if __name__ == "__main__":
