@@ -60,7 +60,7 @@ The host-neutral reference is the proven CadGPT pattern:
 | Successful Lease + Bind Current | Atomically move authority | Atomically move authority; pair unchanged | Old model authority released only after new bind commits |
 | Failed Lease + Bind Current | Preserve old authority | Preserve old authority + pair | No release |
 | Bound model closes | Release model authority | Release model authority; keep managed pair/chat | Model authority only |
-| Explicit pair release | N/A | Session no longer ADDIN_MANAGED | Pair only; any pair-dependent authority must be released |
+| Explicit pair release | N/A | Session no longer ADDIN_MANAGED | Release add-in pair + any ADDIN_MANAGED model authority/foreground work that depends on that pair; preserve logical ChatGPT conversation + full Revit MCP runtime |
 | Add-in unload | N/A | Release pair + model authority | Pair + model authority |
 | Revit exits | Release Revit model authority | Release pair + model authority | Host/model authority; WebView profile may remain on disk |
 | Control-plane restart | Drop in-memory browser authority | Old in-memory pair is stale; start a fresh pair/rebind flow | Never interpret elapsed idle as expiry |
@@ -135,7 +135,7 @@ Before P2B/E4 can pass:
 - Active view/model switching never auto-rebinds.
 - Bind Current rollback preserves old authority on failure.
 - Model close releases model authority but keeps the managed pair.
-- Explicit pair release removes managed status.
+- Explicit pair release removes managed status and releases pair-dependent ADDIN_MANAGED model authority/foreground work without terminating the logical ChatGPT conversation or full Revit MCP runtime.
 - Control-plane restart follows fresh-pair/rebind semantics without using prior idle duration.
 
 Any deviation is a blocking lifecycle finding, not an accepted workaround.
