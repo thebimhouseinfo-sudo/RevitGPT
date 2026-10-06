@@ -22,13 +22,12 @@ jobs:
       - name: Check Node syntax
         shell: pwsh
         run: |
-          node --check src/index.mjs
-          node --check src/revit-upstream.mjs
-          node --check src/appdata.mjs
-          node --check src/log-store.mjs
-          node --check src/managed-tools.mjs
-          node --check src/revit-mcp-dev.mjs
-          node --check scripts/verify-appdata.mjs
+          ./scripts/check-node-syntax.ps1
+
+      - name: Simulate Windows bootstrap paths with spaces
+        shell: pwsh
+        run: |
+          ./scripts/simulate-windows-bootstrap.ps1
 
       - name: Verify AppData contract
         shell: pwsh
