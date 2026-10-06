@@ -1,13 +1,29 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path ".").Path
-$junction = Join-Path $env:RUNNER_TEMP "RevitGPT Runtime With Spaces"
-$port = 33991
-$stdout = Join-Path $env:RUNNER_TEMP "revitgpt-smoke.out.log"
-$stderr = Join-Path $env:RUNNER_TEMP "revitgpt-smoke.err.log"
+$tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+$junction = Join-Path $tempRoot "RevitGPT Runtime With Spaces"
+$stdout = Join-Path $tempRoot "revitgpt-smoke.out.log"
+$stderr = Join-Path $tempRoot "revitgpt-smoke.err.log"
 $proc = $null
 
-Remove-Item $junction -Force -Recurse -ErrorAction SilentlyContinue
+$envNames = @("HOST","PORT","MCP_TOKEN","REVIT_BRIDGE_URL","REVITGPT_DEV_MODE")
+$savedEnv = @{}
+foreach ($name in $envNames) {
+    $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+}
+
+$envPath = Join-Path $repoRoot ".env"
+$createdEnv = $false
+
+$listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+$listener.Start()
+$port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+$listener.Stop()
+
+if (Test-Path $junction) {
+    & cmd.exe /d /c ('rmdir "' + $junction + '"') | Out-Null
+}
 New-Item -ItemType Junction -Path $junction -Target $repoRoot | Out-Null
 
 try {
@@ -41,8 +57,11 @@ try {
     if ($health.name -ne "revitgpt") { throw "Unexpected health name: $($health.name)" }
     if ($health.revit_mcp.running) { throw "Full Revit MCP must not auto-start while Revit is absent." }
 
-    $envFile = Join-Path $junction ".env"
-    Copy-Item (Join-Path $junction ".env.example") $envFile -Force
+    if (-not (Test-Path $envPath)) {
+        Copy-Item (Join-Path $repoRoot ".env.example") $envPath
+        $createdEnv = $true
+    }
+
     $statusOut = & cmd.exe /d /c ('"' + (Join-Path $junction "run.bat") + '" status') 2>&1
     if ($LASTEXITCODE -ne 0) {
         $statusOut | ForEach-Object { Write-Host $_ }
@@ -59,8 +78,21 @@ finally {
         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
         try { $proc.WaitForExit(5000) | Out-Null } catch {}
     }
-    foreach ($name in @("HOST","PORT","MCP_TOKEN","REVIT_BRIDGE_URL","REVITGPT_DEV_MODE")) {
-        Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+
+    if ($createdEnv -and (Test-Path $envPath)) {
+        Remove-Item $envPath -Force -ErrorAction SilentlyContinue
     }
-    Remove-Item $junction -Force -Recurse -ErrorAction SilentlyContinue
+
+    foreach ($name in $envNames) {
+        $previous = $savedEnv[$name]
+        if ($null -eq $previous) {
+            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($name, $previous, "Process")
+        }
+    }
+
+    if (Test-Path $junction) {
+        & cmd.exe /d /c ('rmdir "' + $junction + '"') | Out-Null
+    }
 }
