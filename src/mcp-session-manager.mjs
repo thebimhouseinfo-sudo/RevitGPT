@@ -210,11 +210,21 @@ export function createSessionManager(port, createServer) {
     },
 
     async createNew(req, res, body) {
-      const requestedLogicalKey =
-        extractHeader(req, "x-openai-session") ||
-        extractHeader(req, "x-openai-subject") ||
-        randomUUID();
-      const session = await buildSession(requestedLogicalKey);
+      const headerSessionId = extractHeader(req, "mcp-session-id");
+      let session;
+
+      if (headerSessionId && pendingRecoveries.has(headerSessionId)) {
+        session = pendingRecoveries.get(headerSessionId);
+        pendingRecoveries.delete(headerSessionId);
+        console.log(`[MCP] Using pending recovery transport for ${headerSessionId}`);
+      } else {
+        const requestedLogicalKey =
+          extractHeader(req, "x-openai-session") ||
+          extractHeader(req, "x-openai-subject") ||
+          randomUUID();
+        session = await buildSession(requestedLogicalKey);
+      }
+
       await session.transport.handleRequest(req, res, body);
       const activeId = session.transport.sessionId;
       if (activeId) {
