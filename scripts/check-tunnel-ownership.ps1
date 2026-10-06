@@ -3,8 +3,12 @@ $ErrorActionPreference = "Stop"
 $tray = Get-Content "revitgpt-tray.ps1" -Raw
 
 $required = @(
+    '\$runtimePid = \$script:RuntimePid',
+    'if \(\$runtimePid -and -not \(Test-OwnedRuntime -ProcessId \$runtimePid\)\) \{ \$runtimePid = \$null \}',
     'if \(Test-OwnedRuntime -ProcessId \$candidate\) \{ \$runtimePid = \$candidate \}',
     '\$candidate = Get-PortOwnerPid -TargetPort \$Port',
+    '\$tunnelPid = \$script:TunnelPid',
+    'if \(\$tunnelPid -and -not \(Test-OwnedTunnel -ProcessId \$tunnelPid\)\) \{ \$tunnelPid = \$null \}',
     'if \(Test-OwnedTunnel -ProcessId \$candidate\) \{ \$tunnelPid = \$candidate \}',
     '\$candidate = Get-PortOwnerPid -TargetPort \$TunnelHealthPort'
 )
