@@ -53,6 +53,17 @@ jobs:
         run: |
           ./openai-tunnel.ps1 -VerifyClient
 
+      - name: Check tunnel ownership contract
+        shell: pwsh
+        run: |
+          ./scripts/check-tunnel-ownership.ps1
+
+      - name: Test tunnel doctor with configured health port occupied
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-tunnel-doctor-port-isolation.ps1
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
