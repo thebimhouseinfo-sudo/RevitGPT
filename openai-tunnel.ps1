@@ -1,6 +1,8 @@
 param(
   [switch]$Init,
   [switch]$Doctor,
+  [switch]$ProbeControlPlane,
+  [switch]$RuntimeDiagnostics,
   [switch]$VerifyClient,
   [switch]$Force
 )
@@ -84,6 +86,91 @@ mcp:
 "@
   Set-Content $ProfileFile -Value $yaml -Encoding UTF8
 }
+
+function Redact-Secret([string]$Text,[string]$Secret){
+  if($null -eq $Text){return ""}
+  $safe=$Text
+  if($Secret){$safe=$safe.Replace($Secret,"<redacted>")}
+  return $safe
+}
+function Get-PortOwnerInfo([int]$Port){
+  try{
+    $conn=Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort $Port -State Listen -ErrorAction Stop|Select-Object -First 1
+    if(-not $conn){return $null}
+    $proc=Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue
+    return [pscustomobject]@{
+      pid=[int]$conn.OwningProcess
+      name=if($proc){$proc.Name}else{"unknown"}
+      command_line=if($proc){$proc.CommandLine}else{""}
+    }
+  }catch{
+    try{
+      $line=netstat -ano|Select-String ":$Port\s"|Select-String "LISTENING"|Select-Object -First 1
+      if(-not $line){return $null}
+      $parts=(($line.ToString()-replace '\s+',' ').Trim().Split(' '))
+      $pid=[int]$parts[-1]
+      $proc=Get-CimInstance Win32_Process -Filter "ProcessId = $pid" -ErrorAction SilentlyContinue
+      return [pscustomobject]@{
+        pid=$pid
+        name=if($proc){$proc.Name}else{"unknown"}
+        command_line=if($proc){$proc.CommandLine}else{""}
+      }
+    }catch{return $null}
+  }
+}
+function Show-RuntimeDiagnostics([string]$ApiKey){
+  $health=if(Get-EnvValue "OPENAI_TUNNEL_HEALTH_PORT"){[int](Get-EnvValue "OPENAI_TUNNEL_HEALTH_PORT")}else{8280}
+  $owner=Get-PortOwnerInfo $health
+  if($owner){
+    $owned=($owner.command_line -and $owner.command_line.IndexOf($ProfileFile,[System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+    Write-Host ("[INFO] Tunnel health port {0} owner PID={1} name={2} revitgpt_owned={3}" -f $health,$owner.pid,$owner.name,$owned)
+    if($owner.command_line){Write-Host ("[INFO] Owner command: " + (Redact-Secret $owner.command_line $ApiKey))}
+  }else{
+    Write-Host ("[INFO] Tunnel health port {0} has no LISTENING owner." -f $health)
+  }
+
+  $appData=Get-EnvValue "REVITGPT_APPDATA_ROOT"
+  if([string]::IsNullOrWhiteSpace($appData)){$appData=Join-Path $env:LOCALAPPDATA "RevitGPT"}
+  elseif(-not [System.IO.Path]::IsPathRooted($appData)){$appData=[System.IO.Path]::GetFullPath((Join-Path $ScriptDir $appData))}
+  foreach($name in @("tunnel.err.log","tunnel.out.log","tray.log")){
+    $path=Join-Path (Join-Path $appData "logs") $name
+    if(Test-Path $path){
+      Write-Host ("--- " + $name + " (last 20) ---")
+      Get-Content $path -Tail 20 -ErrorAction SilentlyContinue|ForEach-Object{Write-Host (Redact-Secret ([string]$_) $ApiKey)}
+    }
+  }
+}
+function Probe-ControlPlane([string]$TunnelId,[string]$ApiKey){
+  $savedControl=$env:CONTROL_PLANE_API_KEY
+  $savedOpenAI=$env:OPENAI_API_KEY
+  $savedAdmin=$env:OPENAI_ADMIN_KEY
+  try{
+    $env:CONTROL_PLANE_API_KEY=$ApiKey
+    $env:OPENAI_API_KEY=$null
+    $env:OPENAI_ADMIN_KEY=$null
+    $output=& $TunnelExe admin --json tunnels get $TunnelId 2>&1|Out-String
+    $code=$LASTEXITCODE
+    $safe=Redact-Secret $output $ApiKey
+    if($code -eq 0){
+      Write-Host ("[PASS] Live control-plane lookup succeeded for " + $TunnelId)
+      try{
+        $obj=$output|ConvertFrom-Json
+        $orgs=@($obj.organization_ids)
+        $workspaces=@($obj.workspace_ids)
+        if($orgs.Count -gt 0){Write-Host ("[INFO] organization_ids=" + ($orgs -join ","))}
+        if($workspaces.Count -gt 0){Write-Host ("[INFO] workspace_ids=" + ($workspaces -join ","))}
+      }catch{}
+      return $true
+    }
+    Write-Host ("[FAIL] Live control-plane lookup failed for " + $TunnelId)
+    if($safe.Trim()){Write-Host $safe.Trim()}
+    return $false
+  }finally{
+    $env:CONTROL_PLANE_API_KEY=$savedControl
+    $env:OPENAI_API_KEY=$savedOpenAI
+    $env:OPENAI_ADMIN_KEY=$savedAdmin
+  }
+}
 Install-Tunnel
 if($VerifyClient){
   $target=$TunnelVersion.TrimStart("v")
@@ -115,5 +202,9 @@ if(-not $id -or -not $key){throw "Tunnel not configured. Run openai-tunnel.ps1 -
 Ensure-Profile $id
 $env:OPENAI_TUNNEL_API_KEY=$key
 if($Doctor){& $TunnelExe doctor --profile-file $ProfileFile --health.listen-addr 127.0.0.1:0 --explain;exit $LASTEXITCODE}
+if($RuntimeDiagnostics){Show-RuntimeDiagnostics $key;exit 0}
+if($ProbeControlPlane){
+  if(Probe-ControlPlane $id $key){exit 0}else{exit 3}
+}
 & $TunnelExe run --profile-file $ProfileFile
 exit $LASTEXITCODE
