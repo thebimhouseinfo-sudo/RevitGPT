@@ -57,6 +57,49 @@ try {
     if ($health.name -ne "revitgpt") { throw "Unexpected health name: $($health.name)" }
     if ($health.revit_mcp.running) { throw "Full Revit MCP must not auto-start while Revit is absent." }
 
+    $mcpUri = "http://127.0.0.1:$port/mcp/ci-smoke-token"
+    $initBody = @{
+        jsonrpc = "2.0"
+        id = 1
+        method = "initialize"
+        params = @{
+            protocolVersion = "2025-03-26"
+            capabilities = @{}
+            clientInfo = @{ name = "revitgpt-ci-smoke"; version = "1.0.0" }
+        }
+    } | ConvertTo-Json -Depth 8
+    try {
+        $init = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
+            Accept = "application/json, text/event-stream"
+        } -Body $initBody -UseBasicParsing -TimeoutSec 5
+    } catch {
+        Write-Host "=== slim MCP stderr ==="
+        Get-Content $stderr -ErrorAction SilentlyContinue
+        Write-Host "=== slim MCP stdout ==="
+        Get-Content $stdout -ErrorAction SilentlyContinue
+        throw "RevitGPT MCP initialize failed: $($_.Exception.Message)"
+    }
+    if ($init.StatusCode -ne 200) { throw "MCP initialize HTTP $($init.StatusCode)" }
+    $sessionId = $init.Headers["Mcp-Session-Id"]
+    if (-not $sessionId) { throw "MCP initialize missing Mcp-Session-Id" }
+
+    $toolsBody = @{
+        jsonrpc = "2.0"
+        id = 2
+        method = "tools/list"
+        params = @{}
+    } | ConvertTo-Json -Depth 8
+    $tools = Invoke-WebRequest $mcpUri -Method Post -ContentType "application/json" -Headers @{
+        Accept = "application/json, text/event-stream"
+        "Mcp-Session-Id" = $sessionId
+        "Mcp-Protocol-Version" = "2025-03-26"
+    } -Body $toolsBody -UseBasicParsing -TimeoutSec 5
+    if ($tools.StatusCode -ne 200) { throw "tools/list HTTP $($tools.StatusCode)" }
+    $toolsJson = $tools.Content | ConvertFrom-Json
+    if (-not ($toolsJson.result.tools.name -contains "revitgpt_admission")) {
+        throw "revitgpt_admission not present in tools/list"
+    }
+
     if (-not (Test-Path $envPath)) {
         Copy-Item (Join-Path $repoRoot ".env.example") $envPath
         $createdEnv = $true
@@ -71,7 +114,7 @@ try {
         throw "run.bat status did not produce expected status output."
     }
 
-    Write-Host "[PASS] Slim MCP real startup + run.bat status from Windows path with spaces"
+    Write-Host "[PASS] Slim MCP startup + MCP initialize/tools-list + run.bat status from Windows path with spaces"
 }
 finally {
     if ($proc -and -not $proc.HasExited) {
