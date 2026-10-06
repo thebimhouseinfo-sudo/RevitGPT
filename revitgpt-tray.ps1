@@ -191,7 +191,7 @@ function Start-RevitGptRuntime {
 
     $stdout = Join-Path $LogDir "revitgpt.out.log"
     $stderr = Join-Path $LogDir "revitgpt.err.log"
-    $proc = Start-Process -FilePath "node.exe" -ArgumentList @($IndexPath) -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $proc = Start-Process -FilePath "node.exe" -ArgumentList @("`"$IndexPath`"") -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     $script:RuntimePid = $proc.Id
 
     $deadline = (Get-Date).AddSeconds(20)
@@ -235,7 +235,7 @@ function Start-RevitGptTunnel {
         $env:OPENAI_TUNNEL_API_KEY = $apiKey
         $stdout = Join-Path $LogDir "tunnel.out.log"
         $stderr = Join-Path $LogDir "tunnel.err.log"
-        $proc = Start-Process -FilePath $TunnelExe -ArgumentList @("run", "--profile-file", $TunnelProfilePath) -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+        $proc = Start-Process -FilePath $TunnelExe -ArgumentList @("run", "--profile-file", "`"$TunnelProfilePath`"") -WorkingDirectory $ScriptDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $script:TunnelPid = $proc.Id
     } finally {
         $env:OPENAI_TUNNEL_API_KEY = $savedApiKey
