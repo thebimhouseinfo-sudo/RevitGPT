@@ -47,6 +47,12 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
+      - name: Verify current Secure MCP tunnel client
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./openai-tunnel.ps1 -VerifyClient
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
