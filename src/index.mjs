@@ -1,16 +1,15 @@
 import "dotenv/config";
-import crypto from "node:crypto";
 import express from "express";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
 import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
+import { createSessionManager, extractRequestId, isInitializeRequest } from "./mcp-session-manager.mjs";
+import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
@@ -26,7 +25,6 @@ if (!TOKEN) {
   throw new Error("MCP_TOKEN is required. Copy .env.example to .env and set a private random value.");
 }
 
-const sessions = new Map();
 const admitted = new Set();
 let shuttingDown = false;
 
@@ -274,6 +272,9 @@ function createServer(sessionKey) {
   return server;
 }
 
+const sessions = createSessionManager(PORT, createServer);
+sessions.startCleanup();
+
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "10mb" }));
@@ -291,68 +292,99 @@ app.get("/health", async (_req, res) => {
     bridge,
     revit_process: revitProcess,
     revit_mcp: revitUpstream.status(),
-    active_mcp_sessions: sessions.size
+    active_mcp_sessions: sessions.count()
   });
 });
 
-app.post(route, async (req, res) => {
-  const transportId = req.headers["mcp-session-id"];
+async function handleMcpPost(req, res) {
   try {
-    if (typeof transportId === "string" && sessions.has(transportId)) {
-      await sessions.get(transportId).transport.handleRequest(req, res, req.body);
+    const sessionId =
+      typeof req.headers["mcp-session-id"] === "string"
+        ? req.headers["mcp-session-id"]
+        : undefined;
+    const requestId = extractRequestId(req.body);
+
+    const discoverFallback = buildLegacyDiscoverFallback(req.body);
+    if (discoverFallback) {
+      console.log("[MCP] server/discover -> legacy initialize fallback");
+      res.status(200).json(discoverFallback);
       return;
     }
 
-    if (!isInitializeRequest(req.body)) {
-      res.status(404).json({
-        jsonrpc: "2.0",
-        error: { code: -32001, message: "MCP session not found; reconnect RevitGPT and retry." },
-        id: req.body?.id ?? null
-      });
+    const existing = sessionId ? sessions.get(sessionId) : undefined;
+    if (existing) {
+      await sessions.handleExisting(existing, req, res, req.body);
       return;
     }
 
-    const sessionKey =
-      (typeof req.headers["x-openai-session"] === "string" && req.headers["x-openai-session"]) ||
-      crypto.randomUUID();
-    const server = createServer(sessionKey);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-      enableJsonResponse: true,
-      onsessioninitialized: (id) => sessions.set(id, { server, transport, sessionKey }),
-      onsessionclosed: (id) => {
-        if (id) sessions.delete(id);
-      }
-    });
-    transport.onerror = (error) => console.error("[MCP transport]", error.message);
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    if (isInitializeRequest(req.body)) {
+      await sessions.createNew(req, res, req.body);
+      return;
+    }
+
+    if (sessionId) {
+      const recovered = await sessions.tryRecover(sessionId, req, res, req.body);
+      if (recovered) return;
+      sessions.sendNotFound(res, requestId);
+      return;
+    }
+
+    sessions.sendBadRequest(
+      res,
+      "Bad Request: Mcp-Session-Id header is required",
+      requestId
+    );
   } catch (error) {
     console.error("[MCP POST]", error);
-    await logError({source:"mcp-http",error:error instanceof Error?error.message:String(error)}).catch(()=>undefined);
+    const message = error instanceof Error ? error.message : String(error);
+    await logError({ source: "mcp-http", error: message }).catch(() => undefined);
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: "2.0",
-        error: { code: -32603, message: error instanceof Error ? error.message : String(error) },
-        id: req.body?.id ?? null
+        error: { code: -32603, message: "Internal server error" },
+        id: extractRequestId(req.body)
       });
     }
   }
-});
+}
 
-app.get(route, async (req, res) => {
-  const id = req.headers["mcp-session-id"];
-  const session = typeof id === "string" ? sessions.get(id) : undefined;
-  if (!session) return res.status(404).json({ ok: false, error: "MCP session not found" });
-  await session.transport.handleRequest(req, res);
-});
+async function handleMcpGet(req, res) {
+  const sessionId =
+    typeof req.headers["mcp-session-id"] === "string"
+      ? req.headers["mcp-session-id"]
+      : undefined;
+  if (!sessionId) {
+    sessions.sendBadRequest(res, "Bad Request: Mcp-Session-Id header is required");
+    return;
+  }
+  const session = sessions.get(sessionId);
+  if (!session) {
+    sessions.sendNotFound(res);
+    return;
+  }
+  await sessions.handleExisting(session, req, res);
+}
 
-app.delete(route, async (req, res) => {
-  const id = req.headers["mcp-session-id"];
-  const session = typeof id === "string" ? sessions.get(id) : undefined;
-  if (!session) return res.status(404).json({ ok: false, error: "MCP session not found" });
-  await session.transport.handleRequest(req, res);
-});
+async function handleMcpDelete(req, res) {
+  const sessionId =
+    typeof req.headers["mcp-session-id"] === "string"
+      ? req.headers["mcp-session-id"]
+      : undefined;
+  if (!sessionId) {
+    sessions.sendBadRequest(res, "Bad Request: Mcp-Session-Id header is required");
+    return;
+  }
+  const session = sessions.get(sessionId);
+  if (!session) {
+    sessions.sendNotFound(res);
+    return;
+  }
+  await sessions.handleExisting(session, req, res);
+}
+
+app.post(route, handleMcpPost);
+app.get(route, handleMcpGet);
+app.delete(route, handleMcpDelete);
 
 const revitProcessWatch = setInterval(async () => {
   if (!revitUpstream.status().connected) return;
@@ -377,10 +409,8 @@ async function shutdown(signal) {
   clearInterval(revitProcessWatch);
   console.log("[RevitGPT] " + signal + ": shutting down");
   await revitUpstream.deactivate().catch(() => undefined);
-  for (const session of sessions.values()) {
-    await session.transport.close().catch(() => undefined);
-  }
-  sessions.clear();
+  sessions.stopCleanup();
+  await sessions.closeAll(signal).catch(() => undefined);
   httpServer.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
 }
