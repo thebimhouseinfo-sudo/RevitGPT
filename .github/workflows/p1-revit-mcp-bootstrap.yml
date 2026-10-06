@@ -9,12 +9,16 @@ on:
 jobs:
   bootstrap-check:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "24"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ matrix.node-version }}
 
       - name: Install Node dependencies
         run: npm install
@@ -38,15 +42,10 @@ jobs:
         run: |
           ./scripts/smoke-slim-mcp.ps1
 
-      - name: Parse tray PowerShell
+      - name: Check PowerShell syntax
         shell: pwsh
         run: |
-          $null = [scriptblock]::Create((Get-Content revitgpt-tray.ps1 -Raw))
-
-      - name: Parse tunnel PowerShell
-        shell: pwsh
-        run: |
-          $null = [scriptblock]::Create((Get-Content openai-tunnel.ps1 -Raw))
+          ./scripts/check-powershell-syntax.ps1
 
       - uses: actions/setup-python@v5
         with:
