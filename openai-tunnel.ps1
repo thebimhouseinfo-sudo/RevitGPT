@@ -1,6 +1,7 @@
 param(
   [switch]$Init,
   [switch]$Doctor,
+  [switch]$VerifyClient,
   [switch]$Force
 )
 
@@ -8,14 +9,14 @@ $ErrorActionPreference="Stop"
 $ScriptDir=Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
-$TunnelVersion="v0.0.14"
+$TunnelVersion="v0.0.15"
 $BinDir=Join-Path $ScriptDir "bin"
 $TunnelExe=[System.IO.Path]::GetFullPath((Join-Path $BinDir "tunnel-client.exe"))
 $ProfileDir=[System.IO.Path]::GetFullPath((Join-Path $ScriptDir "profiles"))
 $ProfileFile=[System.IO.Path]::GetFullPath((Join-Path $ProfileDir "revitgpt.yaml"))
 $ZipName="tunnel-client-$TunnelVersion-windows-amd64.zip"
 $DownloadUrl="https://github.com/openai/tunnel-client/releases/download/$TunnelVersion/$ZipName"
-$ExpectedSha256="784ab8da7b5a88f0109f1fd8aaf0a1c86067430b896dddf307ef7e3cc49fa1a5"
+$ExpectedSha256="3b53133a1e24d43f63088d843860cb1701a4c3ed6390de2e19f69089e43bddc1"
 
 function Get-EnvValue([string]$Name){
   if(-not (Test-Path ".env")){return $null}
@@ -43,6 +44,7 @@ function Ensure-Token{
 }
 function Install-Tunnel{
   $target=$TunnelVersion.TrimStart("v")
+  if($Force -and (Test-Path $TunnelExe)){Remove-Item $TunnelExe -Force}
   if(Test-Path $TunnelExe){
     try{$line=& $TunnelExe --version 2>$null|Select-Object -First 1;if($line -match '(\d+\.\d+\.\d+)'){if($Matches[1] -eq $target){return}}}catch{}
     Remove-Item $TunnelExe -Force
@@ -83,6 +85,15 @@ mcp:
   Set-Content $ProfileFile -Value $yaml -Encoding UTF8
 }
 Install-Tunnel
+if($VerifyClient){
+  $target=$TunnelVersion.TrimStart("v")
+  $versionLine=& $TunnelExe --version 2>$null | Select-Object -First 1
+  if($LASTEXITCODE -ne 0 -or $versionLine -notmatch '(\d+\.\d+\.\d+)' -or $Matches[1] -ne $target){
+    throw "tunnel-client version verification failed. Expected $target, got '$versionLine'"
+  }
+  Write-Host "[PASS] tunnel-client $target verified."
+  exit 0
+}
 if(-not (Get-EnvValue "PORT")){Set-EnvValue "PORT" "3300"}
 if(-not (Get-EnvValue "OPENAI_TUNNEL_HEALTH_PORT")){Set-EnvValue "OPENAI_TUNNEL_HEALTH_PORT" "8280"}
 $null=Ensure-Token
