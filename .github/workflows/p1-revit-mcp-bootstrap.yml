@@ -82,4 +82,4 @@ jobs:
         shell: pwsh
         working-directory: runtimes/Revit-mcp
         run: |
-          python -m unittest discover -s tests -p "test_bridge.py"
+          python -m unittest discover -s tests -p "test_*.py"
