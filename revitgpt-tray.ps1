@@ -213,8 +213,17 @@ function Start-RevitGptRuntime {
 function Stop-RevitGptRuntime {
     $state = Read-TrayState
     $runtimePid = $script:RuntimePid
-    if (-not $runtimePid -and $state -and $state.runtime_pid) { $runtimePid = [int]$state.runtime_pid }
-    if (-not $runtimePid) { $runtimePid = Get-PortOwnerPid -TargetPort $Port }
+
+    if (-not $runtimePid -and $state -and $state.runtime_pid) {
+        $candidate = [int]$state.runtime_pid
+        if (Test-OwnedRuntime -ProcessId $candidate) { $runtimePid = $candidate }
+    }
+
+    if (-not $runtimePid) {
+        $candidate = Get-PortOwnerPid -TargetPort $Port
+        if ($candidate -and (Test-OwnedRuntime -ProcessId $candidate)) { $runtimePid = $candidate }
+    }
+
     if ($runtimePid -and (Test-OwnedRuntime -ProcessId $runtimePid)) {
         Stop-Process -Id $runtimePid -Force -ErrorAction SilentlyContinue
     }
@@ -269,8 +278,17 @@ function Start-RevitGptTunnel {
 function Stop-RevitGptTunnel {
     $state = Read-TrayState
     $tunnelPid = $script:TunnelPid
-    if (-not $tunnelPid -and $state -and $state.tunnel_pid) { $tunnelPid = [int]$state.tunnel_pid }
-    if (-not $tunnelPid) { $tunnelPid = Get-PortOwnerPid -TargetPort $TunnelHealthPort }
+
+    if (-not $tunnelPid -and $state -and $state.tunnel_pid) {
+        $candidate = [int]$state.tunnel_pid
+        if (Test-OwnedTunnel -ProcessId $candidate) { $tunnelPid = $candidate }
+    }
+
+    if (-not $tunnelPid) {
+        $candidate = Get-PortOwnerPid -TargetPort $TunnelHealthPort
+        if ($candidate -and (Test-OwnedTunnel -ProcessId $candidate)) { $tunnelPid = $candidate }
+    }
+
     if ($tunnelPid -and (Test-OwnedTunnel -ProcessId $tunnelPid)) {
         Stop-Process -Id $tunnelPid -Force -ErrorAction SilentlyContinue
     }
