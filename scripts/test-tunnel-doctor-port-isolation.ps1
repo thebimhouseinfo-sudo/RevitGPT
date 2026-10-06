@@ -39,8 +39,14 @@ OPENAI_TUNNEL_API_KEY=test-invalid-runtime-key
         Write-Host $output
         throw "Tunnel doctor still reported health_listener as failed while 8280 was occupied."
     }
+    if ($output -match [regex]::Escape("test-token")) {
+        throw "Tunnel doctor leaked MCP_TOKEN in diagnostic output."
+    }
+    if ($output -match [regex]::Escape("test-invalid-runtime-key")) {
+        throw "Tunnel doctor leaked Runtime API key in diagnostic output."
+    }
 
-    Write-Host "[PASS] Tunnel doctor uses an isolated health listener while configured port is occupied"
+    Write-Host "[PASS] Tunnel doctor uses an isolated health listener and redacts secrets while configured port is occupied"
 }
 finally {
     if ($listener) { $listener.Stop() }
