@@ -114,6 +114,6 @@ $id=Get-EnvValue "OPENAI_TUNNEL_ID";$key=Get-EnvValue "OPENAI_TUNNEL_API_KEY"
 if(-not $id -or -not $key){throw "Tunnel not configured. Run openai-tunnel.ps1 -Init"}
 Ensure-Profile $id
 $env:OPENAI_TUNNEL_API_KEY=$key
-if($Doctor){& $TunnelExe doctor --profile-file $ProfileFile --explain;exit $LASTEXITCODE}
+if($Doctor){& $TunnelExe doctor --profile-file $ProfileFile --health.listen-addr 127.0.0.1:0 --explain;exit $LASTEXITCODE}
 & $TunnelExe run --profile-file $ProfileFile
 exit $LASTEXITCODE
