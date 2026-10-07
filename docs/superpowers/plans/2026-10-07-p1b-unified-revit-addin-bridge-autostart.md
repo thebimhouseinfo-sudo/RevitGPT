@@ -207,7 +207,7 @@ A single successful launch does not count as stable.
 
 ### Task E-PY-4A — Non-disruptive lifecycle baseline
 
-For the unmodified baseline, observe only startup logs, bridge thread/listener state and port ownership. Do not live-call Revit-bearing HTTP endpoints before E-PY-5.
+For the unmodified baseline, observe only startup logs, bridge thread/listener state and port ownership. Do not live-call Revit-bearing HTTP endpoints before E-PY-5B establishes safe execution.
 
 All lifecycle evidence must run in a **dedicated disposable Revit test session/model with no unsaved user work**.
 
@@ -290,7 +290,7 @@ If E-PY-5A reports `PYREVIT_DISPATCH_UNAVAILABLE`, or safe dispatch cannot be ma
 
 ### Task E-PY-6 — Full contract conformance + live concurrency test
 
-After E-PY-5 establishes a safe execution model:
+After E-PY-5B establishes a safe execution model:
 
 1. run **host-independent executable handler/router contract tests for every Python-client route**, including all mutating and annotation routes;
 2. each route test must cover HTTP method, required/minimal payload validation, minimal success-response shape, and representative error-response shape;
