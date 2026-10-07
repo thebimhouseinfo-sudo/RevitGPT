@@ -47,7 +47,12 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
-      - name: Check pyRevit bridge package contract
+      - name: Check native Revit bridge contract
+        shell: pwsh
+        run: |
+          ./scripts/check-native-revit-bridge.ps1
+
+      - name: Check optional pyRevit bridge package contract
         shell: pwsh
         run: |
           ./scripts/check-pyrevit-bridge-package.ps1
