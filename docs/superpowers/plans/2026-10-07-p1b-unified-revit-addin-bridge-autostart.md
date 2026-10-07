@@ -62,6 +62,7 @@ addins/revitgpt-revit/
     ChatPane.xaml
     ChatPane.xaml.cs
     ChatPaneProvider.cs
+    ChatPaneCreator.cs
     WebViewProfile.cs
 ```
 
@@ -96,6 +97,7 @@ The old `runtimes/Revit-mcp/bridge/standalone_addin/` and pyRevit bridge remain 
 - Create: `addins/revitgpt-revit/App.cs`
 - Create: `addins/revitgpt-revit/RevitGptHost.cs`
 - Create: `addins/revitgpt-revit/UI/ChatPaneProvider.cs`
+- Create: `addins/revitgpt-revit/UI/ChatPaneCreator.cs`
 - Create: `addins/revitgpt-revit/UI/ChatPane.xaml`
 - Create: `addins/revitgpt-revit/UI/ChatPane.xaml.cs`
 - Create: `addins/revitgpt-revit/UI/WebViewProfile.cs`
@@ -105,7 +107,8 @@ The old `runtimes/Revit-mcp/bridge/standalone_addin/` and pyRevit bridge remain 
 - Produces: `RevitGptApplication : IExternalApplication`.
 - Produces: `RevitGptHost.RegisterPane(UIControlledApplication application)`.
 - Produces: `RevitGptHost.Start(UIApplication application)` and `RevitGptHost.Stop()`.
-- Produces: `ChatPaneProvider : IDockablePaneProvider`.
+- Produces: `ChatPaneProvider : IDockablePaneProvider` using an `IFrameworkElementCreator` so Revit can recreate browser-backed pane content without reusing a stale WebView2 control.
+- Produces: `ChatPaneCreator : IFrameworkElementCreator` whose `CreateFrameworkElement()` returns a fresh `ChatPane` bound to the application-scoped readiness controller.
 - Produces: `WebViewProfile.UserDataPath` and `WebViewProfile.StartupUrl`.
 - Later tasks fill bridge startup/readiness inside `RevitGptHost`; this task only establishes the compile/source boundary and pane ownership.
 
@@ -114,6 +117,7 @@ The old `runtimes/Revit-mcp/bridge/standalone_addin/` and pyRevit bridge remain 
 Add tests named:
 - `test_unified_addin_project_targets_net48_wpf_and_webview2`
 - `test_application_registers_revitgpt_dockable_pane`
+- `test_dockable_pane_uses_framework_element_creator_for_webview`
 - `test_webview_profile_is_revitgpt_localappdata_and_chatgpt_https`
 - `test_unified_addin_does_not_define_manual_start_bridge_command`
 
@@ -123,6 +127,7 @@ Assertions must require:
 - `Microsoft.Web.WebView2` = `1.0.2420.47`;
 - namespace/class `RevitGPT.Addin.RevitGptApplication`;
 - `RegisterDockablePane`;
+- `FrameworkElementCreator` / `IFrameworkElementCreator` is used instead of caching a single WebView-backed framework element;
 - no `StartBridgeCommand : IExternalCommand`;
 - WebView profile contains `RevitGPT\webview\revit` and `https://chatgpt.com/`.
 
