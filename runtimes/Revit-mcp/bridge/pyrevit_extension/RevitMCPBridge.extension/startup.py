@@ -1,3 +1,4 @@
+#! python3
 """Auto-start RevitGPT bridge when pyRevit loads/reloads."""
 
 import json
