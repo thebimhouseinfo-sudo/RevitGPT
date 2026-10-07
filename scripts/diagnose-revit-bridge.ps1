@@ -5,6 +5,8 @@ $sourceRoot = Join-Path $repoRoot "runtimes\Revit-mcp\bridge\pyrevit_extension\R
 $sourceStartup = Join-Path $sourceRoot "startup.py"
 $sourceBridge = Join-Path $sourceRoot "RevitMCPBridge.bundle\Contents\revit_mcp_bridge.py"
 
+. (Join-Path $PSScriptRoot "pyrevit-runtime.ps1")
+
 function Get-EnvValue([string]$Name) {
     $envPath = Join-Path $repoRoot ".env"
     if (-not (Test-Path $envPath)) { return $null }
@@ -82,15 +84,48 @@ if (Test-Path $bridgeLog) {
     Write-Host "[INFO] bridge.ndjson is absent. The bridge module has not produced runtime evidence in this RevitGPT AppData root."
 }
 
-$pyrevit = Get-Command pyrevit -ErrorAction SilentlyContinue
-if ($pyrevit) {
-    Write-Host ("[INFO] pyRevit CLI: " + $pyrevit.Source)
+$pyrevitCli = Find-PyRevitCli
+if ($pyrevitCli) {
+    Write-Host ("[OK] pyRevit CLI/runtime found: " + $pyrevitCli)
     try {
-        Write-Host "--- pyrevit env ---"
-        & $pyrevit.Source env 2>&1 | Select-Object -First 80
+        Write-Host "--- pyrevit attached ---"
+        & $pyrevitCli attached 2>&1 | Select-Object -First 80
     } catch {
-        Write-Host ("[INFO] pyrevit env failed: " + $_.Exception.Message)
+        Write-Host ("[INFO] pyrevit attached failed: " + $_.Exception.Message)
     }
 } else {
-    Write-Host "[INFO] pyRevit CLI was not found in PATH."
+    Write-Host "[FAIL] pyRevit runtime/CLI was not found in PATH or official installer locations."
+    Write-Host ("[INFO] Checked user install: " + (Join-Path $env:APPDATA "pyRevit-Master\bin\pyrevit.exe"))
+    if ($env:ProgramFiles) {
+        Write-Host ("[INFO] Checked admin install: " + (Join-Path $env:ProgramFiles "pyRevit-Master\bin\pyrevit.exe"))
+        Write-Host ("[INFO] Checked CLI install: " + (Join-Path $env:ProgramFiles "pyRevit CLI\bin\pyrevit.exe"))
+    }
+}
+
+$runningYears = @(Get-RunningRevitYears)
+if ($runningYears.Count -eq 0 -and $revit.Count -gt 0) {
+    Write-Host "[WARN] Revit is running but its product year could not be derived from Revit.exe metadata/path."
+}
+
+foreach ($year in $runningYears) {
+    $attachment = Get-PyRevitAttachmentInfo -Year $year
+    if (-not $attachment) {
+        Write-Host ("[FAIL] pyRevit is not attached to running Revit {0}: pyRevit.addin was not found." -f $year)
+        foreach ($candidate in (Get-PyRevitAttachmentPaths -Year $year)) {
+            Write-Host ("[INFO] Expected attachment candidate: " + $candidate)
+        }
+        continue
+    }
+
+    if ($attachment.ParseError) {
+        Write-Host ("[FAIL] pyRevit attachment manifest could not be parsed: " + $attachment.ManifestPath)
+        Write-Host ("[INFO] Manifest parse error: " + $attachment.ParseError)
+        continue
+    }
+
+    Write-Host ("[OK] pyRevit attachment Revit {0}: {1}" -f $year,$attachment.ManifestPath)
+    Write-Host ("[INFO] pyRevit loader assembly: " + $attachment.AssemblyPath)
+    if (-not $attachment.AssemblyExists) {
+        Write-Host "[FAIL] pyRevit attachment points to a missing loader assembly."
+    }
 }
