@@ -219,6 +219,8 @@ No manual bridge-start action is allowed during PASS testing.
 
 ### Task E-PY-5 — Prove API execution safety
 
+**Dependency:** complete E-PY-3 and E-PY-4 first so the unmodified current pyRevit bridge has a durable startup/lifecycle baseline before any remediation.
+
 First classify the current pyRevit request execution model.
 
 Because current source directly accesses Revit API from the HTTP server thread, E-PY must not promote it unchanged to production merely from lucky functional runs.
@@ -240,13 +242,15 @@ If an ExternalEvent-style dispatcher is used, it must satisfy CR-1 and CR-2:
 
 After any remediation, repeat E-PY-3 and E-PY-4 from a clean install.
 
+If safe dispatch cannot be made reliable within the bounded pyRevit remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
+
 ### Task E-PY-6 — Concurrency test
 
 Run at least 10 concurrent non-mutating bridge requests.
 
 Also test the scheduler boundary where a new request arrives while the current UI-thread drain is finishing.
 
-Acceptance:
+Acceptance when pyRevit remains a viable candidate:
 
 - every request returns its own result;
 - no result cross-talk;
@@ -256,7 +260,9 @@ Acceptance:
 
 ### Task E-PY-7 — Real capability smoke
 
-Through the actual Python MCP/bridge chain where practical:
+If E-PY-5 produced a decisive threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not exercise an unsafe bridge.
+
+Otherwise, through the actual Python MCP/bridge chain where practical:
 
 ```text
 read
@@ -272,7 +278,9 @@ This closes CR-4 before architecture selection.
 
 ### Task E-PY-8 — Full `@rg` smoke
 
-With Revit still using the pyRevit bridge:
+If E-PY-5 produced a decisive threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not expose the unsafe bridge to the full connector path.
+
+Otherwise, with Revit still using the pyRevit bridge:
 
 ```text
 ChatGPT @rg
@@ -295,7 +303,7 @@ Create:
 
 `docs/evidence/E-PY-pyrevit-autostart-result.md`
 
-It must choose exactly one:
+It must choose exactly one. A decisive pyRevit failure is sufficient evidence for `UNIFIED_NATIVE`; downstream pyRevit-only tests may be recorded as not applicable rather than becoming dead dependencies:
 
 #### `PYREVIT_SEPARATE`
 
