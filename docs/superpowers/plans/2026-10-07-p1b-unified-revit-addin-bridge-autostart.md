@@ -226,22 +226,9 @@ Run and record:
 
 No manual bridge-start action is allowed during PASS testing.
 
-### Task E-PY-4B — Human-gated disruptive lifecycle evidence
-
-**Dependency:** E-PY-4A complete.
-
-Use only the dedicated disposable Revit test session/model with no unsaved work.
-
-Immediately before each disruptive test below, pause and obtain explicit Human approval for that exact action:
-
-- Windows sleep/resume;
-- force-close/crash-like termination -> relaunch.
-
-If Human approval is not granted, record the case as `HUMAN_GATE_NOT_APPROVED`; do not simulate success and do not force-kill an arbitrary Revit process.
-
 ### Task E-PY-5A — Probe exact CPython UI-dispatch feasibility
 
-**Dependencies:** E-PY-3, E-PY-4A, and E-PY-4B complete or explicitly closed by Human Gate result.
+**Dependencies:** E-PY-3 and E-PY-4A.
 
 This task is read/probe only. Do not modify bridge code yet.
 
@@ -252,45 +239,65 @@ Record:
 - exact API/module/host mechanism if available;
 - whether using it requires pyRevit core modification, new compiled helper, engine switch, or broad bridge rewrite.
 
-If no qualifying mechanism exists, record `PYREVIT_DISPATCH_UNAVAILABLE` and do not attempt pyRevit hardening.
+Current bridge startup is `#! python3`, so E-PY must not assume an IronPython-only helper is usable.
+
+Allowed feasibility result:
+
+- `CPYTHON_DISPATCH_AVAILABLE` only when the **exact attached build** exposes an already-shipped, supported UI-thread dispatcher usable with extension-local Python changes;
+- otherwise `PYREVIT_DISPATCH_UNAVAILABLE`.
+
+The current pyRevit docs may expose different facilities by build; E-PY must prove the actual installed runtime rather than infer from generic documentation.
+
+If no qualifying mechanism exists, do not attempt pyRevit hardening and route the final decision toward `UNIFIED_NATIVE`.
 
 ### Task E-PY-5B — Prove or boundedly repair API execution safety
 
-**Dependency:** E-PY-5A.
+**Dependency:** E-PY-5A = `CPYTHON_DISPATCH_AVAILABLE`.
 
 Because current source directly accesses Revit API from the HTTP server thread, E-PY must not promote it unchanged to production merely from lucky functional runs.
-
-Only if E-PY-5A proves a qualifying supported mechanism may E-PY-5B change code.
-
-Current bridge startup is `#! python3`, so E-PY must not assume an IronPython-only helper is usable. The attached runtime must prove an already-shipped, supported CPython-safe path that can marshal work onto Revit's UI thread.
 
 Allowed bounded remediation is intentionally narrow:
 
 - Python-side adapter changes inside the RevitMCPBridge extension;
-- reuse of a UI-thread dispatcher already shipped and supported by the exact attached pyRevit/Revit runtime (for example an existing queued ExternalEvent/agent host surface if that installed build exposes it safely);
+- reuse of the qualifying dispatcher proven in E-PY-5A;
 - no pyRevit core/runtime source modifications;
 - no new compiled C#/.NET helper DLL;
 - no switching the bridge extension from CPython to IronPython;
 - no broad engine migration;
-- no substantial bridge rewrite whose main purpose is recreating a native dispatcher in Python.
+- no substantial bridge rewrite whose main purpose is recreating native dispatch infrastructure in Python.
 
-**Hard stop:** if the exact attached pyRevit build does not expose a proven CPython-safe UI-dispatch surface that can be reused with extension-local Python changes, record `PYREVIT_DISPATCH_UNAVAILABLE` and select `UNIFIED_NATIVE`. Do not widen E-PY remediation.
-
-Any supported dispatcher used must still satisfy CR-1 and CR-2:
+Any supported dispatcher used must satisfy CR-1 and CR-2:
 
 - single-flight scheduler;
-- explicit `Raise()` result handling;
+- explicit `Raise()` result handling where the reused dispatcher exposes/depends on ExternalEvent scheduling;
 - no lost wakeups;
 - no synchronous wait from Revit callbacks;
 - independent per-request completion.
 
-After any remediation, repeat E-PY-3 and E-PY-4A from a clean install, repeat E-PY-4B only with fresh Human approval for each disruptive action, **and then add `/health` plus real non-destructive Revit reads on the now-safe revision**.
+After remediation, repeat E-PY-3 and E-PY-4A from a clean install and then add `/health` plus real non-destructive Revit reads on the now-safe revision.
 
-If E-PY-5A reports `PYREVIT_DISPATCH_UNAVAILABLE`, or safe dispatch cannot be made reliable within the bounded E-PY-5B remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
+If safe dispatch cannot be made reliable within this bounded scope, record `PYREVIT_THREADING_FAIL`. Downstream pyRevit-only capability tests may close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL`.
+
+### Task E-PY-5C — Human-gated disruptive lifecycle evidence
+
+**Dependency:** E-PY-5B has produced a safe viable pyRevit candidate.
+
+Use only the dedicated disposable Revit test session/model with no unsaved work.
+
+Immediately before **each** disruptive action, pause and obtain explicit Human approval for that exact test:
+
+- Windows sleep/resume;
+- force-close/crash-like Revit termination -> relaunch.
+
+Never force-kill an arbitrary active user Revit process.
+
+If Human approval is not granted, record `HUMAN_GATE_PENDING`. The Job may continue non-disruptive diagnosis, but `PYREVIT_SEPARATE` cannot be selected until both disruptive cases have Human-approved evidence.
+
+After any later pyRevit code revision that could affect lifecycle, repeat these disruptive tests only with fresh Human approval.
 
 ### Task E-PY-6 — Full contract conformance + live concurrency test
 
-After E-PY-5B establishes a safe execution model:
+After E-PY-5B establishes a safe execution model and E-PY-5C has either PASS evidence or is explicitly not required because E-PY-5A/5B already decisively selected the unified path:
 
 1. run **host-independent executable handler/router contract tests for every Python-client route**, including all mutating and annotation routes;
 2. each route test must cover HTTP method, required/minimal payload validation, minimal success-response shape, and representative error-response shape;
