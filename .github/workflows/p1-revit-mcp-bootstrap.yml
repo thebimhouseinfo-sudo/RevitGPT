@@ -52,6 +52,11 @@ jobs:
         run: |
           ./scripts/check-pyrevit-bridge-package.ps1
 
+      - name: Test pyRevit runtime discovery contract
+        shell: pwsh
+        run: |
+          ./scripts/test-pyrevit-runtime.ps1
+
       - name: Verify current Secure MCP tunnel client
         if: matrix.node-version == '24'
         shell: pwsh
