@@ -16,6 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prove exact revision
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          $expected = "${{ github.sha }}"
+          if ($actual -ne $expected) {
+            throw "Checkout revision mismatch. expected=$expected actual=$actual"
+          }
+          Write-Host "[PASS] exact revision: $actual"
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
@@ -23,7 +33,7 @@ jobs:
       - name: Install Node dependencies
         run: npm install
 
-      - name: Check Node syntax
+      - name: Check Node syntax with red control
         shell: pwsh
         run: |
           ./scripts/check-node-syntax.ps1
@@ -42,22 +52,22 @@ jobs:
         run: |
           ./scripts/smoke-slim-mcp.ps1
 
-      - name: Check PowerShell syntax
+      - name: Check PowerShell syntax on pwsh and Windows PowerShell 5.1
         shell: pwsh
         run: |
           ./scripts/check-powershell-syntax.ps1
 
-      - name: Check native Revit bridge contract
+      - name: Check static native Revit bridge package contract
         shell: pwsh
         run: |
           ./scripts/check-native-revit-bridge.ps1
 
-      - name: Check optional pyRevit bridge package contract
+      - name: Test pyRevit package validator with red controls
         shell: pwsh
         run: |
-          ./scripts/check-pyrevit-bridge-package.ps1
+          ./scripts/test-pyrevit-bridge-package-contract.ps1
 
-      - name: Test pyRevit runtime discovery contract
+      - name: Test pyRevit runtime discovery positive and negative controls
         shell: pwsh
         run: |
           ./scripts/test-pyrevit-runtime.ps1
@@ -74,7 +84,7 @@ jobs:
         run: |
           ./scripts/test-tunnel-client-dev-proxy.ps1
 
-      - name: Check tunnel ownership contract
+      - name: Check static tunnel ownership source guard
         shell: pwsh
         run: |
           ./scripts/check-tunnel-ownership.ps1
@@ -99,8 +109,7 @@ jobs:
         run: |
           python -m compileall -q runtimes/Revit-mcp
 
-      - name: Run bridge unit tests
+      - name: Run classified offline Revit MCP tests
         shell: pwsh
-        working-directory: runtimes/Revit-mcp
         run: |
-          python -m unittest discover -s tests -p "test_*.py"
+          ./scripts/run-revit-mcp-tests.ps1

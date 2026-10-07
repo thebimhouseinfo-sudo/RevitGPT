@@ -15,7 +15,7 @@ $required = @(
 
 foreach ($pattern in $required) {
     if ($tray -notmatch $pattern) {
-        throw "Missing ownership-safe stale-state fallback contract: $pattern"
+        throw "Missing ownership-safe stale-state static guard: $pattern"
     }
 }
 
@@ -23,4 +23,5 @@ if ($tray -match 'Get-Process\s+-Name\s+["'']?tunnel-client') {
     throw "Global tunnel-client process kill/discovery is forbidden; ownership must be profile-scoped."
 }
 
-Write-Host "[PASS] Tunnel/runtime stop logic is ownership-scoped and falls back from stale state to actual port owner"
+Write-Host "[PASS] STATIC_CONTRACT: tunnel/runtime ownership guard markers are present"
+Write-Host "[INFO] Runtime behavior is covered separately by executable tunnel tests; this static check alone is not behavioral proof."

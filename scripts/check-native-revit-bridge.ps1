@@ -22,7 +22,7 @@ foreach ($pattern in @(
   'path == "/delete"'
 )) {
   if ($cs -notmatch [regex]::Escape($pattern)) {
-    throw "Native bridge lost CAD-Agent contract pattern: $pattern"
+    throw "Native bridge lost static source marker: $pattern"
   }
 }
 
@@ -34,7 +34,7 @@ foreach ($pattern in @(
   'cddac4f78278e647c16c2bb79c888dd7adf6f181'
 )) {
   if ($installerText -notmatch [regex]::Escape($pattern)) {
-    throw "Native bridge installer contract missing: $pattern"
+    throw "Native bridge installer static contract missing: $pattern"
   }
 }
 
@@ -43,4 +43,5 @@ if ($hostText -notmatch 'RevitMCPBridge\.BridgeApplication') {
   throw "Bridge host check does not recognize the native Revit add-in."
 }
 
-Write-Host "[PASS] native Revit bridge restores the proven CAD-Agent add-in contract"
+Write-Host "[PASS] STATIC_CONTRACT: native Revit bridge source/package markers are present"
+Write-Host "[INFO] This check does NOT prove Revit runtime/threading behavior."
