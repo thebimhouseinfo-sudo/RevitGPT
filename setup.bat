@@ -79,56 +79,17 @@ if errorlevel 1 (
 popd
 
 REM ------------------------------------------------------------
-REM 4. Install pyRevit bridge
+REM 4. Install native Revit bridge (primary path)
 REM ------------------------------------------------------------
 echo.
-echo [3/4] Checking pyRevit runtime...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\scripts\check-pyrevit-runtime.ps1"
-if errorlevel 2 (
-  echo [ERROR] pyRevit runtime/loader is required before the RevitGPT bridge can be installed.
-  echo Install pyRevit from the official release, then run setup.bat again.
-  exit /b 2
-)
-
-echo [3/4] Installing Revit MCP bridge into pyRevit Extensions...
-
-set "BRIDGE_SRC=%CD%\runtimes\Revit-mcp\bridge\pyrevit_extension\RevitMCPBridge.extension"
-set "PYREVIT_ROOT="
-
-REM Prefer existing user-local pyRevit Extensions roots.
-if exist "%APPDATA%\pyRevit\Extensions" (
-  set "PYREVIT_ROOT=%APPDATA%\pyRevit\Extensions"
-)
-
-if not defined PYREVIT_ROOT if exist "%LOCALAPPDATA%\pyRevit\Extensions" (
-  set "PYREVIT_ROOT=%LOCALAPPDATA%\pyRevit\Extensions"
-)
-
-if not defined PYREVIT_ROOT if exist "C:\ProgramData\pyRevit\Extensions" (
-  set "PYREVIT_ROOT=C:\ProgramData\pyRevit\Extensions"
-)
-
-REM If no standard root exists, create the user-local root.
-if not defined PYREVIT_ROOT (
-  set "PYREVIT_ROOT=%APPDATA%\pyRevit\Extensions"
-  mkdir "!PYREVIT_ROOT!" >nul 2>&1
-)
-
-set "BRIDGE_DST=!PYREVIT_ROOT!\RevitMCPBridge.extension"
-
-if exist "!BRIDGE_DST!" (
-  rmdir /S /Q "!BRIDGE_DST!"
-)
-
-xcopy /E /I /Y "%BRIDGE_SRC%" "!BRIDGE_DST!" >nul
+echo [3/6] Installing native Revit MCP Bridge add-in...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\scripts\install-revit-bridge-addin.ps1"
 if errorlevel 1 (
-  echo [ERROR] Failed to install Revit MCP Bridge to:
-  echo         !BRIDGE_DST!
+  echo [ERROR] Failed to install the native Revit MCP Bridge add-in.
   exit /b %ERRORLEVEL%
 )
-
-echo [OK] Revit MCP Bridge installed to:
-echo      !BRIDGE_DST!
+echo [OK] Native Revit MCP Bridge installed.
+echo [INFO] pyRevit is optional fallback only; it is not required by RevitGPT.
 
 REM ------------------------------------------------------------
 REM 5. Configure OpenAI Secure MCP Tunnel
@@ -174,12 +135,12 @@ echo.
 echo Setup complete.
 echo.
 echo Next:
-echo   1. Restart Revit so pyRevit loads the installed RevitGPT startup bridge.
+echo   1. Restart Revit so Autodesk Revit loads the native RevitMCPBridge.addin.
 echo   2. Open an RVT model.
 echo   3. Invoke @rg / RevitGPT from ChatGPT.
 echo.
 echo RevitGPT tray + slim MCP + Secure Tunnel are already docked and running.
-echo The Revit bridge auto-starts with pyRevit; no manual bridge button is required.
+echo After Revit starts, use ribbon panel "Revit MCP Bridge" > "Start Bridge". pyRevit is optional fallback only.
 echo You do NOT need to run run.bat for normal use.
 echo.
 echo RevitGPT runtime:
