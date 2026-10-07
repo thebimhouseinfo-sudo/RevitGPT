@@ -21,16 +21,17 @@ revit-mcp runtime and executes Revit API calls on the UI thread.
 ## Usage
 
 1. Open Revit after the extension is installed or synced.
-2. pyRevit loads the extension-root `startup.py` under CPython and exposes
-   the bridge runtime to RevitGPT.
+2. pyRevit loads the extension-root `startup.py` under CPython and RevitGPT
+   starts the bridge automatically.
 3. The bridge listens on `http://127.0.0.1:8765` by default.
-4. The user-facing start/recovery control belongs to the RevitGPT dockable
-   panel Bridge Gate; pyRevit must not expose a separate RevitGPT bridge button.
+4. If automatic startup needs recovery, use the pyRevit ribbon fallback:
+   `RevitGPT > Bridge > Start RevitGPT Bridge`.
 5. To change the port, set the `REVIT_MCP_PORT` environment variable before
    starting Revit.
 
-The startup script uses `#! python3` because the bridge implementation uses
-Python 3 syntax and must not be parsed by the default IronPython engine.
+The startup script and fallback button both use `#! python3` because the
+bridge implementation uses Python 3 syntax and must not be parsed by the
+default IronPython engine.
 
 ## Endpoints
 
