@@ -28,6 +28,35 @@ if ($revit.Count -gt 0) {
     Write-Host ("[INFO] Revit PIDs: " + (($revit | ForEach-Object { $_.Id }) -join ","))
 }
 
+$nativeReady = $false
+$nativeManifests = @()
+foreach ($year in @(2024) + @(Get-RunningRevitYears)) {
+    foreach ($root in @(
+        (Join-Path $env:APPDATA "Autodesk\Revit\Addins\$year"),
+        (Join-Path $env:ProgramData "Autodesk\Revit\Addins\$year")
+    )) {
+        $manifest = Join-Path $root "RevitMCPBridge.addin"
+        if (-not (Test-Path $manifest)) { continue }
+        $nativeManifests += $manifest
+        try {
+            [xml]$xml = Get-Content $manifest -Raw
+            $addin = @($xml.RevitAddIns.AddIn) | Where-Object { $_.FullClassName -eq "RevitMCPBridge.BridgeApplication" } | Select-Object -First 1
+            $assembly = if ($addin) { [string]$addin.Assembly } else { $null }
+            $exists = [bool]($assembly -and (Test-Path $assembly))
+            Write-Host ("[INFO] Native bridge manifest: {0}" -f $manifest)
+            Write-Host ("[INFO] Native bridge assembly: {0} exists={1}" -f $assembly,$exists)
+            if ($exists) { $nativeReady = $true }
+        } catch {
+            Write-Host ("[WARN] Native bridge manifest parse failed: " + $_.Exception.Message)
+        }
+    }
+}
+if ($nativeReady) {
+    Write-Host "[OK] Native standalone Revit MCP Bridge is installed; pyRevit is optional."
+} elseif ($nativeManifests.Count -eq 0) {
+    Write-Host "[INFO] Native RevitMCPBridge.addin not found."
+}
+
 try {
     $conn = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort 8765 -State Listen -ErrorAction Stop | Select-Object -First 1
     $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue
@@ -57,7 +86,11 @@ foreach ($root in $roots) {
     Write-Host ("[INFO] Source hash match: startup={0} bridge={1}" -f $startupMatch,$bridgeMatch)
 }
 if ($installedCount -eq 0) {
-    Write-Host "[FAIL] No installed RevitMCPBridge.extension found in standard pyRevit extension roots."
+    if ($nativeReady) {
+        Write-Host "[INFO] No pyRevit bridge fallback installed; native bridge is the primary path."
+    } else {
+        Write-Host "[FAIL] No native bridge and no RevitMCPBridge.extension fallback found."
+    }
 }
 
 $appData = Get-EnvValue "REVITGPT_APPDATA_ROOT"
@@ -94,11 +127,15 @@ if ($pyrevitCli) {
         Write-Host ("[INFO] pyrevit attached failed: " + $_.Exception.Message)
     }
 } else {
-    Write-Host "[FAIL] pyRevit runtime/CLI was not found in PATH or official installer locations."
-    Write-Host ("[INFO] Checked user install: " + (Join-Path $env:APPDATA "pyRevit-Master\bin\pyrevit.exe"))
-    if ($env:ProgramFiles) {
-        Write-Host ("[INFO] Checked admin install: " + (Join-Path $env:ProgramFiles "pyRevit-Master\bin\pyrevit.exe"))
-        Write-Host ("[INFO] Checked CLI install: " + (Join-Path $env:ProgramFiles "pyRevit CLI\bin\pyrevit.exe"))
+    if ($nativeReady) {
+        Write-Host "[INFO] pyRevit runtime/CLI not found; this is acceptable because the native bridge is installed."
+    } else {
+        Write-Host "[FAIL] pyRevit runtime/CLI was not found and no native bridge is installed."
+        Write-Host ("[INFO] Checked user install: " + (Join-Path $env:APPDATA "pyRevit-Master\bin\pyrevit.exe"))
+        if ($env:ProgramFiles) {
+            Write-Host ("[INFO] Checked admin install: " + (Join-Path $env:ProgramFiles "pyRevit-Master\bin\pyrevit.exe"))
+            Write-Host ("[INFO] Checked CLI install: " + (Join-Path $env:ProgramFiles "pyRevit CLI\bin\pyrevit.exe"))
+        }
     }
 }
 
@@ -110,9 +147,13 @@ if ($runningYears.Count -eq 0 -and $revit.Count -gt 0) {
 foreach ($year in $runningYears) {
     $attachment = Get-PyRevitAttachmentInfo -Year $year
     if (-not $attachment) {
-        Write-Host ("[FAIL] pyRevit is not attached to running Revit {0}: pyRevit.addin was not found." -f $year)
-        foreach ($candidate in (Get-PyRevitAttachmentPaths -Year $year)) {
-            Write-Host ("[INFO] Expected attachment candidate: " + $candidate)
+        if ($nativeReady) {
+            Write-Host ("[INFO] pyRevit is not attached to Revit {0}; native RevitMCPBridge.addin is the active path." -f $year)
+        } else {
+            Write-Host ("[FAIL] pyRevit is not attached to running Revit {0}: pyRevit.addin was not found." -f $year)
+            foreach ($candidate in (Get-PyRevitAttachmentPaths -Year $year)) {
+                Write-Host ("[INFO] Expected attachment candidate: " + $candidate)
+            }
         }
         continue
     }
