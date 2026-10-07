@@ -205,15 +205,13 @@ Run at least 10 cold launch/shutdown cycles.
 
 A single successful launch does not count as stable.
 
-### Task E-PY-4 — Exercise lifecycle edge cases with host-safety gates
+### Task E-PY-4A — Non-disruptive lifecycle baseline
 
 For the unmodified baseline, observe only startup logs, bridge thread/listener state and port ownership. Do not live-call Revit-bearing HTTP endpoints before E-PY-5.
 
 All lifecycle evidence must run in a **dedicated disposable Revit test session/model with no unsaved user work**.
 
 Before enabling/disabling any `.addin` manifest, Revit must be fully closed. Manifest changes while Revit is running do not count as host-selection evidence.
-
-Non-disruptive cases may run without another Human Gate. Immediately before either **Windows sleep/resume** or **force-close/crash-like termination**, execution must pause and request explicit Human approval for that exact disruptive test. Never force-kill an arbitrary active user Revit process.
 
 Run and record:
 
@@ -223,22 +221,46 @@ Run and record:
 - switch views/models repeatedly;
 - close/reopen models without closing Revit;
 - reload pyRevit;
-- sleep/resume Windows;
 - normal Revit shutdown -> immediate relaunch;
-- force-close/crash-like termination -> relaunch;
 - occupied/stale `8765` observation.
 
 No manual bridge-start action is allowed during PASS testing.
 
-### Task E-PY-5 — Prove API execution safety
+### Task E-PY-4B — Human-gated disruptive lifecycle evidence
 
-**Dependency:** complete E-PY-3 and E-PY-4 first so the unmodified current pyRevit bridge has a durable startup/lifecycle baseline before any remediation.
+**Dependency:** E-PY-4A complete.
 
-First classify the current pyRevit request execution model.
+Use only the dedicated disposable Revit test session/model with no unsaved work.
+
+Immediately before each disruptive test below, pause and obtain explicit Human approval for that exact action:
+
+- Windows sleep/resume;
+- force-close/crash-like termination -> relaunch.
+
+If Human approval is not granted, record the case as `HUMAN_GATE_NOT_APPROVED`; do not simulate success and do not force-kill an arbitrary Revit process.
+
+### Task E-PY-5A — Probe exact CPython UI-dispatch feasibility
+
+**Dependencies:** E-PY-3, E-PY-4A, and E-PY-4B complete or explicitly closed by Human Gate result.
+
+This task is read/probe only. Do not modify bridge code yet.
+
+Record:
+- exact attached pyRevit version/build;
+- actual engine executing `startup.py`;
+- whether the installed runtime exposes a supported CPython-safe Revit UI-thread dispatch surface reusable from extension-local Python code;
+- exact API/module/host mechanism if available;
+- whether using it requires pyRevit core modification, new compiled helper, engine switch, or broad bridge rewrite.
+
+If no qualifying mechanism exists, record `PYREVIT_DISPATCH_UNAVAILABLE` and do not attempt pyRevit hardening.
+
+### Task E-PY-5B — Prove or boundedly repair API execution safety
+
+**Dependency:** E-PY-5A.
 
 Because current source directly accesses Revit API from the HTTP server thread, E-PY must not promote it unchanged to production merely from lucky functional runs.
 
-Before any code change, E-PY-5 must run a **CPython feasibility checkpoint** against the exact attached pyRevit build/engine.
+Only if E-PY-5A proves a qualifying supported mechanism may E-PY-5B change code.
 
 Current bridge startup is `#! python3`, so E-PY must not assume an IronPython-only helper is usable. The attached runtime must prove an already-shipped, supported CPython-safe path that can marshal work onto Revit's UI thread.
 
@@ -262,9 +284,9 @@ Any supported dispatcher used must still satisfy CR-1 and CR-2:
 - no synchronous wait from Revit callbacks;
 - independent per-request completion.
 
-After any remediation, repeat E-PY-3 and E-PY-4 from a clean install **and then add `/health` plus real non-destructive Revit reads on the now-safe revision**.
+After any remediation, repeat E-PY-3 and E-PY-4A from a clean install, repeat E-PY-4B only with fresh Human approval for each disruptive action, **and then add `/health` plus real non-destructive Revit reads on the now-safe revision**.
 
-If safe dispatch cannot be made reliable within the bounded pyRevit remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
+If E-PY-5A reports `PYREVIT_DISPATCH_UNAVAILABLE`, or safe dispatch cannot be made reliable within the bounded E-PY-5B remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
 
 ### Task E-PY-6 — Full contract conformance + live concurrency test
 
@@ -290,7 +312,7 @@ Acceptance when pyRevit remains a viable candidate:
 
 ### Task E-PY-7 — Real capability smoke
 
-If E-PY-5 produced a decisive threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not exercise an unsafe bridge.
+If E-PY-5A/5B produced a decisive dispatch/threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not exercise an unsafe bridge.
 
 Otherwise, through the actual Python MCP/bridge chain where practical:
 
@@ -308,7 +330,7 @@ This closes CR-4 before architecture selection.
 
 ### Task E-PY-8 — Full `@rg` smoke
 
-If E-PY-5 produced a decisive threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not expose the unsafe bridge to the full connector path.
+If E-PY-5A/5B produced a decisive dispatch/threading failure, persist `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` and do not expose the unsafe bridge to the full connector path.
 
 Otherwise, with Revit still using the pyRevit bridge:
 
