@@ -136,7 +136,7 @@ function Show-RuntimeDiagnostics([string]$ApiKey){
   $appData=Get-EnvValue "REVITGPT_APPDATA_ROOT"
   if([string]::IsNullOrWhiteSpace($appData)){$appData=Join-Path $env:LOCALAPPDATA "RevitGPT"}
   elseif(-not [System.IO.Path]::IsPathRooted($appData)){$appData=[System.IO.Path]::GetFullPath((Join-Path $ScriptDir $appData))}
-  foreach($name in @("tunnel.err.log","tunnel.out.log","tray.log")){
+  foreach($name in @("tunnel.err.log","tunnel.out.log","tray.log","errors.ndjson")){
     $path=Join-Path (Join-Path $appData "logs") $name
     if(Test-Path $path){
       Write-Host ("--- " + $name + " (last 20) ---")
