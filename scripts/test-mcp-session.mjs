@@ -90,6 +90,10 @@ if (tools.status !== 200) {
 if (!tools.json?.result?.tools?.some((tool) => tool.name === "revitgpt_admission")) {
   throw new Error("revitgpt_admission missing from tools/list");
 }
+const devMode = ["1", "true"].includes(String(process.env.REVITGPT_DEV_MODE || "").toLowerCase());
+if (devMode && !tools.json?.result?.tools?.some((tool) => tool.name === "revit_mcp_dev_root")) {
+  throw new Error("REVITGPT_DEV_MODE=1 but revit_mcp_dev_root missing from tools/list");
+}
 
 const staleId = "00000000-0000-4000-8000-000000000099";
 const recovered = await post(
