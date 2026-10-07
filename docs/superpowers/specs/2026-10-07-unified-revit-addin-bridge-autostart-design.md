@@ -54,6 +54,8 @@ PASS requires all of the following:
 
 ### 3.1 Startup/lifecycle stability
 
+The **unmodified pre-safety baseline** observes startup logs, bridge thread/listener state and port ownership only. It must not call HTTP endpoints that touch Revit API until section 3.2 is satisfied.
+
 - pyRevit `startup.py` auto-starts the bridge without a manual ribbon action;
 - repeated cold Revit launches succeed;
 - launch with no active RVT is supported or the limitation is explicitly shown to be harmless;
@@ -127,6 +129,7 @@ E-PY evidence is invalid if multiple bridge implementations compete for `127.0.0
 Before E-PY:
 
 - detect native `RevitMCPBridge.addin`;
+- record exact legacy manifest path/content/hash/enabled state before neutralizing it so the test setup is reversible until the architecture decision is durable;
 - detect installed `RevitMCPBridge.extension` copies;
 - detect the actual port owner;
 - ensure only the pyRevit bridge under test can bind `8765`;
