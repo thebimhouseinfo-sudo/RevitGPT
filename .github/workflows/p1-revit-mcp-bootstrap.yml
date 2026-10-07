@@ -47,6 +47,11 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
+      - name: Check pyRevit bridge package contract
+        shell: pwsh
+        run: |
+          ./scripts/check-pyrevit-bridge-package.ps1
+
       - name: Verify current Secure MCP tunnel client
         if: matrix.node-version == '24'
         shell: pwsh
