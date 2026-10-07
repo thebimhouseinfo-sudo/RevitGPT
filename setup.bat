@@ -82,6 +82,14 @@ REM ------------------------------------------------------------
 REM 4. Install pyRevit bridge
 REM ------------------------------------------------------------
 echo.
+echo [3/4] Checking pyRevit runtime...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\scripts\check-pyrevit-runtime.ps1"
+if errorlevel 2 (
+  echo [ERROR] pyRevit runtime/loader is required before the RevitGPT bridge can be installed.
+  echo Install pyRevit from the official release, then run setup.bat again.
+  exit /b 2
+)
+
 echo [3/4] Installing Revit MCP bridge into pyRevit Extensions...
 
 set "BRIDGE_SRC=%CD%\runtimes\Revit-mcp\bridge\pyrevit_extension\RevitMCPBridge.extension"
