@@ -205,9 +205,15 @@ Run at least 10 cold launch/shutdown cycles.
 
 A single successful launch does not count as stable.
 
-### Task E-PY-4 — Exercise lifecycle edge cases
+### Task E-PY-4 — Exercise lifecycle edge cases with host-safety gates
 
 For the unmodified baseline, observe only startup logs, bridge thread/listener state and port ownership. Do not live-call Revit-bearing HTTP endpoints before E-PY-5.
+
+All lifecycle evidence must run in a **dedicated disposable Revit test session/model with no unsaved user work**.
+
+Before enabling/disabling any `.addin` manifest, Revit must be fully closed. Manifest changes while Revit is running do not count as host-selection evidence.
+
+Non-disruptive cases may run without another Human Gate. Immediately before either **Windows sleep/resume** or **force-close/crash-like termination**, execution must pause and request explicit Human approval for that exact disruptive test. Never force-kill an arbitrary active user Revit process.
 
 Run and record:
 
@@ -232,14 +238,23 @@ First classify the current pyRevit request execution model.
 
 Because current source directly accesses Revit API from the HTTP server thread, E-PY must not promote it unchanged to production merely from lucky functional runs.
 
-Allowed bounded remediation:
+Before any code change, E-PY-5 must run a **CPython feasibility checkpoint** against the exact attached pyRevit build/engine.
 
-- implement a pyRevit/Revit-supported UI-thread dispatch mechanism;
-- keep bridge startup automatic;
-- keep bridge invisible to users;
-- keep pyRevit bridge separate from the WebView add-in.
+Current bridge startup is `#! python3`, so E-PY must not assume an IronPython-only helper is usable. The attached runtime must prove an already-shipped, supported CPython-safe path that can marshal work onto Revit's UI thread.
 
-If an ExternalEvent-style dispatcher is used, it must satisfy CR-1 and CR-2:
+Allowed bounded remediation is intentionally narrow:
+
+- Python-side adapter changes inside the RevitMCPBridge extension;
+- reuse of a UI-thread dispatcher already shipped and supported by the exact attached pyRevit/Revit runtime (for example an existing queued ExternalEvent/agent host surface if that installed build exposes it safely);
+- no pyRevit core/runtime source modifications;
+- no new compiled C#/.NET helper DLL;
+- no switching the bridge extension from CPython to IronPython;
+- no broad engine migration;
+- no substantial bridge rewrite whose main purpose is recreating a native dispatcher in Python.
+
+**Hard stop:** if the exact attached pyRevit build does not expose a proven CPython-safe UI-dispatch surface that can be reused with extension-local Python changes, record `PYREVIT_DISPATCH_UNAVAILABLE` and select `UNIFIED_NATIVE`. Do not widen E-PY remediation.
+
+Any supported dispatcher used must still satisfy CR-1 and CR-2:
 
 - single-flight scheduler;
 - explicit `Raise()` result handling;
@@ -251,9 +266,17 @@ After any remediation, repeat E-PY-3 and E-PY-4 from a clean install **and then 
 
 If safe dispatch cannot be made reliable within the bounded pyRevit remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
 
-### Task E-PY-6 — Live contract + concurrency test
+### Task E-PY-6 — Full contract conformance + live concurrency test
 
-Only after E-PY-5 establishes a safe execution model, execute the E-PY-2 contract fixtures against the bridge for non-mutating routes, then run at least 10 concurrent non-mutating bridge requests.
+After E-PY-5 establishes a safe execution model:
+
+1. run **host-independent executable handler/router contract tests for every Python-client route**, including all mutating and annotation routes;
+2. each route test must cover HTTP method, required/minimal payload validation, minimal success-response shape, and representative error-response shape;
+3. where Revit objects are required, use bounded stubs/fakes to exercise bridge routing/validation/serialization without mutating a live model;
+4. if a route cannot be validated host-independently, mark it explicitly and require an equivalent safe live fixture before `PYREVIT_SEPARATE` can be selected;
+5. then execute safe non-mutating routes live and run at least 10 concurrent non-mutating bridge requests.
+
+The separate E-PY-7 mutation round trip remains a representative **live Revit transaction** proof; it is not the only contract evidence for the other write/annotation routes.
 
 Also test the scheduler boundary where a new request arrives while the current UI-thread drain is finishing.
 
