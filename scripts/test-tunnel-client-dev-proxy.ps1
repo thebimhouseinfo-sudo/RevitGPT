@@ -24,7 +24,7 @@ try {
     $env:PORT = "$port"
     $env:MCP_TOKEN = $token
     $env:REVIT_BRIDGE_URL = "http://127.0.0.1:65530"
-    $env:REVITGPT_DEV_MODE = "0"
+    $env:REVITGPT_DEV_MODE = "1"
 
     $server = Start-Process -FilePath "node.exe" -ArgumentList @("src/index.mjs") -WorkingDirectory $repoRoot -PassThru -RedirectStandardOutput $serverOut -RedirectStandardError $serverErr
 
@@ -83,7 +83,7 @@ try {
         throw "tunnel-client dev proxy did not publish local MCP ingress."
     }
 
-    Write-Host "[PASS] tunnel-client 0.0.15 connected to RevitGPT through exact dev-proxy runtime"
+    Write-Host "[PASS] tunnel-client 0.0.15 connected to RevitGPT through exact dev-proxy runtime with REVITGPT_DEV_MODE=1"
 }
 finally {
     if ($server -and -not $server.HasExited) {
