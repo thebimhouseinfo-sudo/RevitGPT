@@ -31,6 +31,12 @@ if errorlevel 1 (
   set "FAILED=1"
 ) else echo [OK] Secure Tunnel READY
 
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\check-pyrevit-runtime.ps1"
+if errorlevel 2 (
+  echo [FAIL] pyRevit runtime/loader missing
+  set "FAILED=1"
+)
+
 if exist "%APPDATA%\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
   echo [OK] pyRevit bridge installed
 ) else if exist "%LOCALAPPDATA%\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
