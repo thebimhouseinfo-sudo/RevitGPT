@@ -48,6 +48,8 @@ Tester evidence never shares a commit with speculative implementation changes. A
 ```text
 P0
 -> P1
+-> E-PY
+-> selected P1B bridge-host implementation
 -> E1
 -> E2
 -> E3
@@ -251,7 +253,103 @@ Expected: local control plane healthy, Revit process detectable when running, br
 - CI/static checks PASS;
 - doctor/status PASS on Human machine;
 - no final authority logic added;
-- E1 can start without a bootstrap workaround.
+- E-PY can start without a bootstrap workaround.
+
+---
+
+# E-PY — pyRevit bridge hosting evidence gate
+
+## Goal
+
+Before implementing a native Revit bridge inside the docked add-in, prove whether the existing pyRevit bridge can remain a separate, automatic, invisible infrastructure add-in.
+
+The preferred architecture is:
+
+```text
+pyRevit bridge auto-starts invisibly
++
+RevitGPT native add-in hosts DockablePane/WebView only
+```
+
+Only select a unified native bridge + WebView add-in if pyRevit remains unreliable after bounded remediation or routine recovery requires user interaction.
+
+## Required clean baseline
+
+Exactly one implementation may own `127.0.0.1:8765` during evidence.
+
+For pyRevit testing:
+
+- disable/remove the legacy native `RevitMCPBridge.addin` from the test host;
+- verify the installed pyRevit extension path/hash;
+- record the port owner;
+- never kill an unknown owner automatically.
+
+## Required evidence
+
+1. pyRevit `startup.py` auto-starts without a manual bridge command.
+2. Repeated cold start/shutdown cycles.
+3. Revit start with no active model where possible.
+4. Multi-model and view switching.
+5. pyRevit reload.
+6. sleep/resume.
+7. normal shutdown + immediate relaunch.
+8. force-close/crash-like relaunch.
+9. concurrency and request-completion isolation.
+10. bridge contract parity by route + HTTP method + payload + response/error shape.
+11. controlled `read -> write -> readback -> delete -> verify absent`.
+12. full `@rg -> Python MCP -> bridge -> Revit` smoke.
+
+Current pyRevit bridge source runs its Python HTTP server on a background thread and directly calls Revit API from request handlers. E-PY must therefore prove or repair safe Revit UI-thread execution; port health alone is not acceptance.
+
+## Decision
+
+Persist exactly one result:
+
+`PYREVIT_SEPARATE`
+- auto-start stable;
+- API execution safe;
+- capability/contract tests pass;
+- no routine manual recovery/start needed.
+
+`UNIFIED_NATIVE`
+- pyRevit still materially unreliable after bounded remediation; or
+- safe API dispatch cannot be made reliable; or
+- routine recovery requires user action.
+
+---
+
+# P1B — selected bridge-host implementation
+
+P1B is prepared only after E-PY closes.
+
+## If E-PY = PYREVIT_SEPARATE
+
+Create a linked **P1B-WebView-only** Job:
+
+```text
+Revit
+├─ pyRevit bridge — separate, automatic, invisible
+└─ RevitGPT.addin
+     └─ DockablePane + WebView2
+```
+
+The early P1B WebView shell is infrastructure only. It does not implement the later P2A managed-pair/session contract.
+
+## If E-PY = UNIFIED_NATIVE
+
+Create a linked **P1B-Unified-native** Job:
+
+```text
+RevitGPT.Addin.dll
+├─ DockablePane + WebView2
+├─ native bridge
+├─ single-flight ExternalEvent dispatcher
+└─ Refresh recovery
+```
+
+The native dispatcher must prevent ExternalEvent lost wakeups, must inspect `Raise()` results, and must never synchronously wait for ExternalEvent work inside `ApplicationInitialized`.
+
+Before unified-native evidence, disable/remove pyRevit bridge autostart so exactly one bridge owns `8765`.
 
 ---
 
