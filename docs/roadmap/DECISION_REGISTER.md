@@ -30,4 +30,4 @@ Canonical lifecycle contract: [`docs/architecture/AUTHORITY_LIFECYCLE.md`](../ar
 | D-24 | Persistent WebView profile/pair-id storage is recovery convenience only and never grants model authority | HUMAN | Security/authority boundary | P2A/E4A |
 | D-25 | Successful Lease + Bind Current is atomic; failure preserves previous valid binding | HUMAN | RevitGPT UX/authority decision | P2B/E4 |
 | D-26 | Canonical lifecycle/release semantics live in `docs/architecture/AUTHORITY_LIFECYCLE.md`; other docs must reference it rather than diverge | HUMAN/GOVERNANCE | J-8A2C P0 convergence | Reviewer + E4 |
-
+| D-27 | Revit add-in startup uses a blocking Bridge Gate: user must press Start Bridge; WebView/chat stays covered until bridge READY, then @rg may run; pyRevit remains an implementation detail | HUMAN | Product UX decision | A1/A2 + E4A |
