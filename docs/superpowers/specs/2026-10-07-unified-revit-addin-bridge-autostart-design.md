@@ -81,14 +81,26 @@ pyRevit startup.py
 
 The current pyRevit bridge source does not contain an `ExternalEvent` dispatcher.
 
-Therefore E-PY must explicitly determine and repair the Revit API execution model before production acceptance. A bounded pyRevit hardening pass is allowed if it preserves:
+Therefore E-PY must explicitly determine and repair the Revit API execution model before production acceptance. A bounded pyRevit hardening pass is allowed only after a feasibility check against the **exact attached pyRevit build and CPython engine**.
 
+Because the current bridge is `#! python3`, bounded remediation may reuse only an already-shipped, supported CPython-safe UI-thread dispatch surface exposed by that installed pyRevit/Revit runtime and adapt to it with extension-local Python changes.
+
+E-PY remediation must not:
+- switch the bridge to IronPython;
+- modify pyRevit core/runtime source;
+- add a new compiled native helper;
+- perform a broad engine migration;
+- substantially rewrite the bridge to recreate native dispatch infrastructure.
+
+If no proven reusable CPython-safe dispatcher exists in the attached runtime, E-PY records a decisive dispatch-unavailable result and selects `UNIFIED_NATIVE`.
+
+If a supported dispatcher exists, the hardening must still preserve:
 - automatic startup;
 - invisible infrastructure UX;
 - no manual recovery control;
 - separate pyRevit bridge ownership.
 
-If safe Revit UI-thread dispatch cannot be achieved reliably in the pyRevit host, E-PY fails.
+If safe Revit UI-thread dispatch cannot be achieved reliably within those bounds, E-PY fails.
 
 ### 3.3 Bridge API compatibility
 
@@ -105,6 +117,8 @@ Contract verification must include:
 - error response behavior.
 
 String-only route presence is insufficient.
+
+For **every** route consumed by `connection/bridge.py`, E-PY must provide executable handler/router conformance evidence. Mutating and annotation routes may use host-independent stubs/fakes for routing, validation and serialization, while at least one representative mutation also runs live in Revit. Any route that cannot be validated host-independently must receive an equivalent safe live fixture before `PYREVIT_SEPARATE` can be selected.
 
 ### 3.4 Real capability smoke
 
@@ -341,6 +355,8 @@ Selected when, after bounded pyRevit remediation:
 When `UNIFIED_NATIVE` is selected, the manual/recovery control belongs inside the RevitGPT docked panel.
 
 ## 12. Test matrix
+
+All disruptive host tests use a dedicated disposable Revit test session/model with no unsaved user work. Revit must be fully closed before enabling/disabling add-in manifests. Sleep/resume and force-close/crash-like tests require explicit Human approval immediately before execution; an automated agent must never kill an arbitrary active user Revit process.
 
 E-PY must cover at least:
 
