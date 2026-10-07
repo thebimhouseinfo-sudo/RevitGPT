@@ -31,21 +31,12 @@ if errorlevel 1 (
   set "FAILED=1"
 ) else echo [OK] Secure Tunnel READY
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\check-pyrevit-runtime.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\check-revit-bridge-host.ps1"
 if errorlevel 2 (
-  echo [FAIL] pyRevit runtime/loader missing
+  echo [FAIL] Revit MCP bridge host missing
   set "FAILED=1"
-)
-
-if exist "%APPDATA%\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
-  echo [OK] pyRevit bridge installed
-) else if exist "%LOCALAPPDATA%\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
-  echo [OK] pyRevit bridge installed
-) else if exist "C:\ProgramData\pyRevit\Extensions\RevitMCPBridge.extension\startup.py" (
-  echo [OK] pyRevit bridge installed
 ) else (
-  echo [FAIL] pyRevit bridge startup.py not found
-  set "FAILED=1"
+  echo [OK] Revit MCP bridge host installed
 )
 
 powershell -NoProfile -Command "$line=Get-Content '.env' -ErrorAction SilentlyContinue|Where-Object{$_ -match '^\s*REVITGPT_APPDATA_ROOT\s*=' -and -not $_.TrimStart().StartsWith('#')}|Select-Object -First 1;$cfg=if($line){(($line -split '=',2)[1].Trim()).Trim([char]39).Trim([char]34)}else{''};$root=if([string]::IsNullOrWhiteSpace($cfg)){Join-Path $env:LOCALAPPDATA 'RevitGPT'}elseif([IO.Path]::IsPathRooted($cfg)){$cfg}else{Join-Path (Get-Location) $cfg};$req=@('libraries\python','libraries\dynamo','libraries\jobs','registry\user','workspace\python-draft','workspace\dynamo-draft','workspace\job-draft','knowledge\revit','knowledge\failures','logs','state');foreach($p in $req){if(-not(Test-Path(Join-Path $root $p))){exit 1}};exit 0"
@@ -54,6 +45,7 @@ if errorlevel 1 (echo [FAIL] AppData skeleton incomplete&set "FAILED=1") else ec
 powershell -NoProfile -Command "$r=@(Get-Process -Name Revit -ErrorAction SilentlyContinue);if($r.Count -gt 0){try{$b=Invoke-RestMethod 'http://127.0.0.1:8765/health' -TimeoutSec 2;if($b.status -eq 'ok'){exit 0}}catch{};exit 2}else{exit 0}"
 if errorlevel 2 (
   echo [WARN] Revit is ON but bridge is not reachable.
+  echo [INFO] If the native add-in was just installed, fully restart Revit and click "Revit MCP Bridge" ^> "Start Bridge".
   echo --- Revit bridge diagnostics ---
   powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\diagnose-revit-bridge.ps1"
   echo --- End Revit bridge diagnostics ---
