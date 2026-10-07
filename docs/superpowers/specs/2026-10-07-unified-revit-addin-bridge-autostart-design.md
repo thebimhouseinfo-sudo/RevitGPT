@@ -1,469 +1,393 @@
-# Unified Revit Add-in + Bridge Auto-Start Design
+# RevitGPT Bridge Hosting Decision + Docked WebView Design
 
 Date: 2026-10-07  
-Status: **DESIGN SPEC — HUMAN ARCHITECTURE APPROVED, IMPLEMENTATION NOT YET AUTHORIZED**  
+Status: **REVISED DESIGN — HUMAN APPROVED DIRECTION, IMPLEMENTATION EVIDENCE REQUIRED**  
 Project: RevitGPT  
 Implementation source of truth: `work/J-AFC4-p1-revit-mcp-bootstrap`
 
-## 1. Decision summary
+## 1. Product UX contract
 
-RevitGPT must target the same normal user experience already proven desirable in CadGPT:
+The target user experience is:
 
 ```text
 Open Revit
-  -> RevitGPT add-in loads
-  -> native Revit bridge becomes READY automatically
-  -> dockable WebView shows ChatGPT
+  -> RevitGPT infrastructure becomes ready automatically
+  -> docked ChatGPT WebView is usable
   -> user types @rg
   -> work begins
 ```
 
-The user must not need to understand or manually operate the bridge, local port, Python MCP process, tunnel, or binding plumbing during a healthy startup.
+Normal users must not need to understand or operate bridge ports, pyRevit, Python MCP, tunnel processes, or binding plumbing.
 
-The implementation must first attempt to make **automatic bridge startup reliable**. Fallback UI is not the primary design goal; it exists only if real-host evidence shows auto-start cannot be made reliable enough.
+The architecture must not be chosen before testing the bridge host that already exists.
 
-Outcome priority:
+## 2. Architecture decision gate: E-PY
 
-1. **AUTO** — preferred final mode. Bridge auto-start is reliable; no recovery gate is shown during normal startup.
-2. **HYBRID** — acceptable only if auto-start is usually successful but still has real lifecycle failure modes that cannot be removed safely. Failed startup shows a recovery overlay with a single `Refresh` action.
-3. **REFRESH-GATED** — last resort only if Revit lifecycle constraints make reliable automatic bridge startup impractical. Chat is hidden until `Refresh` successfully establishes bridge readiness.
+Before writing a native C# bridge into the docked WebView add-in, RevitGPT must first prove whether the existing pyRevit bridge can remain a separate, invisible infrastructure add-in.
 
-No implementation may choose HYBRID or REFRESH-GATED merely because it is easier to code. The decision must be evidence-driven.
-
-## 2. Why this phase exists
-
-The current RevitGPT control plane can expose a ChatGPT MCP tunnel and can launch the Python Revit MCP process, but actual Revit access ultimately depends on the local HTTP bridge at:
+The decision rule is:
 
 ```text
-http://127.0.0.1:8765
+E-PY — pyRevit bridge auto-start + safety + capability evidence
+    |
+    +-- PASS
+    |    -> keep pyRevit bridge separate and invisible
+    |    -> native RevitGPT add-in hosts DockablePane + WebView2 only
+    |
+    +-- FAIL after bounded pyRevit remediation
+         -> manual recovery/start would be required
+         -> build one unified RevitGPT native add-in:
+              DockablePane + WebView2 + native bridge + Refresh recovery
 ```
 
-Current native bridge code was migrated from the older CAD-Agent approach and still expects a user to invoke a `Start Bridge` command manually. That is incompatible with the intended RevitGPT UX.
+The reason for this rule is product-facing:
 
-The Revit add-in and the native bridge therefore become one product host:
+- two add-ins are acceptable when the bridge is fully automatic and invisible;
+- two add-ins are not acceptable when users must leave the RevitGPT panel to start or recover a second add-in;
+- if manual recovery is necessary, both capabilities serve one product and must be presented through one RevitGPT panel.
+
+## 3. What counts as E-PY PASS
+
+E-PY is not a port-open test.
+
+PASS requires all of the following:
+
+### 3.1 Startup/lifecycle stability
+
+- pyRevit `startup.py` auto-starts the bridge without a manual ribbon action;
+- repeated cold Revit launches succeed;
+- launch with no active RVT is supported or the limitation is explicitly shown to be harmless;
+- opening/closing/switching multiple models does not kill the bridge;
+- pyRevit reload does not produce an unrecoverable duplicate/stale server;
+- Windows sleep/resume does not require a manual bridge start;
+- normal shutdown releases the listener;
+- immediate relaunch reacquires the port cleanly;
+- crash/force-close followed by relaunch recovers without manual bridge start.
+
+### 3.2 Revit API safety
+
+The bridge must not be accepted merely because unsupported threading happens to pass a few tests.
+
+Current source evidence shows:
+
+```text
+pyRevit startup.py
+  -> ensure_server_started()
+  -> Python HTTPServer runs on a background thread
+  -> request handlers call Revit API directly
+```
+
+The current pyRevit bridge source does not contain an `ExternalEvent` dispatcher.
+
+Therefore E-PY must explicitly determine and repair the Revit API execution model before production acceptance. A bounded pyRevit hardening pass is allowed if it preserves:
+
+- automatic startup;
+- invisible infrastructure UX;
+- no manual recovery control;
+- separate pyRevit bridge ownership.
+
+If safe Revit UI-thread dispatch cannot be achieved reliably in the pyRevit host, E-PY fails.
+
+### 3.3 Bridge API compatibility
+
+The selected bridge host must match the current Python consumer contract in:
+
+`runtimes/Revit-mcp/connection/bridge.py`.
+
+Contract verification must include:
+
+- route;
+- HTTP method;
+- required/minimal request payload;
+- success response shape;
+- error response behavior.
+
+String-only route presence is insufficient.
+
+### 3.4 Real capability smoke
+
+E-PY acceptance includes a disposable real-Revit round trip:
+
+```text
+read
+-> controlled disposable write
+-> readback
+-> delete
+-> verify absent
+```
+
+This is intentionally retained before E1 because bridge threading/transaction execution is exactly what E-PY is deciding.
+
+E1 remains the deeper real-project capability checkpoint after the bridge-host architecture is selected.
+
+## 4. E-PY test environment must have exactly one bridge owner
+
+E-PY evidence is invalid if multiple bridge implementations compete for `127.0.0.1:8765`.
+
+Before E-PY:
+
+- detect native `RevitMCPBridge.addin`;
+- detect installed `RevitMCPBridge.extension` copies;
+- detect the actual port owner;
+- ensure only the pyRevit bridge under test can bind `8765`;
+- do not kill unknown processes automatically;
+- record any collision as evidence.
+
+This avoids falsely classifying pyRevit auto-start as unstable because an older native bridge already owns the port.
+
+## 5. PASS architecture: separate invisible pyRevit bridge + native WebView add-in
+
+If E-PY passes:
+
+```text
+Revit
+├─ pyRevit / RevitMCPBridge.extension
+│    └─ startup.py
+│         └─ bridge :8765
+│
+└─ RevitGPT.addin
+     └─ DockablePane
+          └─ WebView2
+               └─ ChatGPT Web
+```
+
+The native RevitGPT add-in does not duplicate bridge code.
+
+Responsibilities:
+
+### pyRevit bridge
+
+- auto-start;
+- safe Revit UI-thread execution;
+- complete Python bridge-client contract;
+- lifecycle logging;
+- no user-facing control in the normal product UX.
+
+### RevitGPT native add-in
+
+- register DockablePane;
+- create/recreate browser-backed pane content safely;
+- persistent WebView2 profile;
+- observe bridge readiness before exposing chat;
+- preserve the WebView/session shell independently from bridge internals.
+
+If this architecture later requires a routine manual bridge-start/recovery button, it no longer satisfies the PASS architecture and must be reconsidered.
+
+## 6. FAIL architecture: one unified native RevitGPT add-in
+
+If E-PY remains unreliable after bounded pyRevit remediation and user intervention would be required, RevitGPT moves to one native add-in:
 
 ```text
 RevitGPT.Addin.dll
-  ├─ Revit application lifecycle
-  ├─ native bridge lifecycle
-  ├─ Revit API dispatcher
-  ├─ DockablePane
-  ├─ WebView2 host
-  ├─ local add-in control client
-  └─ Revit context observer
+├─ DockablePane + WebView2
+├─ native bridge
+├─ Revit UI-thread dispatcher
+└─ Refresh recovery UI
 ```
 
-There must not be a production UX where users install one add-in for the dockable ChatGPT panel and a second independent add-in to start the bridge.
+Normal flow still attempts automatic bridge readiness.
 
-## 3. Alternatives considered
-
-### 3.1 Auto-start only
-
-Bridge startup is owned by the RevitGPT add-in and occurs automatically at the earliest safe Revit lifecycle point.
-
-Advantages:
-- Best UX.
-- Matches the intended CadGPT-like experience.
-- Removes a user-visible infrastructure step.
-- Simplifies support because healthy startup has one path.
-
-Risk:
-- Revit startup timing may expose edge cases around `UIApplication`, `ExternalEvent`, document availability, reload, or recovery.
-
-**Preferred outcome if host evidence passes.**
-
-### 3.2 Hybrid auto-start + recovery gate
-
-The add-in auto-starts the bridge first. If readiness cannot be established, the dockable panel covers the ChatGPT area with a recovery overlay.
+Fallback flow:
 
 ```text
-RevitGPT is not ready
-
-[ Refresh ]
+auto bridge readiness fails
+  -> chat is covered/non-interactive
+  -> [ Refresh ]
+  -> bridge retry/recovery
+  -> READY
+  -> reveal existing ChatGPT WebView/session
 ```
 
-`Refresh` retries bridge initialization and health verification. Chat becomes visible only after readiness succeeds.
+The label is `Refresh`, not `Start Bridge` or `Start MCP`.
 
-Advantages:
-- Keeps the normal path automatic.
-- Gives the user a simple recovery mechanism without exposing MCP internals.
-- Avoids forcing a Revit restart for recoverable failures.
+## 7. Unified native bridge concurrency contract
 
-Cost:
-- Adds a second lifecycle path and therefore more state-machine/test complexity.
+This section applies only if E-PY selects the unified native path.
 
-**Use only if real evidence shows AUTO cannot be made sufficiently reliable.**
-
-### 3.3 Refresh-gated startup
-
-WebView chat is hidden at startup and the user must press `Refresh` before using `@rg`.
-
-Advantages:
-- Simple deterministic startup gating.
-
-Disadvantages:
-- Worse UX.
-- Reintroduces an infrastructure action every session.
-- Fails the desired “open Revit, type @rg, work” experience.
-
-**Last resort only.**
-
-## 4. Lifecycle ownership
-
-### 4.1 Add-in application scope
-
-The native bridge belongs to the Revit application/add-in lifecycle, not the WebView lifecycle.
-
-The bridge must:
-- start once per Revit process when possible;
-- remain alive if the dockable pane is hidden;
-- remain alive if WebView2 is recreated;
-- remain alive while the user changes Revit views or documents;
-- stop cleanly during add-in/Revit shutdown;
-- release its HTTP listener/port during shutdown;
-- never depend on a specific ChatGPT conversation.
-
-### 4.2 WebView scope
-
-The WebView belongs to the dockable-panel/session shell.
-
-WebView2 may:
-- initialize after bridge readiness;
-- preserve its profile and ChatGPT login/session;
-- be recreated after a renderer/process failure;
-- be hidden/covered during a bridge outage without destroying the ChatGPT conversation.
-
-The WebView is not the authority for model binding, bridge state, or Revit API state.
-
-### 4.3 Python MCP scope
-
-The Python Revit MCP remains owned by the RevitGPT local runtime/control plane.
-
-The unified Revit add-in must **not** directly own the Python MCP child process.
-
-Normal intent:
-
-```text
-Revit starts
-  -> native bridge auto-starts and becomes READY
-  -> WebView available
-  -> user invokes @rg
-  -> local control plane lazily activates full Revit MCP
-  -> MCP calls bridge
-```
-
-This preserves the existing separation between a light application-scoped bridge and a demand-driven full MCP runtime.
-
-## 5. Safe Revit startup sequence
-
-The add-in must not assume that all Revit UI/API facilities are safe during the first line of `IExternalApplication.OnStartup`.
-
-Target sequence:
-
-```text
-IExternalApplication.OnStartup
-  -> register DockablePane
-  -> register lifecycle/event handlers
-  -> schedule/defer bridge initialization to a safe Revit UI lifecycle point
-  -> construct Revit API dispatcher / ExternalEvent on the UI thread
-  -> start localhost bridge listener
-  -> GET /health
-  -> perform minimal bridge readiness probe
-  -> mark bridge READY
-  -> allow WebView/chat surface
-```
-
-The implementation may use the earliest safe Revit callback/event proven by host testing. The exact event is an implementation detail; the design requirement is that bridge initialization happens automatically on a valid Revit UI/API context.
-
-## 6. Revit API threading model
-
-All Revit API access, including reads, must be serialized through a Revit UI-thread dispatcher.
-
-Do not preserve the old pattern where some read endpoints execute Revit API calls directly from HTTP worker threads.
+All Revit API reads and writes must run through a Revit UI-thread dispatcher.
 
 Required conceptual flow:
 
 ```text
 HTTP request
-  -> parse/validate
-  -> create RevitRequest
-  -> enqueue request
-  -> ExternalEvent.Raise()
+  -> validate/parse
+  -> per-request BridgeRequest
+  -> ConcurrentQueue
+  -> single-flight ExternalEvent scheduler
   -> Revit UI thread
-  -> execute Revit API operation
-  -> complete request-specific TaskCompletionSource
+  -> execute request
+  -> per-request completion
   -> HTTP response
 ```
 
-Requirements:
-- one request has one independent completion primitive;
-- concurrent HTTP requests cannot overwrite each other's pending state;
-- writes are serialized through the same dispatcher;
-- reads are also serialized through the dispatcher;
-- request timeout/cancellation cannot corrupt another request;
-- one failed request cannot poison the dispatcher queue.
+### 7.1 No singleton pending request state
 
-The existing singleton pending fields in the migrated standalone bridge are not sufficient for this contract.
+Do not use shared fields equivalent to:
 
-## 7. Readiness state machine
+- `_pendingMutateAction`
+- `_pendingResult`
+- `_pendingCompleted`
 
-The add-in must keep bridge readiness distinct from ChatGPT pairing and model binding.
+Each request owns its own completion primitive.
 
-Minimum bridge states:
+### 7.2 No lost wakeups
 
-```text
-STARTING
-READY
-FAILED
-STOPPING
-STOPPED
-```
+The scheduler must define an atomic single-flight protocol.
 
-Optional recovery state:
+At minimum:
 
-```text
-RECOVERING
-```
+- maintain an atomic `scheduled/draining` state;
+- enqueue before signaling;
+- inspect `ExternalEvent.Raise()` result;
+- only `Accepted` is treated as a newly scheduled Revit event;
+- requests arriving while a handler is already pending/draining must not cause duplicate unsafe scheduling;
+- before `Execute()` exits, it must atomically hand off/re-signal if the queue became non-empty;
+- a queued request must never be stranded because it arrived during the drain/exit boundary.
 
-### READY
+Concurrency tests must include multiple simultaneous HTTP requests and the drain/exit race.
 
-READY means:
-- native bridge listener owns the expected localhost endpoint;
-- `/health` succeeds;
-- the bridge dispatcher has a valid Revit UI execution path;
-- a minimal non-destructive Revit probe succeeds or the host is validly waiting for a document according to the final endpoint contract.
+### 7.3 No blocking Revit callback on ExternalEvent work
 
-READY does **not** mean:
-- `@rg` has already paired a ChatGPT conversation;
-- a primary model has already been bound;
-- the Python MCP must already be running.
-
-Those are separate dimensions.
-
-## 8. WebView gating rules
-
-### AUTO success
-
-When auto-start reaches READY:
+If startup uses `ApplicationInitialized`:
 
 ```text
-show ChatGPT WebView
-no bridge button
-user can type @rg
+ApplicationInitialized
+  -> construct UIApplication / dispatcher / listener
+  -> schedule readiness probe
+  -> RETURN immediately
 ```
 
-### Auto-start failure
+Forbidden inside Revit callbacks:
 
-Only if HYBRID is retained after evidence:
+- `.Wait()`
+- `.Result`
+- `GetAwaiter().GetResult()`
+- any equivalent synchronous wait for an ExternalEvent-backed task.
+
+The readiness probe completes only after Revit regains an event-processing opportunity.
+
+## 8. DockablePane/WebView lifecycle
+
+The native panel should use Revit's browser-friendly framework-element recreation pattern rather than treating one WebView control as permanently reusable.
+
+Target:
+
+- DockablePane registered in `OnStartup`;
+- browser-backed content can be recreated through `IFrameworkElementCreator`;
+- WebView2 uses a persistent profile under `%LOCALAPPDATA%\RevitGPT\webview\revit`;
+- startup URL is `https://chatgpt.com/`;
+- browser recreation does not redefine model authority;
+- bridge lifetime is independent from pane/WebView lifetime.
+
+On the PASS/separate architecture, WebView observes pyRevit bridge readiness.
+
+On the FAIL/unified architecture, WebView observes the unified bridge readiness controller.
+
+## 9. Python MCP ownership
+
+The full Python Revit MCP remains owned by the RevitGPT local runtime/control plane.
+
+Normal intent:
 
 ```text
-cover/hide ChatGPT interaction
-show simple RevitGPT recovery surface
-show [ Refresh ]
+Revit starts
+  -> selected bridge host becomes ready
+  -> WebView available
+  -> user invokes @rg
+  -> local control plane lazily activates Python Revit MCP
+  -> MCP calls selected bridge
 ```
 
-The label must be `Refresh` rather than `Start MCP` or `Start Bridge`. Infrastructure terminology is intentionally hidden from normal users.
+Neither architecture moves Python MCP process ownership into the Revit add-in.
 
-Refresh performs a bounded recovery action:
-- inspect existing listener/process state;
-- repair stale bridge ownership if safe;
-- recreate dispatcher/listener if needed;
-- rerun readiness checks;
-- expose the chat surface only after READY.
+## 10. Authority boundary
 
-If an already-open WebView existed before a bridge outage, recovery must preserve the WebView profile and current ChatGPT conversation whenever possible.
+This design does not implement final model authority.
 
-## 9. UX contract
+Still canonical:
 
-### Healthy session
+- one primary bound model per logical session;
+- active view/model changes do not auto-rebind;
+- WebView state does not define authority;
+- final pairing and `Lease + Bind Current` stay downstream.
+
+E-PY/P1B are infrastructure-hosting decisions only.
+
+## 11. Evidence-driven architecture selection
+
+The decision artifact must select exactly one result:
+
+### `PYREVIT_SEPARATE`
+
+Allowed only if:
+
+- auto-start is stable;
+- API threading is safe;
+- route/method/schema contract is compatible;
+- read/write/readback/delete passes;
+- no routine manual bridge control is needed.
+
+### `UNIFIED_NATIVE`
+
+Selected when, after bounded pyRevit remediation:
+
+- automatic pyRevit startup/lifecycle remains unreliable; or
+- safe Revit API dispatch cannot be made reliable; or
+- routine recovery requires user action.
+
+When `UNIFIED_NATIVE` is selected, the manual/recovery control belongs inside the RevitGPT docked panel.
+
+## 12. Test matrix
+
+E-PY must cover at least:
+
+1. clean single-owner port baseline;
+2. cold Revit launch with a project;
+3. cold Revit launch without an active project where possible;
+4. at least 10 repeated cold launch/shutdown cycles;
+5. open second model;
+6. switch active views/models repeatedly;
+7. close/reopen models without closing Revit;
+8. pyRevit reload;
+9. at least 10 concurrent non-mutating bridge requests;
+10. request arrival during dispatcher drain/exit if a dispatcher is introduced;
+11. read -> write -> readback -> delete -> verify absent;
+12. Windows sleep/resume;
+13. normal shutdown -> immediate relaunch;
+14. force-close/crash-like termination -> relaunch;
+15. stale/occupied port observation without killing unknown owner;
+16. `@rg` end-to-end call through Python MCP to the bridge.
+
+If E-PY passes, proceed to a linked WebView-only implementation Job.
+
+If E-PY fails, proceed to a linked unified-native implementation Job whose acceptance repeats the relevant lifecycle/concurrency/capability tests.
+
+## 13. Job boundary
+
+E-PY is its own finite evidence Job.
+
+Do not prepare both implementation branches in advance as executable Jobs.
+
+After E-PY result:
 
 ```text
-User opens Revit
-User sees usable RevitGPT ChatGPT panel
-User types @rg
-User works
+E-PY completed
+   |
+   +-- PYREVIT_SEPARATE
+   |      -> create linked P1B-WebView-only Job
+   |
+   +-- UNIFIED_NATIVE
+          -> create linked P1B-Unified-native Job
 ```
 
-No manual:
-- Start Bridge;
-- Start MCP;
-- port selection;
-- Python launch;
-- .bat command;
-- workspace discovery;
-- transport reconnect.
+This avoids conditional-task deadlocks and prevents implementation effort on an architecture that evidence does not select.
 
-### Recoverable failure
+## 14. Definition of success
 
-If HYBRID is required:
+Preferred result:
 
-```text
-User opens Revit
-RevitGPT cannot reach READY automatically
-Chat surface is not interactive
-User sees [ Refresh ]
-User presses Refresh
-READY succeeds
-Chat surface appears
-User types @rg
-```
+> Open Revit, pyRevit bridge becomes ready invisibly, RevitGPT WebView is available, type `@rg`, work.
 
-### Non-recoverable failure
+Fallback result when pyRevit cannot satisfy that contract:
 
-After bounded recovery attempts fail, the panel may show a concise diagnostic state, but it must still avoid requiring the user to understand internal process topology. Detailed logs belong in diagnostics, not primary UX.
-
-## 10. Interaction with model authority
-
-This phase does not change the already-approved authority rules:
-
-- one primary bound Revit model per logical session/workspace;
-- changing active view/document does not auto-rebind;
-- mismatch is visualized;
-- explicit `Lease + Bind Current` performs intentional rebinding;
-- WebView state does not define model authority.
-
-Bridge auto-start is infrastructure readiness only.
-
-## 11. Production packaging
-
-Target production installation:
-
-```text
-one RevitGPT .addin registration
-one RevitGPT add-in package/DLL set
-```
-
-The old standalone `RevitMCPBridge` add-in becomes migration/reference code and must not remain a required second production add-in.
-
-The pyRevit bridge may remain temporarily as a development/recovery reference during migration, but successful completion removes it from the normal setup path.
-
-Any old “Revit MCP Bridge > Start Bridge” ribbon action must no longer be required. If a diagnostic action remains, it should behave as status/restart tooling, not as mandatory startup.
-
-## 12. Evidence-driven AUTO / HYBRID / FALLBACK decision
-
-The implementation phase must not decide the final UX mode from static code review alone.
-
-### AUTO acceptance target
-
-AUTO is accepted when repeated real-host testing shows:
-- bridge auto-starts on cold Revit launch;
-- bridge auto-starts when opening Revit before any project is opened, if that host flow is supported;
-- opening/closing models does not kill bridge readiness;
-- hiding/showing the dockable pane does not affect bridge readiness;
-- WebView recreation does not affect bridge readiness;
-- Windows sleep/resume does not leave an unrecoverable stale listener;
-- Revit shutdown frees the listener cleanly;
-- relaunch does not encounter stale port ownership;
-- repeated launch/close cycles do not require the manual Start Bridge command.
-
-### HYBRID trigger
-
-HYBRID is retained only when:
-- AUTO works for the normal path; **and**
-- at least one reproducible host lifecycle condition can still leave the bridge unavailable; **and**
-- that condition can be safely repaired by an in-panel `Refresh` without restarting Revit.
-
-### REFRESH-GATED trigger
-
-REFRESH-GATED startup is allowed only when:
-- automatic initialization remains unsafe or materially unreliable after bounded fixes; **and**
-- the failure is inherent to a Revit lifecycle/API constraint rather than an implementation defect.
-
-The evidence report must state which mode was selected and why.
-
-## 13. Test matrix
-
-Implementation acceptance must cover at least:
-
-1. Cold Revit launch with a normal project.
-2. Cold Revit launch without an immediately open project, when applicable.
-3. Open second model.
-4. Switch active views repeatedly.
-5. Hide/show RevitGPT pane.
-6. Recreate WebView process.
-7. Close bound/unbound models.
-8. Sleep/resume Windows.
-9. Bridge HTTP request concurrency.
-10. Read + write + readback + delete through MCP.
-11. Revit shutdown.
-12. Immediate Revit relaunch.
-13. Stale listener/port simulation.
-14. Auto-start failure injection and recovery behavior if HYBRID exists.
-15. Repeated full startup/shutdown cycles.
-
-The test report must distinguish:
-- Revit process health;
-- bridge health;
-- Python MCP health;
-- ChatGPT pair status;
-- model authority/binding status.
-
-## 14. Roadmap integration
-
-The current causal chain starts:
-
-```text
-P0 -> P1 -> E1 -> E2 -> E3 -> P2A ...
-```
-
-This design introduces a bounded phase before E1:
-
-```text
-P0
--> P1
--> P1B Unified Revit Add-in + Bridge Auto-Start
--> E1 real Revit read/write/delete
--> E2 lifecycle evidence
--> E3 strong model identity
--> P2A managed WebView session shell
-...
-```
-
-P1B is required because E1 should test the production-intent bridge lifecycle rather than a temporary manual Start Bridge workflow.
-
-P1B must not silently absorb P2B model-authority scope. It may create the DockablePane/WebView host foundation necessary for the unified add-in, but final pair/authority behavior remains governed by the existing downstream phases unless the durable roadmap is separately revised and reviewed.
-
-## 15. Implementation boundary for P1B
-
-P1B should include:
-- create/establish `addins/revitgpt-revit/`;
-- unified Revit `IExternalApplication`;
-- DockablePane registration;
-- native bridge hosted by the RevitGPT add-in;
-- automatic bridge startup at a proven safe lifecycle point;
-- UI-thread request dispatcher with per-request completion;
-- bridge health/readiness state;
-- clean shutdown;
-- initial WebView host integration sufficient to enforce readiness gating;
-- optional `Refresh` recovery only if evidence justifies HYBRID;
-- installer migration toward one add-in;
-- static checks and real-host evidence hooks.
-
-P1B must not include:
-- automatic model rebinding;
-- final `Lease + Bind Current` transaction logic;
-- final strong model identity scheme;
-- job runtime changes unrelated to bridge/add-in hosting;
-- unrelated UI redesign.
-
-## 16. Rollback
-
-Rollback must preserve the last known working P1 implementation line.
-
-If unified native hosting fails during development:
-- revert the bounded P1B commits;
-- restore the previous standalone bridge/dev path for diagnostics;
-- do not rewrite the P0/P1 historical commits;
-- do not merge a partially working unified add-in into `main`.
-
-Rollback is an engineering safety path, not an accepted product mode.
-
-## 17. Definition of design success
-
-This design is successful when implementation can demonstrate:
-
-> Open Revit, type `@rg` in the RevitGPT panel, and work.
-
-If that flow is reliably achieved, the user-facing recovery gate is unnecessary during normal operation.
-
-If a recovery gate is retained, it must exist only because real Revit lifecycle evidence justifies it, and its only normal user action is `Refresh`.
+> Open Revit, unified RevitGPT add-in auto-connects; if recovery is genuinely required, the same docked panel exposes `Refresh`, then type `@rg`, work.
