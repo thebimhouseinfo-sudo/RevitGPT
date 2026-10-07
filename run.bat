@@ -15,6 +15,7 @@ if /I "%ACTION%"=="restart" goto :restart
 if /I "%ACTION%"=="status" goto :status
 if /I "%ACTION%"=="doctor" goto :doctor
 if /I "%ACTION%"=="sync-bridge" goto :syncbridge
+if /I "%ACTION%"=="install-bridge" goto :installbridge
 if /I "%ACTION%"=="uninstall" goto :uninstall
 goto :usage
 
@@ -73,6 +74,12 @@ if errorlevel 1 exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\sync-revit-bridge.ps1"
 exit /b %ERRORLEVEL%
 
+:installbridge
+call :preflight
+if errorlevel 1 exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-revit-bridge-addin.ps1"
+exit /b %ERRORLEVEL%
+
 :uninstall
 call :stop
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0revitgpt-tray.ps1" -RemoveStartup
@@ -87,6 +94,7 @@ echo   run.bat restart
 echo   run.bat status
 echo   run.bat doctor
 echo   run.bat sync-bridge
+echo   run.bat install-bridge
 echo   run.bat install
 echo   run.bat uninstall
 exit /b 2
