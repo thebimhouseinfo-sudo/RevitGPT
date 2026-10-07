@@ -9,7 +9,11 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
-    $evidenceRoot = Join-Path ($env:LOCALAPPDATA ? $env:LOCALAPPDATA : [Environment]::GetFolderPath("LocalApplicationData")) "RevitGPT\evidence\E-PY"
+    $localAppData = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+        $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
+    }
+    $evidenceRoot = Join-Path $localAppData "RevitGPT\evidence\E-PY"
     $EvidencePath = Join-Path $evidenceRoot ("host-baseline-{0}.json" -f (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss"))
 }
 
@@ -180,7 +184,8 @@ try {
                 }
             }
         } catch {
-            foreach ($item in @($moved | Select-Object -Reverse)) {
+            for ($i = $moved.Count - 1; $i -ge 0; $i--) {
+                $item = $moved[$i]
                 if ((Test-Path -LiteralPath $item.target) -and -not (Test-Path -LiteralPath $item.source)) {
                     Move-Item -LiteralPath $item.target -Destination $item.source -ErrorAction SilentlyContinue
                 }
@@ -190,19 +195,31 @@ try {
     }
 
     if ($Mode -eq "RestoreNative") {
-        foreach ($record in @(Get-NativeBridgeManifestRecords $RevitYears | Where-Object { -not $_.enabled })) {
-            $disabled = [string]$record.path
-            $original = $disabled.Substring(0, $disabled.Length - ".e-py-disabled".Length)
-            if (Test-Path -LiteralPath $original) {
-                throw "Refusing to overwrite enabled manifest while restoring: $original"
+        $restored = @()
+        try {
+            foreach ($record in @(Get-NativeBridgeManifestRecords $RevitYears | Where-Object { -not $_.enabled })) {
+                $disabled = [string]$record.path
+                $original = $disabled.Substring(0, $disabled.Length - ".e-py-disabled".Length)
+                if (Test-Path -LiteralPath $original) {
+                    throw "Refusing to overwrite enabled manifest while restoring: $original"
+                }
+                Move-Item -LiteralPath $disabled -Destination $original
+                $restored += [pscustomobject]@{ source = $disabled; target = $original }
+                $actions += [pscustomobject]@{
+                    action = "restore_native_manifest"
+                    source = $disabled
+                    target = $original
+                    source_sha256 = $record.sha256
+                }
             }
-            Move-Item -LiteralPath $disabled -Destination $original
-            $actions += [pscustomobject]@{
-                action = "restore_native_manifest"
-                source = $disabled
-                target = $original
-                source_sha256 = $record.sha256
+        } catch {
+            for ($i = $restored.Count - 1; $i -ge 0; $i--) {
+                $item = $restored[$i]
+                if ((Test-Path -LiteralPath $item.target) -and -not (Test-Path -LiteralPath $item.source)) {
+                    Move-Item -LiteralPath $item.target -Destination $item.source -ErrorAction SilentlyContinue
+                }
             }
+            throw
         }
     }
 } catch {
