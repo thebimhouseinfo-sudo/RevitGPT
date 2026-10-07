@@ -6,7 +6,8 @@ $testRoot = Join-Path $runtimeRoot "tests"
 
 $offlineTests = @(
     "test_bridge.py",
-    "test_pyrevit_bridge_startup.py"
+    "test_pyrevit_bridge_startup.py",
+    "test_real_connection_gate.py"
 )
 $liveHostTests = @(
     "test_real_connection.py"
@@ -51,7 +52,7 @@ finally {
 }
 
 foreach ($testFile in $liveHostTests) {
-    Write-Host ("[TEST_BLOCKED] " + $testFile + " requires a real Revit + pyRevit host and is intentionally NOT counted toward GitHub Actions PASS.")
+    Write-Host ("[TEST_BLOCKED] " + $testFile + " requires a real Revit + pyRevit host, explicit E-PY-5B safe-dispatch confirmation, and is intentionally NOT counted toward GitHub Actions PASS.")
 }
 
 Write-Host "[PASS] Offline Revit MCP unit tests completed; live-host evidence remains explicitly blocked outside CI."
