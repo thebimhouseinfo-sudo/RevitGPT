@@ -3,10 +3,11 @@ const TOKEN = process.env.MCP_TOKEN || "ci-smoke-token";
 const BASE = `http://127.0.0.1:${PORT}`;
 const PATH = `/mcp/${TOKEN}`;
 
-async function post(body, sessionId, protocolVersion) {
+async function post(body, sessionId, protocolVersion, extraHeaders = {}) {
   const headers = {
     "content-type": "application/json",
-    accept: "application/json, text/event-stream"
+    accept: "application/json, text/event-stream",
+    ...extraHeaders
   };
   if (sessionId) headers["mcp-session-id"] = sessionId;
   if (protocolVersion) headers["mcp-protocol-version"] = protocolVersion;
@@ -28,24 +29,38 @@ async function post(body, sessionId, protocolVersion) {
   };
 }
 
-const discover = await post({
-  jsonrpc: "2.0",
-  id: "discover",
-  method: "server/discover",
-  params: {}
-});
+const discover = await post(
+  {
+    jsonrpc: "2.0",
+    id: "server/discover",
+    method: "server/discover",
+    params: {
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": {
+          name: "tunnel-client",
+          version: "0.0.15"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {}
+      }
+    }
+  },
+  null,
+  "2026-07-28",
+  { "mcp-method": "server/discover" }
+);
 if (discover.status !== 200 || discover.json?.error?.code !== -32601) {
   throw new Error(`server/discover fallback failed: HTTP ${discover.status} ${discover.text}`);
 }
 
 const init = await post({
   jsonrpc: "2.0",
-  id: 1,
+  id: "initialize",
   method: "initialize",
   params: {
-    protocolVersion: "2025-03-26",
+    protocolVersion: "2025-11-25",
     capabilities: {},
-    clientInfo: { name: "revitgpt-ci-session", version: "1.0.0" }
+    clientInfo: { name: "tunnel-client", version: "0.0.15" }
   }
 });
 if (init.status !== 200) {
@@ -58,16 +73,16 @@ if (!init.sessionId) {
 const initialized = await post(
   { jsonrpc: "2.0", method: "notifications/initialized" },
   init.sessionId,
-  "2025-03-26"
+  "2025-11-25"
 );
 if (initialized.status !== 200 && initialized.status !== 202) {
   throw new Error(`notifications/initialized HTTP ${initialized.status}: ${initialized.text}`);
 }
 
 const tools = await post(
-  { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
+  { jsonrpc: "2.0", id: "tools/list", method: "tools/list", params: {} },
   init.sessionId,
-  "2025-03-26"
+  "2025-11-25"
 );
 if (tools.status !== 200) {
   throw new Error(`tools/list HTTP ${tools.status}: ${tools.text}`);
@@ -78,9 +93,9 @@ if (!tools.json?.result?.tools?.some((tool) => tool.name === "revitgpt_admission
 
 const staleId = "00000000-0000-4000-8000-000000000099";
 const recovered = await post(
-  { jsonrpc: "2.0", id: 3, method: "tools/list", params: {} },
+  { jsonrpc: "2.0", id: "stale-tools/list", method: "tools/list", params: {} },
   staleId,
-  "2025-03-26"
+  "2025-11-25"
 );
 if (recovered.status !== 200) {
   throw new Error(`stale-session recovery HTTP ${recovered.status}: ${recovered.text}`);
@@ -89,4 +104,4 @@ if (!recovered.json?.result?.tools?.some((tool) => tool.name === "revitgpt_admis
   throw new Error("stale-session recovery missing revitgpt_admission");
 }
 
-console.log("[PASS] RevitGPT MCP server/discover + initialize + initialized + tools/list + stale-session recovery");
+console.log("[PASS] RevitGPT exact tunnel-client 0.0.15 fallback wire shape + stale-session recovery");
