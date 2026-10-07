@@ -96,8 +96,7 @@ Use a Revit DockablePane with WPF + WebView2.
 
 The panel contains:
 - Small RG status/header area.
-- A startup **Bridge Gate** that covers the chat surface until the Revit bridge is explicitly started and READY.
-- Embedded ChatGPT Web, revealed only after the Bridge Gate reaches READY.
+- Embedded ChatGPT Web.
 - Binding mismatch indication.
 - Fast bind action when appropriate.
 
@@ -119,44 +118,29 @@ Switching active Revit views/tabs must **not** automatically change the bound mo
 
 ### 4.3 Startup / restore flow
 
-The Revit add-in uses an explicit **Bridge Gate** before exposing ChatGPT.
-
-On panel startup, the WebView/chat surface remains mounted behind the gate but is fully covered and not user-interactive. The user must explicitly press **Start Bridge**.
+Target normal flow:
 
 ~~~text
 Revit starts
     |
+RG local runtime starts/restores
+    |
+first/known model opens
+    |
+create or restore workspace
+    |
+bind primary model locally
+    |
 open RG dockable panel
     |
-BRIDGE GATE covers the chat surface
-    |
-[ Start Bridge ]
-    |
-STARTING
-    |
-bridge health 127.0.0.1:8765 == READY
-    |
-remove Bridge Gate
-    |
-show/restore ChatGPT WebView
-    |
-restore/create workspace + primary binding
+restore known ChatGPT conversation when available
     |
 @rg handshake
     |
 READY
 ~~~
 
-Required gate behavior:
-
-- Before the click: show only the RevitGPT shell/header and a dominant **Start Bridge** action; chat must not be usable.
-- While starting: disable repeat clicks and show `STARTING`.
-- On success: transition to `BRIDGE READY`, remove the blocking overlay, then expose the WebView and perform the `@rg` handshake.
-- On failure: keep the blocking overlay in place and change the action to **Retry Start Bridge**; show a concise bridge error/diagnostic state.
-- The gate controls bridge readiness only. It must not create model authority, perform model rebinding, or manufacture ChatGPT activity.
-- If bridge connectivity is lost after READY, preserve the WebView/conversation instance behind the overlay and re-show the Bridge Gate for recovery instead of destroying the chat session.
-
-Normal users should not need to know that pyRevit is the underlying bridge runtime, nor perform list -> select -> bind manually.
+Normal users should not need to perform list -> select -> bind manually.
 
 ### 4.4 Binding mismatch UX
 
@@ -373,16 +357,11 @@ User should normally not need to remember:
 - WebView2 host.
 - Persistent profile.
 - Basic status header.
-- A blocking startup gate surface that can cover the WebView without destroying/recreating it.
-- Open/restore ChatGPT Web only after the host-specific readiness gate is satisfied.
+- Open/restore ChatGPT Web.
 - Clean shutdown/restart behavior.
 
 ### A2 - Revit integration
 - DockablePane.
-- **Bridge Gate** with explicit Start Bridge / STARTING / READY / ERROR states.
-- Start/restart bridge action owned by the RevitGPT panel header; pyRevit remains an implementation detail.
-- Do not expose the WebView/chat to the user before bridge READY.
-- On bridge loss after READY, re-cover the existing WebView rather than recreating the conversation.
 - Local workspace/model status binding.
 - Active-vs-bound model detection.
 - READY/MISMATCH/BROKEN indicator.
@@ -423,10 +402,6 @@ User should normally not need to remember:
 - Runtime reconnect does not silently change the bound host document.
 
 ### Revit
-- On panel startup, ChatGPT is fully blocked by the Bridge Gate until the user presses Start Bridge and bridge health reaches READY.
-- `@rg` is not invoked before Bridge READY.
-- A failed bridge start leaves the gate in place and exposes Retry Start Bridge without destroying the WebView profile/conversation.
-- If bridge connectivity is lost after READY, the gate returns over the existing WebView while preserving the conversation instance.
 - One primary model remains authoritative.
 - Switching to another project's view changes the panel to MISMATCH but does not rebind.
 - Lease + Bind Current explicitly moves authority to the current model.
