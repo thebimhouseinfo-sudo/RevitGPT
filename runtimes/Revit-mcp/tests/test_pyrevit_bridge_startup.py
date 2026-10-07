@@ -128,32 +128,37 @@ class PyRevitBridgeStartupTests(unittest.TestCase):
             self.assertIn("synthetic startup failure", text)
 
     def test_server_start_success_is_ready_and_idempotent(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            log_path = pathlib.Path(tmp) / "bridge.ndjson"
-            self.bridge.BRIDGE_LOG_PATH = str(log_path)
-            self.bridge.PORT = 8765
+        self.bridge.PORT = 8765
+        events = []
+        events_lock = threading.Lock()
 
-            with patch.object(self.bridge, "HTTPServer", FakeHTTPServer):
-                first = self.bridge.ensure_server_started()
-                self.assertTrue(first["started"])
-                self.assertTrue(first["running"])
-                self.assertTrue(first["ready"])
-                self.assertEqual(first["port"], 8765)
-                self.assertEqual(len(FakeHTTPServer.instances), 1)
+        def record_event(event, **_fields):
+            with events_lock:
+                events.append(event)
 
-                second = self.bridge.ensure_server_started()
-                self.assertFalse(second["started"])
-                self.assertTrue(second["running"])
-                self.assertTrue(second["ready"])
-                self.assertEqual(len(FakeHTTPServer.instances), 1)
+        with (
+            patch.object(self.bridge, "HTTPServer", FakeHTTPServer),
+            patch.object(self.bridge, "bridge_log", side_effect=record_event),
+        ):
+            first = self.bridge.ensure_server_started()
+            self.assertTrue(first["started"])
+            self.assertTrue(first["running"])
+            self.assertTrue(first["ready"])
+            self.assertEqual(first["port"], 8765)
+            self.assertEqual(len(FakeHTTPServer.instances), 1)
 
-                FakeHTTPServer.instances[0].server_close()
-                self.bridge._SERVER_THREAD.join(2.0)
-                self.assertFalse(self.bridge._SERVER_THREAD.is_alive())
+            second = self.bridge.ensure_server_started()
+            self.assertFalse(second["started"])
+            self.assertTrue(second["running"])
+            self.assertTrue(second["ready"])
+            self.assertEqual(len(FakeHTTPServer.instances), 1)
 
-            text = log_path.read_text()
-            self.assertIn('"event": "bridge_thread_started"', text)
-            self.assertIn('"event": "bridge_start"', text)
+            FakeHTTPServer.instances[0].server_close()
+            self.bridge._SERVER_THREAD.join(2.0)
+            self.assertFalse(self.bridge._SERVER_THREAD.is_alive())
+
+        self.assertIn("bridge_thread_started", events)
+        self.assertIn("bridge_start", events)
 
     def test_bind_failure_is_reported_and_logged(self):
         with tempfile.TemporaryDirectory() as tmp:
