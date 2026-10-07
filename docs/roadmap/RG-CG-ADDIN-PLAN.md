@@ -298,6 +298,20 @@ The pair is established by local pair-window handshake + normal `@rg` admission.
 
 All release/recovery semantics are owned by the canonical contract in `docs/architecture/AUTHORITY_LIFECYCLE.md`.
 
+
+## Bridge hosting decision before native bridge integration
+
+Do not assume the Revit docked add-in must own the bridge.
+
+First run the E-PY evidence gate against the existing pyRevit bridge.
+
+- If pyRevit auto-start is stable, Revit API execution is safe, the full bridge contract/capability checks pass, and no routine manual recovery is needed, keep the pyRevit bridge as a separate invisible add-in. The native RevitGPT add-in hosts DockablePane + WebView2 only.
+- If pyRevit remains unreliable after bounded remediation or user interaction is required to start/recover it, use one unified native RevitGPT add-in for bridge + DockablePane + WebView2, with recovery exposed only inside the RevitGPT panel.
+- Never require the user to leave the RevitGPT panel to operate a second bridge UI.
+- Exactly one bridge implementation may own `127.0.0.1:8765` during any evidence run.
+
+This hosting decision is infrastructure-only and does not change the downstream model-authority/pairing rules in this document.
+
 ## 7. WebView2 rules
 
 - Use a dedicated persistent user-data/profile folder per product.
