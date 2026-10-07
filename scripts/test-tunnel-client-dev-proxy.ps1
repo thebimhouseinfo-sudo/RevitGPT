@@ -45,6 +45,15 @@ try {
         throw "RevitGPT target did not become ready."
     }
 
+    $mcpSessionTest = & node.exe (Join-Path $repoRoot "scripts\test-mcp-session.mjs") 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $mcpSessionTest | ForEach-Object { Write-Host $_ }
+        Write-Host "=== RevitGPT target stderr ==="
+        Get-Content $serverErr -ErrorAction SilentlyContinue
+        throw "DEV_MODE MCP session registration test failed."
+    }
+    $mcpSessionTest | ForEach-Object { Write-Host $_ }
+
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "openai-tunnel.ps1") -VerifyClient
     if ($LASTEXITCODE -ne 0) { throw "tunnel-client verification failed." }
 
