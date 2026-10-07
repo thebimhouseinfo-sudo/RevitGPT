@@ -45,12 +45,25 @@ $pyRoots = @(
   (Join-Path $env:LOCALAPPDATA "pyRevit\Extensions\RevitMCPBridge.extension\startup.py"),
   "C:\ProgramData\pyRevit\Extensions\RevitMCPBridge.extension\startup.py"
 )
-foreach ($path in $pyRoots) {
-  if (Test-Path $path) {
-    Write-Host ("[OK] pyRevit bridge fallback package: " + $path)
+$pyPackage = $pyRoots | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($pyPackage) {
+  . (Join-Path $PSScriptRoot "pyrevit-runtime.ps1")
+  $runtimeReady = [bool](Find-PyRevitCli)
+  if (-not $runtimeReady) {
+    foreach ($year in @(Get-RunningRevitYears)) {
+      $attachment = Get-PyRevitAttachmentInfo -Year $year
+      if ($attachment -and -not $attachment.ParseError -and $attachment.AssemblyExists) {
+        $runtimeReady = $true
+        break
+      }
+    }
+  }
+  if ($runtimeReady) {
+    Write-Host ("[OK] pyRevit bridge fallback package + runtime: " + $pyPackage)
     Write-Host "[INFO] Native standalone add-in is preferred; pyRevit remains optional fallback."
     exit 0
   }
+  Write-Host ("[INFO] pyRevit bridge folder exists but no usable pyRevit runtime/loader was found: " + $pyPackage)
 }
 
 Write-Host "[FAIL] No usable Revit MCP bridge host is installed."
