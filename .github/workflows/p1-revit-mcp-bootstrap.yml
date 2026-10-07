@@ -53,6 +53,12 @@ jobs:
         run: |
           ./openai-tunnel.ps1 -VerifyClient
 
+      - name: Test exact tunnel-client against Slim MCP
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-tunnel-client-dev-proxy.ps1
+
       - name: Check tunnel ownership contract
         shell: pwsh
         run: |
