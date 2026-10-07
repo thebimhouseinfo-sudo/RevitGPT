@@ -134,6 +134,8 @@ This is the **only executable Job that should be prepared now**.
 
 ### Task E-PY-1 — Build a clean single-owner baseline
 
+Before disabling any legacy native bridge manifest, record its exact path, content/hash and prior enabled state. Neutralization for E-PY must be reversible until a durable architecture decision exists; if E-PY aborts, restore the recorded prior host configuration.
+
 **Read/inspect:**
 - `scripts/check-revit-bridge-host.ps1`
 - `scripts/diagnose-revit-bridge.ps1`
@@ -153,6 +155,8 @@ This is the **only executable Job that should be prepared now**.
 **Rule:** never kill an unknown process automatically.
 
 ### Task E-PY-2 — Create full bridge consumer-contract fixtures
+
+This task is host-independent/static before the safety gate. Derive fixtures from source; do **not** live-call the current unsafe pyRevit bridge yet.
 
 Contract source:
 
@@ -188,19 +192,22 @@ String-only path matching is not sufficient.
 
 ### Task E-PY-3 — Baseline current pyRevit auto-start
 
-Without clicking any bridge command:
+Without clicking any bridge command and **without issuing any HTTP request whose handler touches the Revit API**:
 
 1. cold launch Revit;
-2. confirm `startup.py` runs;
-3. confirm bridge listener readiness;
-4. confirm a real non-destructive Revit read;
-5. capture startup/bridge logs.
+2. confirm `startup.py` runs from startup logs;
+3. confirm bridge thread/listener/port ownership using process/socket observation;
+4. capture startup/bridge logs.
+
+Do not call `/health`, `/document/active`, or other Revit-bearing endpoints on the unmodified bridge because current request handlers execute on the background HTTP thread. API-bearing verification starts only after E-PY-5 establishes a safe execution model.
 
 Run at least 10 cold launch/shutdown cycles.
 
 A single successful launch does not count as stable.
 
 ### Task E-PY-4 — Exercise lifecycle edge cases
+
+For the unmodified baseline, observe only startup logs, bridge thread/listener state and port ownership. Do not live-call Revit-bearing HTTP endpoints before E-PY-5.
 
 Run and record:
 
@@ -240,13 +247,13 @@ If an ExternalEvent-style dispatcher is used, it must satisfy CR-1 and CR-2:
 - no synchronous wait from Revit callbacks;
 - independent per-request completion.
 
-After any remediation, repeat E-PY-3 and E-PY-4 from a clean install.
+After any remediation, repeat E-PY-3 and E-PY-4 from a clean install **and then add `/health` plus real non-destructive Revit reads on the now-safe revision**.
 
 If safe dispatch cannot be made reliable within the bounded pyRevit remediation scope, record a decisive `PYREVIT_THREADING_FAIL`. Downstream concurrency/capability/@rg tasks then close as `NOT_APPLICABLE_AFTER_DECISIVE_FAIL` with that evidence reference; they must not block the final architecture decision.
 
-### Task E-PY-6 — Concurrency test
+### Task E-PY-6 — Live contract + concurrency test
 
-Run at least 10 concurrent non-mutating bridge requests.
+Only after E-PY-5 establishes a safe execution model, execute the E-PY-2 contract fixtures against the bridge for non-mutating routes, then run at least 10 concurrent non-mutating bridge requests.
 
 Also test the scheduler boundary where a new request arrives while the current UI-thread drain is finishing.
 
