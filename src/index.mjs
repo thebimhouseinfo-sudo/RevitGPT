@@ -15,6 +15,7 @@ import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
 import { callReadOnlyTool, ensureReadRuntime } from "./read-intent-gate.mjs";
 import { handleRetiredPanelCommand } from "./retired-panel-commands.mjs";
+import { executeRevitCommand } from "./revit-fake-cli.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -103,6 +104,7 @@ function createServer(sessionKey) {
         "Each read verifies native model binding directly and requires the bound model to be active.",
         "P2E removed revitgpt_pair_panel and revitgpt_lease_bound_model. These old commands MUST NOT be used, even if an old connector description mentions them.",
         "To count Levels use revitgpt_call with name='revit_list_levels' and arguments={}. No manual pairing or lease.",
+        "CadGPT-style fake CLI commands: rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Route command text through revitgpt_command or revitgpt_call with name='rg/...'. CLI is discovery ONLY.",
         "Never assume active tab is model authority; native writes remain disabled."
       ].join("\n")
     }
@@ -110,6 +112,18 @@ function createServer(sessionKey) {
 
   registerManagedTools(server);
   registerRevitMcpDevTools(server);
+
+  server.registerTool("revitgpt_command",{
+    title:"RevitGPT Fake CLI",
+    description:"Read-only command router rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Uses effective registry; never executes scripts or edits RVT.",
+    inputSchema:{command:z.string().min(3)}
+  },async({command})=>{
+    const result=await executeRevitCommand(command,{
+      bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
+    });
+    if(!result)throw new Error("RG_COMMAND_UNKNOWN");
+    return result;
+  });
 
   server.registerTool(
     "revitgpt_admission",
@@ -259,7 +273,7 @@ function createServer(sessionKey) {
     "revitgpt_call",
     {
       title: "Call Revit MCP Tool",
-      description: "READ-ONLY Revit tools. To list Levels call with name='revit_list_levels', arguments={}. No manual Pair or lease. Old revitgpt_pair_panel/revitgpt_lease_bound_model commands are retired and return migration guidance. All writes are blocked.",
+      description: "READ-ONLY Revit tools, plus fake CLI discovery commands rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge and rg/help in the name field (arguments={}). To list Levels: name='revit_list_levels'. No manual Pair/lease, writes blocked.",
       inputSchema: {
         name: z.string().min(1),
         arguments: z.record(z.string(), z.unknown()).optional()
@@ -268,6 +282,16 @@ function createServer(sessionKey) {
     async ({ name, arguments: args }) => {
       // Do not gate by a previous MCP admission boolean: ChatGPT's connector
       // can issue the next call on a different reconstructed MCP instance.
+      // The CLI is a local discovery route: it NEVER goes to Python MCP.
+      if (name.startsWith("rg/")) {
+        if (args && (typeof args!=="object"||Array.isArray(args)||Object.keys(args).length))
+          throw new Error("RG_COMMAND_ARGUMENTS_INVALID");
+        const command=await executeRevitCommand(name,{
+          bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
+        });
+        if(!command)throw new Error("RG_COMMAND_UNKNOWN");
+        return command;
+      }
       // Old connector catalogues may advertise retired P2D controls.
       // Only return read-only migration instructions, NEVER mint a lease.
       const retired = await handleRetiredPanelCommand(name, args,
@@ -438,7 +462,7 @@ const revitProcessWatch = setInterval(async () => {
 revitProcessWatch.unref?.();
 
 const httpServer = app.listen(PORT, HOST, () => {
-  console.log("=== RevitGPT P1 Bootstrap Control Plane ===");
+  console.log("=== RevitGPT Control Plane ===");
   console.log(`MCP:    http://${HOST}:${PORT}${route}`);
   console.log(`Health: http://${HOST}:${PORT}/health`);
   console.log("Full Revit MCP stays OFF until @rg/revitgpt_admission is invoked while Revit is running. Revit process absence shuts it down; Revit being ON alone never auto-starts it.");
