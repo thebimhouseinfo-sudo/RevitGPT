@@ -67,6 +67,12 @@ jobs:
         run: |
           dotnet build runtimes/Revit-mcp/bridge/unified_native/RevitGPT.Native.csproj -c Release -p:UseNugetRevitApi=true -warnaserror
 
+      - name: Stage uninstalled native preview and exercise red controls
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-native-preview-package.ps1
+
       - name: Test bounded E-PY host preflight, rollback and red controls
         shell: powershell
         run: |
