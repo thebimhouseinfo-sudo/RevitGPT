@@ -61,6 +61,12 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
+      - name: Compile native RevitGPT against Revit 2024 API
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          dotnet build runtimes/Revit-mcp/bridge/unified_native/RevitGPT.Native.csproj -c Release -p:UseNugetRevitApi=true -warnaserror
+
       - name: Test bounded E-PY host preflight, rollback and red controls
         shell: powershell
         run: |
@@ -148,12 +154,6 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q runtimes/Revit-mcp
-
-      - name: Compile native RevitGPT against Revit 2024 API
-        if: matrix.node-version == '24'
-        shell: pwsh
-        run: |
-          dotnet build runtimes/Revit-mcp/bridge/unified_native/RevitGPT.Native.csproj -c Release -p:UseNugetRevitApi=true -warnaserror
 
       - name: Test legacy bridge installer fail-closed
         shell: powershell
