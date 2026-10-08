@@ -30,8 +30,8 @@ namespace RevitGPT.Native
             TimeSpan? writeTimeout = null)
         {
             _dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
-            _readTimeout = readTimeout ?? TimeSpan.FromSeconds(10);
-            _writeTimeout = writeTimeout ?? TimeSpan.FromSeconds(90);
+            _readTimeout = readTimeout ?? TimeSpan.FromMilliseconds(2500);
+            _writeTimeout = writeTimeout ?? TimeSpan.FromSeconds(25);
             if (_readTimeout <= TimeSpan.Zero || _writeTimeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(readTimeout));
         }
@@ -78,8 +78,8 @@ namespace RevitGPT.Native
             {
                 Task<string> dispatched;
                 try { dispatched = _dispatch(requestId, method, path, body ?? "", timeout.Token); }
-                catch (InvalidOperationException ex) { return Error(429, ex.Message); }
                 catch (ObjectDisposedException) { return Error(503, "Bridge shutting down."); }
+                catch (InvalidOperationException ex) { return Error(429, ex.Message); }
                 catch (Exception) { return Error(500, "Dispatch initialization failed."); }
 
                 if (dispatched == null) return Error(500, "Dispatch returned no task.");
