@@ -52,6 +52,11 @@ jobs:
         run: |
           node scripts/test-revit-upstream-lifecycle.mjs
 
+      - name: Test P2B session-bound read-only model authority
+        shell: pwsh
+        run: |
+          node scripts/test-model-authority.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |

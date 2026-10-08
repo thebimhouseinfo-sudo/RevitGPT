@@ -12,6 +12,7 @@ import { createSessionManager, extractRequestId, isInitializeRequest } from "./m
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
+import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -79,6 +80,7 @@ async function bridgeHealth() {
 }
 
 function createServer(sessionKey) {
+  const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
     {
@@ -87,8 +89,8 @@ function createServer(sessionKey) {
         "Bare @rg / RevitGPT invocation must call revitgpt_admission first.",
         "Only @rg / revitgpt_admission may activate the full Revit MCP when Revit is running.",
         "Revit being ON by itself must not auto-start the full Revit MCP.",
-        "This phase proves real Revit connectivity before final model lease/binding hardening.",
-        "Do not assume the active Revit view/tab is model authority."
+        "Model reads require an explicit bound model and read-only session lease.",
+        "Never assume active tab is model authority; native writes remain disabled."
       ].join("\n")
     }
   );
@@ -200,6 +202,40 @@ function createServer(sessionKey) {
   );
 
   server.registerTool(
+    "revitgpt_binding_status",
+    {
+      title: "RevitGPT Model Binding Status",
+      description: "Inspect native model binding and this logical MCP session's read-only lease; never modifies binding.",
+      inputSchema: {}
+    },
+    async () => {
+      const native = await fetchNativeBindingStatus(BRIDGE_URL);
+      return {
+        content: [{ type: "text", text: "Native binding: " + String(native.status) }],
+        structuredContent: { native_binding: native, session_lease: authority.summary() }
+      };
+    }
+  );
+
+  server.registerTool(
+    "revitgpt_lease_bound_model",
+    {
+      title: "Lease Bound Model (Read-Only)",
+      description: "After user binds a model in the panel, explicitly lease it to THIS MCP session for reads; never grants write access.",
+      inputSchema: {}
+    },
+    async () => {
+      if (!admitted.has(sessionKey) || !revitUpstream.status().connected)
+        throw new Error("REVITGPT_ADMISSION_REQUIRED");
+      const lease = await authority.leaseCurrent();
+      return {
+        content: [{ type: "text", text: "Read-only lease: " + lease.bound_title }],
+        structuredContent: { status: "LEASED_READ_ONLY", lease }
+      };
+    }
+  );
+
+  server.registerTool(
     "revitgpt_list_tools",
     {
       title: "List Revit MCP Tools",
@@ -243,7 +279,8 @@ function createServer(sessionKey) {
       const started=Date.now();
       let result;
       try {
-        result = await revitUpstream.callTool(name, args || {});
+        const safeArgs = await authority.authorize(name, args || {});
+        result = await revitUpstream.callTool(name, safeArgs);
         await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
       } catch (error) {
         const message=error instanceof Error?error.message:String(error);

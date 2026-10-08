@@ -118,6 +118,12 @@ def health_check() -> dict:
         }
 
 
+def get_binding_status() -> dict:
+    """Read native binding. This does not confer a remote MCP session lease."""
+    result = _send_request("/binding/status")
+    return result.get("data", {})
+
+
 def get_active_document() -> dict:
     result = _send_request("/document/active")
     return result.get("data", result)
