@@ -18,6 +18,12 @@ namespace RevitGPT.Native
         private readonly TextBlock _status;
         private readonly TextBlock _bindingStatus;
         private readonly Button _bind;
+        private readonly Button _pair;
+        private readonly TextBox _pairCode;
+        private readonly NativePanelSession _panelSession;
+        private string _pendingBindTarget;
+        private long _pendingBindRevision;
+        private DateTime _pendingSinceUtc;
         private readonly DispatcherTimer _bindingTimer;
         private readonly NativeModelBindingState _binding;
         private bool _starting;
@@ -27,10 +33,12 @@ namespace RevitGPT.Native
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RevitGPT", "webview", "revit");
 
-        public RevitGptPane(Action requestBridgeRetry, NativeModelBindingState binding)
+        public RevitGptPane(Action requestBridgeRetry, NativeModelBindingState binding,
+            NativePanelSession panelSession)
         {
             _requestBridgeRetry = requestBridgeRetry ?? throw new ArgumentNullException(nameof(requestBridgeRetry));
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
+            _panelSession = panelSession ?? throw new ArgumentNullException(nameof(panelSession));
             var grid = new Grid();
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -77,6 +85,22 @@ namespace RevitGPT.Native
             };
             bindingRow.Children.Add(_bindingStatus);
             header.Children.Add(bindingRow);
+
+            var pairingRow = new DockPanel { LastChildFill = true };
+            _pair = new Button {
+                Content = "Pair", Margin = new Thickness(7, 0, 8, 6),
+                Padding = new Thickness(6, 2, 6, 2)
+            };
+            DockPanel.SetDock(_pair, Dock.Right);
+            pairingRow.Children.Add(_pair);
+            _pairCode = new TextBox {
+                MinWidth = 125, MaxWidth = 220,
+                Margin = new Thickness(12, 0, 0, 6),
+                ToolTip = "Call @rg revitgpt_pair_panel, then enter the 32-character code here"
+            };
+            pairingRow.Children.Add(_pairCode);
+            header.Children.Add(pairingRow);
+
             _bindingTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
             _bindingTimer.Tick += (sender, args) => RefreshBindingIndicator();
             Grid.SetRow(header, 0);
@@ -104,11 +128,20 @@ namespace RevitGPT.Native
                 _ = InitializeBrowserAsync();
             };
             Unloaded += (sender, args) => _bindingTimer.Stop();
+            _pair.Click += async (sender, args) => await PairPanelAsync();
             _bind.Click += (sender, args) =>
             {
-                _status.Text = _binding.RequestBindCurrent()
-                    ? "Bind requested | Waiting for Revit UI | No MCP lease"
-                    : "No active model to bind";
+                var previous = _binding.Current;
+                if (_binding.RequestBindCurrent())
+                {
+                    _pendingBindTarget = previous.ActiveId;
+                    _pendingBindRevision = previous.Revision;
+                    _pendingSinceUtc = DateTime.UtcNow;
+                    _status.Text = _panelSession.IsPaired
+                        ? "Binding requested | Waiting for Revit to confirm before leasing"
+                        : "Binding requested | Pair panel for automatic session lease";
+                }
+                else _status.Text = "No active model to bind";
             };
             refresh.Click += (sender, args) =>
             {
@@ -118,12 +151,69 @@ namespace RevitGPT.Native
             };
         }
 
+        private async Task PairPanelAsync()
+        {
+            _pair.IsEnabled = false;
+            try
+            {
+                string token = await NativePanelPairingClient.PairAsync(_pairCode.Text);
+                _panelSession.SetToken(token);
+                _pairCode.Clear(); // never retain challenge in UI
+                _status.Text = "Panel paired to one ChatGPT MCP session (read only)";
+            }
+            catch (Exception error)
+            {
+                _status.Text = "Pairing failed: " + error.GetType().Name +
+                    " | Request a new code using @rg";
+            }
+            finally { _pair.IsEnabled = true; }
+        }
+
+        private async Task LeasePanelAsync(NativeModelBindingState.Snapshot snap)
+        {
+            try
+            {
+                await NativePanelPairingClient.LeaseAsync(_panelSession.Token, snap);
+                _status.Text = "Read-only MCP lease confirmed for " + snap.BoundTitle;
+            }
+            catch (Exception error)
+            {
+                _panelSession.Clear(); // expired/revoked token cannot be trusted
+                _status.Text = "Lease failed: " + error.GetType().Name +
+                    " | Pair again, or explicitly lease with @rg";
+            }
+        }
+
         private void RefreshBindingIndicator()
         {
             // This never calls Revit API; the host Idling callback supplies snapshots.
             var snap = _binding.Current;
+            _bind.Content = _panelSession.IsPaired
+                ? "Lease + Bind Current" : "Bind Current (preview)";
             _bind.IsEnabled = !String.IsNullOrEmpty(snap.ActiveId) &&
-                snap.Status != "BOUND_CURRENT";
+                _pendingBindTarget == null &&
+                (snap.Status != "BOUND_CURRENT" || _panelSession.IsPaired);
+            if (_pendingBindTarget != null)
+            {
+                if (snap.Revision > _pendingBindRevision)
+                {
+                    string target = _pendingBindTarget;
+                    _pendingBindTarget = null;
+                    if (snap.Status == "BOUND_CURRENT" && snap.BoundId == target)
+                    {
+                        if (_panelSession.IsPaired) _ = LeasePanelAsync(snap);
+                        else _status.Text = "Bound: " + snap.BoundTitle +
+                            " | Use @rg revitgpt_lease_bound_model until paired";
+                    }
+                    else _status.Text = "Binding changed; no lease granted";
+                }
+                else if (snap.ActiveId != _pendingBindTarget ||
+                         DateTime.UtcNow - _pendingSinceUtc > TimeSpan.FromSeconds(15))
+                {
+                    _pendingBindTarget = null;
+                    _status.Text = "Binding cancelled or delayed; no lease granted";
+                }
+            }
             switch (snap.Status)
             {
                 case "BOUND_CURRENT":

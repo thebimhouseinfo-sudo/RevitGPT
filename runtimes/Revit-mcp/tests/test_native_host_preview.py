@@ -15,7 +15,7 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("app.Idling += OnFirstIdle", source)
         self.assertIn("RevitExternalEventAdapter.CreateOnRevitUiThread()", source)
         self.assertIn("new BridgeHttpServer(protocol)", source)
-        self.assertIn("new RevitGptPaneProvider(_retry.Request, _binding)", source)
+        self.assertIn("new RevitGptPaneProvider(_retry.Request, _binding, _panelSession)", source)
         self.assertIn("_retry.TryConsume()", source)
         # A healthy listener must be left in place, even if Refresh is clicked.
         # Check behavior/early return within the healthy branch, not a brittle

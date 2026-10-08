@@ -19,6 +19,7 @@ namespace RevitGPT.Native
         private readonly BridgeRetryState _retry = new BridgeRetryState();
         private readonly NativeBridgeRecoveryPolicy _recovery = new NativeBridgeRecoveryPolicy();
         private readonly NativeModelBindingState _binding = new NativeModelBindingState();
+        private readonly NativePanelSession _panelSession = new NativePanelSession();
 
         public Result OnStartup(UIControlledApplication app)
         {
@@ -27,7 +28,7 @@ namespace RevitGPT.Native
             {
                 // WPF pane lifetime never owns or blocks the native listener.
                 app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
-                    new RevitGptPaneProvider(_retry.Request, _binding));
+                    new RevitGptPaneProvider(_retry.Request, _binding, _panelSession));
             }
             catch (Exception error)
             {
@@ -110,6 +111,7 @@ namespace RevitGPT.Native
             // Shutdown is never a synchronous wait on a pending UI request.
             DisposeBridge();
             _binding.ClearOnShutdown();
+            _panelSession.Clear();
             _application = null;
             return Result.Succeeded;
         }
