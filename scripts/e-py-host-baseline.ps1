@@ -17,6 +17,10 @@ if ([string]::IsNullOrWhiteSpace($EvidencePath)) {
     $EvidencePath = Join-Path $evidenceRoot ("host-baseline-{0}.json" -f (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss"))
 }
 
+function Write-Stage([string]$Message) {
+    Write-Host ("[E-PY] [{0}] {1}" -f (Get-Date).ToString("HH:mm:ss"), $Message)
+}
+
 function Get-Sha256([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
@@ -44,12 +48,16 @@ function Test-RevitBridgeManifest([string]$Path) {
 }
 
 function Get-RevitProcesses {
+    # Avoid Get-CimInstance: WMI can stall for minutes on unhealthy hosts.
+    # PowerShell Get-Process gives a local snapshot without a WMI roundtrip.
     $items = @()
-    foreach ($proc in @(Get-CimInstance Win32_Process -Filter "Name='Revit.exe'" -ErrorAction SilentlyContinue)) {
+    foreach ($proc in @(Get-Process -Name "Revit" -ErrorAction SilentlyContinue)) {
+        $exe = $null
+        try { $exe = [string]$proc.Path } catch { $exe = $null }
         $items += [pscustomobject]@{
-            pid = [int]$proc.ProcessId
-            executable_path = [string]$proc.ExecutablePath
-            command_line = [string]$proc.CommandLine
+            pid = [int]$proc.Id
+            executable_path = $exe
+            command_line = $null
         }
     }
     return @($items)
@@ -124,25 +132,76 @@ function Get-PyRevitBridgeRecords {
 }
 
 function Get-Port8765Owner {
+    # Use bounded netstat child process instead of unbounded CIM calls.
+    # If the probe cannot complete, return UNKNOWN (never assume port free).
+    $proc = $null
     try {
-        $conn = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort 8765 -State Listen -ErrorAction Stop |
-            Select-Object -First 1
-        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($conn.OwningProcess)" -ErrorAction SilentlyContinue
+        $netstat = Join-Path $env:WINDIR "System32\netstat.exe"
+        if (-not (Test-Path -LiteralPath $netstat -PathType Leaf)) {
+            throw "netstat.exe is unavailable: $netstat"
+        }
+
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $netstat
+        $startInfo.Arguments = "-ano -p tcp"
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+
+        $proc = New-Object System.Diagnostics.Process
+        $proc.StartInfo = $startInfo
+        if (-not $proc.Start()) { throw "Failed to start netstat port probe" }
+
+        # Drain both pipes asynchronously before waiting to avoid pipe deadlock.
+        $stdout = $proc.StandardOutput.ReadToEndAsync()
+        $stderr = $proc.StandardError.ReadToEndAsync()
+        if (-not $proc.WaitForExit(8000)) {
+            try { $proc.Kill() } catch {}
+            throw "netstat port probe exceeded 8 seconds"
+        }
+        $outText = $stdout.GetAwaiter().GetResult()
+        $errText = $stderr.GetAwaiter().GetResult()
+        if ($proc.ExitCode -ne 0) {
+            throw ("netstat failed with exit code {0}: {1}" -f $proc.ExitCode, $errText)
+        }
+
+        $pids = @()
+        foreach ($line in ($outText -split "\r?\n")) {
+            # Match loopback and wildcard listeners. All may conflict with 8765.
+            if ($line -match '^\s*TCP\s+\S+:8765\s+\S+\s+LISTENING\s+(\d+)\s*$') {
+                $pids += [int]$Matches[1]
+            }
+        }
+        $pids = @($pids | Sort-Object -Unique)
+        $owners = @()
+        foreach ($ownerPid in $pids) {
+            $owner = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
+            $ownerPath = $null
+            try { if ($owner) { $ownerPath = [string]$owner.Path } } catch {}
+            $owners += [pscustomobject]@{
+                pid = $ownerPid
+                process_name = $(if ($owner) { [string]$owner.ProcessName } else { $null })
+                executable_path = $ownerPath
+            }
+        }
         return [pscustomobject]@{
-            listening = $true
-            pid = [int]$conn.OwningProcess
-            process_name = $(if ($proc) { [string]$proc.Name } else { $null })
-            executable_path = $(if ($proc) { [string]$proc.ExecutablePath } else { $null })
-            command_line = $(if ($proc) { [string]$proc.CommandLine } else { $null })
+            checked = $true
+            listening = ($pids.Count -gt 0)
+            pid = $(if ($pids.Count -gt 0) { $pids[0] } else { $null })
+            owners = $owners
+            error = $null
         }
     } catch {
         return [pscustomobject]@{
-            listening = $false
+            checked = $false
+            listening = $null
             pid = $null
-            process_name = $null
-            executable_path = $null
-            command_line = $null
+            owners = @()
+            error = $_.Exception.Message
         }
+    } finally {
+        if ($proc) { $proc.Dispose() }
     }
 }
 
@@ -159,6 +218,7 @@ $actions = @()
 $errorText = $null
 
 try {
+    Write-Stage "Checking whether Revit is running (local process snapshot)"
     $revitBefore = @(Get-RevitProcesses)
 
     if ($Mode -in @("PreparePyRevit", "RestoreNative") -and $revitBefore.Count -gt 0) {
@@ -166,6 +226,19 @@ try {
     }
 
     if ($Mode -eq "PreparePyRevit") {
+        Write-Stage "Preflight: checking port 8765 (8-second maximum)"
+        $preflightPort = Get-Port8765Owner
+        if (-not $preflightPort.checked) {
+            throw ("Port state unknown; refusing manifest changes: " + $preflightPort.error)
+        }
+        if ($preflightPort.listening) {
+            throw "Port 8765 is already occupied; refusing manifest changes."
+        }
+        Write-Stage "Preflight: checking installed pyRevit bridge extension"
+        if (@(Get-PyRevitBridgeRecords).Count -eq 0) {
+            throw "pyRevit bridge extension was not found; refusing manifest changes."
+        }
+        Write-Stage "Preflight complete. Disabling only verified native manifests"
         $moved = @()
         try {
             foreach ($record in @(Get-NativeBridgeManifestRecords $RevitYears | Where-Object { $_.enabled })) {
@@ -174,6 +247,7 @@ try {
                 if (Test-Path -LiteralPath $target) {
                     throw "Refusing to overwrite existing disabled manifest: $target"
                 }
+                Write-Stage ("Disabling native manifest: " + $source)
                 Move-Item -LiteralPath $source -Destination $target
                 $moved += [pscustomobject]@{ source = $source; target = $target }
                 $actions += [pscustomobject]@{
@@ -203,7 +277,8 @@ try {
                 if (Test-Path -LiteralPath $original) {
                     throw "Refusing to overwrite enabled manifest while restoring: $original"
                 }
-                Move-Item -LiteralPath $disabled -Destination $original
+                Write-Stage ("Restoring native manifest: " + $original)
+            Move-Item -LiteralPath $disabled -Destination $original
                 $restored += [pscustomobject]@{ source = $disabled; target = $original }
                 $actions += [pscustomobject]@{
                     action = "restore_native_manifest"
@@ -226,10 +301,17 @@ try {
     $errorText = $_.Exception.Message
 }
 
+Write-Stage "Collecting final Revit process snapshot"
 $revitAfter = @(Get-RevitProcesses)
+Write-Stage "Inspecting native manifests"
 $native = @(Get-NativeBridgeManifestRecords $RevitYears)
+Write-Stage "Inspecting installed pyRevit extensions"
 $pyrevit = @(Get-PyRevitBridgeRecords)
+Write-Stage "Checking final port 8765 ownership (8-second maximum)"
 $port = Get-Port8765Owner
+if (-not $port.checked -and [string]::IsNullOrWhiteSpace($errorText)) {
+    $errorText = "Could not verify port 8765: $($port.error)"
+}
 $enabledNativeCount = @($native | Where-Object { $_.enabled }).Count
 
 $evidence = @{
@@ -250,10 +332,12 @@ $evidence = @{
         $revitAfter.Count -eq 0 -and
         $enabledNativeCount -eq 0 -and
         $pyrevit.Count -gt 0 -and
+        $port.checked -and
         -not $port.listening
     )
 }
 
+Write-Stage "Writing evidence JSON"
 Write-Evidence $evidence
 
 if (-not [string]::IsNullOrWhiteSpace($errorText)) {
