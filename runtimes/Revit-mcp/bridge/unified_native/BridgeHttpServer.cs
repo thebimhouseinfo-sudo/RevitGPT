@@ -45,17 +45,26 @@ namespace RevitGPT.Native
 
         private async Task ListenLoopAsync()
         {
-            while (IsRunning && !_stop.IsCancellationRequested)
+            try
             {
-                HttpListenerContext context;
-                try { context = await _listener.GetContextAsync().ConfigureAwait(false); }
-                catch (HttpListenerException) { break; }
-                catch (ObjectDisposedException) { break; }
-                _ = Task.Run(() => HandleAsync(context));
+                while (IsRunning && !_stop.IsCancellationRequested)
+                {
+                    HttpListenerContext context;
+                    try { context = await _listener.GetContextAsync().ConfigureAwait(false); }
+                    catch (HttpListenerException) { break; }
+                    catch (ObjectDisposedException) { break; }
+                    _ = Task.Run(() => HandleAsync(context));
+                }
             }
-            // Listener failed or stopped. Idling may now safely dispose it
-            // and attempt a fresh instance with bounded backoff.
-            Interlocked.Exchange(ref _running, 0);
+            catch (Exception error)
+            {
+                System.Diagnostics.Debug.WriteLine("[RevitGPT] Native listener failed: " + error);
+            }
+            finally
+            {
+                // Even unexpected accept-loop failures must make recovery visible.
+                Interlocked.Exchange(ref _running, 0);
+            }
         }
 
         private async Task HandleAsync(HttpListenerContext context)
@@ -136,8 +145,10 @@ namespace RevitGPT.Native
 
         public void Stop()
         {
-            if (Interlocked.Exchange(ref _running, 0) == 0) return;
-            _stop.Cancel();
+            Interlocked.Exchange(ref _running, 0);
+            // A failed accept loop already set _running=0. Cleanup MUST
+            // still close its HttpListener so restart can reclaim port 8765.
+            try { _stop.Cancel(); } catch (ObjectDisposedException) { }
             try { _listener.Stop(); } catch { }
             try { _listener.Close(); } catch { }
         }

@@ -27,6 +27,17 @@ class HostPreviewTests(unittest.TestCase):
         self.assertNotIn("sync-revit-bridge", source)
         self.assertTrue(PROJECT.exists())
 
+    def test_native_listener_shutdown_does_not_skip_cleanup_on_fault(self):
+        source = SERVER.read_text(encoding="utf-8")
+        self.assertIn("finally", source)
+        self.assertIn("Interlocked.Exchange(ref _running, 0);", source)
+        self.assertIn("_listener.Close();", source)
+        self.assertNotIn("if (Interlocked.Exchange(ref _running, 0) == 0) return;", source)
+        # Negative control: old early return must be detected as unsafe.
+        old = source.replace("Interlocked.Exchange(ref _running, 0);",
+            "if (Interlocked.Exchange(ref _running, 0) == 0) return;", 1)
+        self.assertNotEqual(old, source)
+
     def test_no_api_access_from_listener(self):
         listener = SERVER.read_text(encoding="utf-8")
         self.assertNotIn("Autodesk.Revit.", listener)
