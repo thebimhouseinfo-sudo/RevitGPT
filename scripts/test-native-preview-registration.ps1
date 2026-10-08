@@ -4,7 +4,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $scriptPath = Join-Path $PSScriptRoot "manage-native-revitgpt-preview.ps1"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$package = Join-Path $repoRoot "artifacts\RevitGPT.Native.2024.preview"
+$package = Join-Path $temp "staged-native-preview"
+$prepare = Join-Path $PSScriptRoot "prepare-native-revitgpt-preview.ps1"
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("RevitGPT-manifest-e2e-" + [Guid]::NewGuid().ToString("N"))
 $saveApp = $env:APPDATA
 $saveProgram = $env:ProgramData
@@ -17,6 +18,7 @@ function Must-Fail([scriptblock]$action, [string]$why) {
 }
 try {
     New-Item -ItemType Directory -Path $temp -Force | Out-Null
+    & $prepare -OutputDirectory $package
     $env:APPDATA = Join-Path $temp "AppData"
     $env:ProgramData = Join-Path $temp "ProgramData"
     $env:LOCALAPPDATA = Join-Path $temp "LocalAppData"
