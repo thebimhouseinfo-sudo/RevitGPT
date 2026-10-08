@@ -101,6 +101,29 @@ internal static class NativeDispatchTests
         True(new NativeModelBindingState().Current.HostInstanceId != instance,
             "restarted host rotates instance identifier");
 
+        // Recovery after a stopped listener never spins at Idling frequency.
+        var recovery = new NativeBridgeRecoveryPolicy();
+        var t0 = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
+        True(recovery.ShouldRetry(t0), "first disconnected callback may retry");
+        recovery.ReportAttempt(t0);
+        True(!recovery.ShouldRetry(t0.AddSeconds(1)), "failed start is throttled");
+        True(recovery.ShouldRetry(t0.AddSeconds(2)), "2-second first backoff");
+        recovery.ReportAttempt(t0.AddSeconds(2));
+        True(!recovery.ShouldRetry(t0.AddSeconds(5)), "second attempt uses 4-second backoff");
+        True(recovery.ShouldRetry(t0.AddSeconds(6)), "second backoff expires");
+        var at = t0.AddSeconds(6);
+        for (int i = 0; i < 10; i++)
+        {
+            recovery.ReportAttempt(at);
+            at = at.AddSeconds(61);
+        }
+        True(!recovery.ShouldRetry(at.AddSeconds(-2)), "retry cadence stays bounded");
+        True(recovery.ShouldRetry(at), "eventual retry survives long sleep");
+        recovery.ReportHealthy();
+        True(recovery.ShouldRetry(t0), "healthy reset clears previous delay");
+        recovery.ReportAttempt(t0);
+        True(recovery.ShouldRetry(t0.AddSeconds(2)), "post-recovery first failure starts at minimum");
+
         // Ten independent callers. None executes Revit action from HTTP thread.
         int raises = 0, executions = 0;
         var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });

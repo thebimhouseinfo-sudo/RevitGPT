@@ -53,6 +53,9 @@ namespace RevitGPT.Native
                 catch (ObjectDisposedException) { break; }
                 _ = Task.Run(() => HandleAsync(context));
             }
+            // Listener failed or stopped. Idling may now safely dispose it
+            // and attempt a fresh instance with bounded backoff.
+            Interlocked.Exchange(ref _running, 0);
         }
 
         private async Task HandleAsync(HttpListenerContext context)

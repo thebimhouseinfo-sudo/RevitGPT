@@ -27,7 +27,6 @@ if (!TOKEN) {
   throw new Error("MCP_TOKEN is required. Copy .env.example to .env and set a private random value.");
 }
 
-const admitted = new Set();
 let shuttingDown = false;
 
 async function revitProcessState() {
@@ -80,6 +79,9 @@ async function bridgeHealth() {
 }
 
 function createServer(sessionKey) {
+  // Admission belongs to this MCP server instance, never to the untrusted
+  // x-openai-subject / x-openai-session string shared across connections.
+  let admitted = false;
   const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
@@ -154,7 +156,7 @@ function createServer(sessionKey) {
       }
 
       const tools = await revitUpstream.activate();
-      admitted.add(sessionKey);
+      admitted = true;
       await logToolCall({tool:"revitgpt_admission",ok:true,status:"READY",tool_count:tools.length,duration_ms:Date.now()-started});
       const names = tools.map((tool) => tool.name);
       return {
@@ -195,7 +197,7 @@ function createServer(sessionKey) {
           bridge,
           revit_process: revitProcess,
           revit_mcp: upstream,
-          admitted: admitted.has(sessionKey)
+          admitted: admitted
         }
       };
     }
@@ -225,7 +227,7 @@ function createServer(sessionKey) {
       inputSchema: {}
     },
     async () => {
-      if (!admitted.has(sessionKey) || !revitUpstream.status().connected)
+      if (!admitted || !revitUpstream.status().connected)
         throw new Error("REVITGPT_ADMISSION_REQUIRED");
       const lease = await authority.leaseCurrent();
       return {
@@ -243,7 +245,7 @@ function createServer(sessionKey) {
       inputSchema: {}
     },
     async () => {
-      if (!admitted.has(sessionKey) || !revitUpstream.status().connected) {
+      if (!admitted || !revitUpstream.status().connected) {
         throw new Error("REVITGPT_ADMISSION_REQUIRED");
       }
       const tools = revitUpstream.cachedTools();
@@ -271,7 +273,7 @@ function createServer(sessionKey) {
       }
     },
     async ({ name, arguments: args }) => {
-      if (!admitted.has(sessionKey) || !revitUpstream.status().connected) {
+      if (!admitted || !revitUpstream.status().connected) {
         throw new Error("REVITGPT_ADMISSION_REQUIRED");
       }
       const known = revitUpstream.cachedTools().some((tool) => tool.name === name);

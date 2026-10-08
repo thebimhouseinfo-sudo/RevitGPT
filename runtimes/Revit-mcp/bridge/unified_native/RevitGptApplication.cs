@@ -17,6 +17,7 @@ namespace RevitGPT.Native
         private BridgeHttpServer _server;
         // Refresh requests are consumed only in Revit's Idling API context.
         private readonly BridgeRetryState _retry = new BridgeRetryState();
+        private readonly NativeBridgeRecoveryPolicy _recovery = new NativeBridgeRecoveryPolicy();
         private readonly NativeModelBindingState _binding = new NativeModelBindingState();
 
         public Result OnStartup(UIControlledApplication app)
@@ -56,9 +57,18 @@ namespace RevitGPT.Native
                 Debug.WriteLine("[RevitGPT] Binding observation failed: " + error);
                 _binding.Observe(null, null, new string[0]);
             }
-            if (!_retry.TryConsume()) return;
+            var manualRetry = _retry.TryConsume();
             // A healthy listener must never be replaced by a panel click.
-            if (_server != null && _server.IsRunning) return;
+            if (_server != null && _server.IsRunning)
+            {
+                _recovery.ReportHealthy();
+                return;
+            }
+            // A listener which died (including after a Windows sleep/wake)
+            // may be retried from Idling without network polling or freezing UI.
+            var now = DateTimeOffset.UtcNow;
+            if (!manualRetry && !_recovery.ShouldRetry(now)) return;
+            _recovery.ReportAttempt(now);
             // A stopped/failed listener must release its old dispatcher first.
             DisposeBridge();
             try
@@ -73,6 +83,7 @@ namespace RevitGPT.Native
                             cancellation));
                 _server = new BridgeHttpServer(protocol);
                 _server.Start();
+                _recovery.ReportHealthy();
                 Debug.WriteLine("[RevitGPT] Native bridge listener initialized.");
             }
             catch (Exception error)
