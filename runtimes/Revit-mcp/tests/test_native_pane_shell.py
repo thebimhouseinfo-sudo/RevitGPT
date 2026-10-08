@@ -18,7 +18,12 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("_initialPaneShowPending = true;", host)
         self.assertIn("TryShowInitialPane(uiapp);", host)
         self.assertIn("uiapp.GetDockablePane(RevitGptPaneProvider.PaneId)", host)
-        self.assertIn("if (!pane.IsShown()) pane.Show();", host)
+        self.assertIn("bool shownBefore = pane.IsShown();", host)
+        self.assertIn("if (!shownBefore) pane.Show();", host)
+        self.assertIn("bool shownAfter = pane.IsShown();", host)
+        # Negative control: removing Show() cannot pass the source assertion.
+        sabotaged = host.replace("if (!shownBefore) pane.Show();", "if (!shownBefore) {}")
+        self.assertNotIn("if (!shownBefore) pane.Show();", sabotaged)
         self.assertIn("_initialPaneShowPending = false;", host)
         self.assertIn("NativePaneStartupPolicy.MaximumAttempts", host)
         self.assertIn("if (!projectReady)", host)
