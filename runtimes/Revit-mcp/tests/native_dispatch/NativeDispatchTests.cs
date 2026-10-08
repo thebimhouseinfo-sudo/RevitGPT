@@ -130,7 +130,7 @@ internal static class NativeDispatchTests
         {
             var slot = bounded.Submit("one", () => "one");
             bool rejected = false;
-            try { bounded.Submit("two", () => "two"); }
+            try { _ = bounded.Submit("two", () => "two"); }
             catch (InvalidOperationException ex) { rejected = ex.Message.Contains("full"); }
             True(rejected, "queue capacity enforced");
             bounded.DrainOnRevitUiThread();
@@ -145,7 +145,7 @@ internal static class NativeDispatchTests
         catch (ObjectDisposedException) { stopped = true; }
         True(stopped, "pending item fails on shutdown");
         stopped = false;
-        try { queue.Submit("after-close", () => "no"); }
+        try { _ = queue.Submit("after-close", () => "no"); }
         catch (ObjectDisposedException) { stopped = true; }
         True(stopped, "post-shutdown request refused");
 
