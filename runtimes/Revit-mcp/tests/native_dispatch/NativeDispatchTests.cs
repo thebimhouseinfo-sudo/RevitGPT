@@ -77,6 +77,30 @@ internal static class NativeDispatchTests
         True(binding.Current.Status == "NOT_BOUND" && binding.Current.BoundId == null,
             "Revit shutdown clears model binding");
 
+        // Strict native read authorization (never infer active as binding).
+        var enforce = new NativeModelBindingState();
+        enforce.Observe("A", "Test A", new[] { "A", "B" });
+        True(enforce.ReadDenial(null) == "MODEL_NOT_BOUND", "unbound read is blocked");
+        enforce.RequestBindCurrent();
+        enforce.ConsumePendingBind();
+        True(enforce.ReadDenial(null) == null &&
+            enforce.ReadDenial("A") == null, "explicit bound target allowed");
+        True(enforce.ReadDenial("B") == "DOCUMENT_ID_MISMATCH", "cross-model read blocked");
+        var instance = enforce.Current.HostInstanceId;
+        True(!String.IsNullOrWhiteSpace(instance), "host instance identifier present");
+        enforce.Observe("B", "Test B", new[] { "A", "B" });
+        True(enforce.ReadDenial("A") == "ACTIVE_MODEL_MISMATCH",
+            "tab mismatch blocks even explicit bound document id");
+        enforce.Observe("B", "Test B", new[] { "B" });
+        True(enforce.ReadDenial(null) == "BOUND_MODEL_CLOSED", "closed binding blocked");
+        enforce.Observe("A", "Reopened A", new[] { "A", "B" });
+        True(enforce.ReadDenial("A") == "BOUND_MODEL_CLOSED",
+            "reopened id must not resurrect authority");
+        enforce.ClearOnShutdown();
+        True(enforce.ReadDenial(null) == "MODEL_NOT_BOUND", "shutdown clears authority");
+        True(new NativeModelBindingState().Current.HostInstanceId != instance,
+            "restarted host rotates instance identifier");
+
         // Ten independent callers. None executes Revit action from HTTP thread.
         int raises = 0, executions = 0;
         var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });

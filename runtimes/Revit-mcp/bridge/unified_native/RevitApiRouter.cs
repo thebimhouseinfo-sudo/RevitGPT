@@ -16,7 +16,8 @@ namespace RevitGPT.Native
     // real disposable-model transaction/rollback tests are accepted.
     public static class RevitApiRouter
     {
-        public static string Execute(UIApplication app, string method, string path, string body)
+        public static string Execute(UIApplication app, string method, string path, string body,
+            NativeModelBindingState binding = null)
         {
             if (app == null) return Error(503, "No Revit UI API context.");
             try
@@ -30,15 +31,42 @@ namespace RevitGPT.Native
                 var payload = String.IsNullOrWhiteSpace(body) ? new JObject() : JObject.Parse(body);
                 if (path == "/documents")
                     return Data(app.Application.Documents.Cast<Document>().Select(DocumentInfo).ToList());
-
-                var doc = FindDocument(app, payload);
-                if (doc == null) return Error(404, "Target Revit document is not open.");
                 if (path == "/document/active")
                 {
                     var active = app.ActiveUIDocument?.Document;
                     if (active == null) return Error(404, "No active model.");
                     return Data(DocumentInfo(active));
                 }
+                if (binding != null)
+                {
+                    // Request-side refresh inside ExternalEvent: tab switches or
+                    // close/reopen must not rely on the next Idling tick.
+                    var active = app.ActiveUIDocument?.Document;
+                    binding.Observe(
+                        active?.GetHashCode().ToString(CultureInfo.InvariantCulture),
+                        active?.Title,
+                        app.Application.Documents.Cast<Document>().Select(d =>
+                            d.GetHashCode().ToString(CultureInfo.InvariantCulture)));
+                }
+                if (path == "/binding/status")
+                {
+                    if (binding == null) return Error(503, "Native binding state unavailable.");
+                    var snap = binding.Current;
+                    return Data(new {
+                        status = snap.Status,
+                        host_instance_id = snap.HostInstanceId,
+                        revision = snap.Revision,
+                        active_id = snap.ActiveId,
+                        active_title = snap.ActiveTitle,
+                        bound_id = snap.BoundId,
+                        bound_title = snap.BoundTitle
+                    });
+                }
+                if (binding == null) return Error(503, "Native binding enforcement unavailable.");
+                string denial = binding.ReadDenial(Token(payload, "document_id"));
+                if (denial != null) return Error(409, denial);
+                var doc = FindDocument(app, payload);
+                if (doc == null) return Error(404, "Target Revit document is not open.");
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)

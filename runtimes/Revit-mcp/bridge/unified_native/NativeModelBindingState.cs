@@ -16,8 +16,10 @@ namespace RevitGPT.Native
             public string BoundId { get; internal set; }
             public string BoundTitle { get; internal set; }
             public long Revision { get; internal set; }
+            public string HostInstanceId { get; internal set; }
         }
 
+        private readonly string _hostInstanceId = Guid.NewGuid().ToString("N");
         private readonly object _gate = new object();
         private HashSet<string> _open = new HashSet<string>(StringComparer.Ordinal);
         private string _activeId, _activeTitle, _boundId, _boundTitle, _requestedId;
@@ -40,7 +42,8 @@ namespace RevitGPT.Native
                         ActiveTitle = _activeTitle ?? "",
                         BoundId = _boundId,
                         BoundTitle = _boundTitle ?? "",
-                        Revision = _revision
+                        Revision = _revision,
+                        HostInstanceId = _hostInstanceId
                     };
                 }
             }
@@ -59,6 +62,21 @@ namespace RevitGPT.Native
                 // Closing a bound doc invalidates it even if a new document later
                 // reuses the same runtime ID. Rebinding always requires a click.
                 if (_boundId != null && !_open.Contains(_boundId)) _boundLost = true;
+            }
+        }
+
+        // Returns a diagnostic only, never a capability grant. The router
+        // performs this validation inside Revit's UI context on EVERY read.
+        public string ReadDenial(string requestedId)
+        {
+            lock (_gate)
+            {
+                if (_boundId == null) return "MODEL_NOT_BOUND";
+                if (_boundLost || !_open.Contains(_boundId)) return "BOUND_MODEL_CLOSED";
+                if (_activeId != _boundId) return "ACTIVE_MODEL_MISMATCH";
+                if (!String.IsNullOrEmpty(requestedId) && requestedId != _boundId)
+                    return "DOCUMENT_ID_MISMATCH";
+                return null;
             }
         }
 

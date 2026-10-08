@@ -11,6 +11,7 @@ namespace RevitGPT.Native
         {
             "GET /health",
             "GET /document/active",
+            "GET /binding/status",
             "GET /documents",
             "GET /views",
             "GET /levels",

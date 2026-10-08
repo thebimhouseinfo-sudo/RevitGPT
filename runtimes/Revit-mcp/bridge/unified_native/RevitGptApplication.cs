@@ -69,7 +69,7 @@ namespace RevitGPT.Native
                 var protocol = new BridgeHttpProtocol(
                     (id, method, path, body, cancellation) =>
                         _dispatcher.Submit(id,
-                            ui => RevitApiRouter.Execute(ui, method, path, body),
+                            ui => RevitApiRouter.Execute(ui, method, path, body, _binding),
                             cancellation));
                 _server = new BridgeHttpServer(protocol);
                 _server.Start();
