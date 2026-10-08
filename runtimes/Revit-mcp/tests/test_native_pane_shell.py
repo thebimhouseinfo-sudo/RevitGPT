@@ -12,8 +12,8 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("IFrameworkElementCreator", provider)
         self.assertIn("data.FrameworkElement = null", provider)
         self.assertIn("data.FrameworkElementCreator = this", provider)
-        self.assertIn("new RevitGptPane(_requestBridgeRetry)", provider)
-        self.assertIn("public RevitGptPaneProvider(Action requestBridgeRetry)", provider)
+        self.assertIn("new RevitGptPane(_requestBridgeRetry, _binding)", provider)
+        self.assertIn("public RevitGptPaneProvider(Action requestBridgeRetry, NativeModelBindingState binding)", provider)
         self.assertIn("RegisterDockablePane", host)
         self.assertIn("RevitGptPaneProvider.PaneId", host)
         self.assertNotIn(".Wait()", host)
@@ -28,6 +28,10 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("Native bridge preview (read only)", source)
         self.assertIn('Content = "Refresh"', source)
         self.assertIn("_requestBridgeRetry();", source)
+        self.assertIn('Content = "Bind Current (preview)"', source)
+        self.assertIn("_binding.RequestBindCurrent()", source)
+        self.assertIn("_bindingTimer.Tick", source)
+        self.assertNotIn("RevitApiRouter.Execute", source)
         self.assertNotIn("CoreWebView2.Reload()", source)
         for forbidden in ("ExecuteScriptAsync", "GetCookiesAsync",
                           "document.querySelector", "Lease + Bind Current"):

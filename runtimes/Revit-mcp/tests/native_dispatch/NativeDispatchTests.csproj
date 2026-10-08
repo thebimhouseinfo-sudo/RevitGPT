@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="../../bridge/unified_native/BridgeDispatchQueue.cs" Link="BridgeDispatchQueue.cs" />
     <Compile Include="../../bridge/unified_native/BridgeRetryState.cs" Link="BridgeRetryState.cs" />
+    <Compile Include="../../bridge/unified_native/NativeModelBindingState.cs" Link="NativeModelBindingState.cs" />
     <Compile Include="../../bridge/unified_native/RevitExternalEventAdapter.cs" Link="RevitExternalEventAdapter.cs" />
   </ItemGroup>
 </Project>

@@ -8,10 +8,12 @@ namespace RevitGPT.Native
     public sealed class RevitGptPaneProvider : IDockablePaneProvider, IFrameworkElementCreator
     {
         private readonly Action _requestBridgeRetry;
+        private readonly NativeModelBindingState _binding;
 
-        public RevitGptPaneProvider(Action requestBridgeRetry)
+        public RevitGptPaneProvider(Action requestBridgeRetry, NativeModelBindingState binding)
         {
             _requestBridgeRetry = requestBridgeRetry ?? throw new ArgumentNullException(nameof(requestBridgeRetry));
+            _binding = binding ?? throw new ArgumentNullException(nameof(binding));
         }
 
         public static readonly DockablePaneId PaneId =
@@ -26,6 +28,6 @@ namespace RevitGPT.Native
             data.VisibleByDefault = true;
         }
 
-        public FrameworkElement CreateFrameworkElement() => new RevitGptPane(_requestBridgeRetry);
+        public FrameworkElement CreateFrameworkElement() => new RevitGptPane(_requestBridgeRetry, _binding);
     }
 }

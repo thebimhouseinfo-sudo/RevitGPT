@@ -1,5 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 
@@ -14,6 +17,7 @@ namespace RevitGPT.Native
         private BridgeHttpServer _server;
         // Refresh requests are consumed only in Revit's Idling API context.
         private readonly BridgeRetryState _retry = new BridgeRetryState();
+        private readonly NativeModelBindingState _binding = new NativeModelBindingState();
 
         public Result OnStartup(UIControlledApplication app)
         {
@@ -22,7 +26,7 @@ namespace RevitGPT.Native
             {
                 // WPF pane lifetime never owns or blocks the native listener.
                 app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
-                    new RevitGptPaneProvider(_retry.Request));
+                    new RevitGptPaneProvider(_retry.Request, _binding));
             }
             catch (Exception error)
             {
@@ -35,7 +39,24 @@ namespace RevitGPT.Native
         private void OnFirstIdle(object sender, IdlingEventArgs args)
         {
             var uiapp = sender as UIApplication;
-            if (uiapp == null || !_retry.TryConsume()) return;
+            if (uiapp == null) return;
+            try
+            {
+                // Only this Revit callback can access the Revit API.
+                var active = uiapp.ActiveUIDocument?.Document;
+                var openIds = uiapp.Application.Documents.Cast<Document>()
+                    .Select(d => d.GetHashCode().ToString(CultureInfo.InvariantCulture));
+                _binding.Observe(
+                    active?.GetHashCode().ToString(CultureInfo.InvariantCulture),
+                    active?.Title, openIds);
+                _binding.ConsumePendingBind();
+            }
+            catch (Exception error)
+            {
+                Debug.WriteLine("[RevitGPT] Binding observation failed: " + error);
+                _binding.Observe(null, null, new string[0]);
+            }
+            if (!_retry.TryConsume()) return;
             // A healthy listener must never be replaced by a panel click.
             if (_server != null && _server.IsRunning) return;
             // A stopped/failed listener must release its old dispatcher first.
@@ -77,6 +98,7 @@ namespace RevitGPT.Native
                 _application.Idling -= OnFirstIdle;
             // Shutdown is never a synchronous wait on a pending UI request.
             DisposeBridge();
+            _binding.ClearOnShutdown();
             _application = null;
             return Result.Succeeded;
         }

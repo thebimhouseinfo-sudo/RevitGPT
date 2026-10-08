@@ -45,6 +45,38 @@ internal static class NativeDispatchTests
         True(retry.TryConsume(), "later Refresh can retry a failed startup");
         True(!retry.TryConsume(), "retry is one-shot until next user action");
 
+        // Native panel selection cannot silently bind/rebind on tab changes.
+        var binding = new NativeModelBindingState();
+        binding.Observe("100", "MAGS", new[] { "100", "200" });
+        True(binding.Current.Status == "NOT_BOUND", "opening a model never auto-binds");
+        True(!binding.ConsumePendingBind(), "no click means no bind");
+        True(binding.RequestBindCurrent(), "click queues an explicit target");
+        binding.Observe("200", "Model B", new[] { "100", "200" });
+        True(!binding.ConsumePendingBind() && binding.Current.Status == "NOT_BOUND",
+            "switch before Idling rejects stale click");
+        True(binding.RequestBindCurrent(), "bind Model B explicitly");
+        True(binding.ConsumePendingBind() && binding.Current.BoundId == "200",
+            "only requested Model B becomes bound");
+        binding.Observe("100", "MAGS", new[] { "100", "200" });
+        True(binding.Current.Status == "BOUND_OTHER_ACTIVE" &&
+            binding.Current.BoundId == "200", "switch does not rebind");
+        binding.Observe("200", "Model B", new[] { "100", "200" });
+        True(binding.Current.Status == "BOUND_CURRENT", "return to bound model");
+        binding.Observe("100", "MAGS", new[] { "100" });
+        True(binding.Current.Status == "BOUND_CLOSED", "closed bound model detected");
+        binding.Observe("200", "Reopened B", new[] { "100", "200" });
+        True(binding.Current.Status == "BOUND_CLOSED", "closed binding does not revive");
+        True(binding.RequestBindCurrent() && binding.ConsumePendingBind(),
+            "reopening requires explicit rebind");
+        True(binding.Current.BoundTitle == "Reopened B" &&
+            binding.Current.Status == "BOUND_CURRENT", "rebind replaces primary model");
+        binding.Observe(null, null, new[] { "100", "200" });
+        True(!binding.RequestBindCurrent(), "cannot bind with no active model");
+        True(binding.Current.Revision == 2, "exactly two deliberate binds");
+        binding.ClearOnShutdown();
+        True(binding.Current.Status == "NOT_BOUND" && binding.Current.BoundId == null,
+            "Revit shutdown clears model binding");
+
         // Ten independent callers. None executes Revit action from HTTP thread.
         int raises = 0, executions = 0;
         var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });
