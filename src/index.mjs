@@ -13,6 +13,7 @@ import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
+import { PanelPairingRegistry } from "./panel-pairing.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -28,6 +29,7 @@ if (!TOKEN) {
 }
 
 let shuttingDown = false;
+const panelPairing = new PanelPairingRegistry();
 
 async function revitProcessState() {
   if (process.platform !== "win32") {
@@ -204,6 +206,24 @@ function createServer(sessionKey) {
   );
 
   server.registerTool(
+    "revitgpt_pair_panel",
+    {
+      title: "Pair RevitGPT Panel",
+      description: "Create a one-time code for THIS ChatGPT MCP session. Enter the code in the native RevitGPT panel to enable one-click read-only leasing. Do not share publicly.",
+      inputSchema: {}
+    },
+    async () => {
+      if (!admitted || !revitUpstream.status().connected)
+        throw new Error("REVITGPT_ADMISSION_REQUIRED");
+      const challenge = panelPairing.begin(authority);
+      return {
+        content: [{ type:"text", text:"Enter this one-time pairing code in RevitGPT panel: "+challenge.code }],
+        structuredContent:{ status:"PAIRING_PENDING", ...challenge }
+      };
+    }
+  );
+
+  server.registerTool(
     "revitgpt_binding_status",
     {
       title: "RevitGPT Model Binding Status",
@@ -307,6 +327,38 @@ const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "10mb" }));
 const route = "/mcp/" + TOKEN;
+
+// Panel-only local commands: no browser Origin, no remote Host, no network
+// exposure. Possession of a single-use challenge / 256-bit bearer is required.
+function requireLocalPanel(req,res,next) {
+  const ip = String(req.socket.remoteAddress || "");
+  const host = String(req.headers.host || "");
+  if (!["127.0.0.1","::ffff:127.0.0.1","::1"].includes(ip) ||
+      host !== "127.0.0.1:" + PORT ||
+      req.headers.origin || req.headers.referer ||
+      !String(req.headers["content-type"] || "").startsWith("application/json")) {
+    res.status(403).json({ error:"PANEL_LOCAL_ONLY" });
+    return;
+  }
+  next();
+}
+app.post("/panel/pair",requireLocalPanel,(req,res)=>{
+  try {
+    const token = panelPairing.claim(req.body?.code);
+    res.set("Cache-Control","no-store").json(token);
+  } catch {
+    res.status(403).json({ error:"PANEL_PAIR_CODE_INVALID_OR_EXPIRED" });
+  }
+});
+app.post("/panel/lease",requireLocalPanel,async(req,res)=>{
+  try {
+    const result=await panelPairing.lease(req.body?.token,req.body?.binding);
+    res.set("Cache-Control","no-store").json(result);
+  } catch(error) {
+    const message=error instanceof Error?error.message:"PANEL_LEASE_DENIED";
+    res.status(409).json({error:message});
+  }
+});
 
 app.get("/health", async (_req, res) => {
   const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);

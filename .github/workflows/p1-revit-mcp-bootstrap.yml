@@ -57,6 +57,11 @@ jobs:
         run: |
           node scripts/test-model-authority.mjs
 
+      - name: Test one-time panel pairing and strict session ownership
+        shell: pwsh
+        run: |
+          node scripts/test-panel-pairing.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |
