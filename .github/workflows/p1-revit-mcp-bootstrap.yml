@@ -107,6 +107,12 @@ jobs:
         run: |
           ./openai-tunnel.ps1 -VerifyClient
 
+      - name: Test exact tunnel-client version parser red controls
+        if: matrix.node-version == '24'
+        shell: powershell
+        run: |
+          ./scripts/test-tunnel-version-contract.ps1
+
       - name: Test exact tunnel-client against Slim MCP
         if: matrix.node-version == '24'
         shell: pwsh

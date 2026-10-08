@@ -179,7 +179,8 @@ Install-Tunnel
 if($VerifyClient){
   $target=$TunnelVersion.TrimStart("v")
   $versionLine=& $TunnelExe --version 2>$null | Select-Object -First 1
-  if($LASTEXITCODE -ne 0 -or $versionLine -notmatch '(\d+\.\d+\.\d+)' -or $Matches[1] -ne $target){
+  . (Join-Path $ScriptDir "scripts\tunnel-version-contract.ps1")
+  if($LASTEXITCODE -ne 0 -or -not (Test-TunnelVersionContract -VersionText ([string]$versionLine) -RequiredVersion $target)){
     throw "tunnel-client version verification failed. Expected $target, got '$versionLine'"
   }
   Write-Host "[PASS] tunnel-client $target verified."
