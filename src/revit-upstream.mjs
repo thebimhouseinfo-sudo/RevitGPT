@@ -9,8 +9,27 @@ function resolveFromRepo(value, fallback) {
   return path.isAbsolute(configured) ? configured : path.resolve(repoRoot, configured);
 }
 
-class RevitUpstream {
-  constructor() {
+// One deadline for both initial MCP handshake and initial tool inventory.
+function withinDeadline(task, milliseconds, label) {
+  let timer;
+  return Promise.race([
+    task,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label + " timed out")), milliseconds);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
+export class RevitUpstream {
+  constructor({
+    createClient = () => new Client({ name: "revitgpt-revit-upstream", version: "0.1.0" }),
+    createTransport = options => new StdioClientTransport(options),
+    initialDeadlineMs = 15000
+  } = {}) {
+    this.createClient = createClient;
+    this.createTransport = createTransport;
+    this.initialDeadlineMs = initialDeadlineMs;
+    this.lastActivationMs = null;
     this.phase = "sleeping";
     this.client = null;
     this.transport = null;
@@ -39,16 +58,17 @@ class RevitUpstream {
 
   async activate() {
     this.phase = "active";
+    const started = Date.now();
     try {
-      await this.connect();
-      const listed = await this.client.listTools();
-      this.tools = listed.tools || [];
+      await this.connect(); // connect() populated the tool cache once.
       this.lastError = null;
-      return [...this.tools];
+      return this.cachedTools();
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : String(error);
       await this.deactivate();
       throw error;
+    } finally {
+      this.lastActivationMs = Date.now() - started;
     }
   }
 
@@ -60,8 +80,8 @@ class RevitUpstream {
     if (this.connecting) return this.connecting;
 
     this.connecting = (async () => {
-      const client = new Client({ name: "revitgpt-revit-upstream", version: "0.1.0" });
-      const transport = new StdioClientTransport({
+      const client = this.createClient();
+      const transport = this.createTransport({
         command: this.python,
         args: [this.entry],
         cwd: path.dirname(this.entry),
@@ -76,13 +96,11 @@ class RevitUpstream {
       });
 
       try {
-        await Promise.race([
-          client.connect(transport),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Revit MCP connection timed out")), 15000)
-          )
-        ]);
-        const listed = await client.listTools();
+        const deadline = Date.now() + this.initialDeadlineMs;
+        await withinDeadline(client.connect(transport),
+          Math.max(1, deadline - Date.now()), "Revit MCP connection");
+        const listed = await withinDeadline(client.listTools(),
+          Math.max(1, deadline - Date.now()), "Revit MCP initial tools/list");
         this.client = client;
         this.transport = transport;
         this.tools = listed.tools || [];
@@ -118,6 +136,7 @@ class RevitUpstream {
       connected: Boolean(this.client && this.transport),
       tool_count: this.tools.length,
       last_error: this.lastError,
+      last_activation_ms: this.lastActivationMs,
       python: this.python,
       entry: this.entry
     };
