@@ -228,7 +228,7 @@
       "class": "revit.mep",
       "title": "get connectors",
       "summary": "Get MEP connectors of an element (equipment, fittings, etc.). Args: element_id: The Revit element ID (as string). document_id: Optional document ID. Uses active document if not provided. Returns a list of connectors with their ID, type, direction, co",
-      "when_to_use": "Inspect available MEP connections; route currently unimplemented until host read fixture passes.",
+      "when_to_use": "Connector topology read is NOT implemented by the current native Revit bridge (HTTP 501); do not invoke until reviewed host readback fixture exists.",
       "tags": [
         "mep",
         "connectors"
@@ -239,7 +239,7 @@
       "risk": "low",
       "mutates_model": false,
       "semantic_status": "curated",
-      "status": "read_only_available",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {

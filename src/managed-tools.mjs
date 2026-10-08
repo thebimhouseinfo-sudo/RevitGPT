@@ -309,7 +309,7 @@ Draft only. Promote after validation and real Revit test.
     for(const file of files){
       if(!file.endsWith(".md"))continue;
       try{
-        const stat=await fs.stat(file); if(stat.size>128*1024)continue;
+        const stat=await fs.lstat(file); if(!stat.isFile() || stat.isSymbolicLink() || stat.size>128*1024)continue;
         const content=await fs.readFile(file,"utf8"),at=content.toLowerCase().indexOf(term);
         if(at<0)continue;
         hits.push({source:path.relative(root,file).replaceAll("\\","/"),
