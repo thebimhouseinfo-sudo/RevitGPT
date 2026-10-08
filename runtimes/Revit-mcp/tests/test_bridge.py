@@ -1,7 +1,9 @@
 """Fake bridge tests for the Revit MCP runtime."""
 
+import io
 import json
 import unittest
+from urllib.error import HTTPError
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
 from unittest.mock import patch
@@ -597,6 +599,63 @@ class FakeBridgeTests(unittest.TestCase):
         )
         self.assertEqual(result["id"], "914")
         self.assertEqual(result["type"], "detail_line")
+
+
+class NativeErrorClassificationTests(unittest.TestCase):
+    """HTTP integration boundary: API failures are not transport outages."""
+
+    @staticmethod
+    def error_response(status, content):
+        if isinstance(content, dict):
+            content = json.dumps(content)
+        return HTTPError(
+            "http://127.0.0.1:8765/test", status, "mock response", {},
+            io.BytesIO(content.encode("utf-8")),
+        )
+
+    def test_501_native_write_disabled_is_api_error_not_connection_loss(self):
+        response = self.error_response(
+            501, {"error": {"code": 501, "message": "Native write route not yet validated."}}
+        )
+        with patch("connection.bridge.urlopen", side_effect=response) as transport:
+            with self.assertRaisesRegex(RevitBridgeError, "HTTP 501.*not yet validated"):
+                delete_elements(["101"])
+        transport.assert_called_once()
+
+    def test_504_write_timeout_preserves_ambiguous_outcome_and_no_retry(self):
+        response = self.error_response(
+            504, {"error": {"code": 504, "message":
+                "Revit write timed out; outcome unknown; do not retry automatically."}}
+        )
+        with patch("connection.bridge.urlopen", side_effect=response) as transport:
+            with self.assertRaisesRegex(
+                RevitBridgeError, "outcome unknown; do not retry automatically"
+            ):
+                delete_elements(["101"])
+        transport.assert_called_once()
+
+    def test_504_empty_body_still_fails_closed_without_retry(self):
+        response = self.error_response(504, "upstream timeout")
+        with patch("connection.bridge.urlopen", side_effect=response) as transport:
+            with self.assertRaisesRegex(
+                RevitBridgeError, "outcome unknown; do not retry automatically"
+            ):
+                delete_elements(["101"])
+        transport.assert_called_once()
+
+    def test_404_router_error_still_is_bridge_error(self):
+        response = self.error_response(
+            404, {"error": {"code": 404, "message": "Target Revit document is not open."}}
+        )
+        with patch("connection.bridge.urlopen", side_effect=response):
+            with self.assertRaisesRegex(RevitBridgeError, "HTTP 404.*not open"):
+                get_active_document()
+
+    def test_unstructured_http_503_remains_unavailable(self):
+        response = self.error_response(503, "Gateway unavailable")
+        with patch("connection.bridge.urlopen", side_effect=response):
+            with self.assertRaises(RevitBridgeUnavailableError):
+                get_active_document()
 
 
 class UnavailableBridgeTests(unittest.TestCase):

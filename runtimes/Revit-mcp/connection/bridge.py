@@ -56,17 +56,27 @@ def _send_request(
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=True)
     except HTTPError as exc:
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
-        if exc.code >= 400 and exc.code < 500:
-            try:
-                error_body = exc.read().decode("utf-8")
-                error_result = json.loads(error_body)
-                if "error" in error_result:
-                    error_info = error_result["error"]
-                    raise RevitBridgeError(
-                        f"Bridge error: {error_info.get('message', 'Unknown error')}"
-                    ) from exc
-            except (ValueError, KeyError):
-                pass
+        # An HTTP response means the bridge (or gateway) replied.
+        # Native router API errors can be 5xx (e.g. 501 for disabled writes,
+        # 504 for an ambiguous write timeout); they are not connection loss.
+        try:
+            error_result = json.loads(exc.read().decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            error_result = None
+        if isinstance(error_result, dict):
+            error_info = error_result.get("error")
+            if isinstance(error_info, dict) and isinstance(error_info.get("message"), str):
+                raise RevitBridgeError(
+                    f"Bridge HTTP {exc.code}: {error_info['message']}"
+                ) from exc
+        if exc.code == 504:
+            # A write may have committed despite a gateway timeout.
+            # Fail closed even when the response body is missing/malformed.
+            raise RevitBridgeError(
+                "Bridge HTTP 504: request timed out; outcome unknown; "
+                "do not retry automatically."
+            ) from exc
+        if 400 <= exc.code < 500:
             raise RevitBridgeError(f"Bridge returned HTTP {exc.code}") from exc
         raise RevitBridgeUnavailableError(
             f"Cannot reach Revit bridge at {url}: {exc}"
