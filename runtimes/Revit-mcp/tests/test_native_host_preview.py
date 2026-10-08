@@ -19,7 +19,10 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("if (!shownBefore) pane.Show();", source)
         self.assertIn("bool shownAfter = pane.IsShown();", source)
         self.assertIn("_paneStartup.ReportShown();", source)
-        self.assertIn("if (!_paneRegistered || !_initialPaneShowPending) return;", source)
+        self.assertIn("if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;", source)
+        # Negative control: losing the pending guard must fail.
+        guard = "if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;"
+        self.assertNotIn(guard, source.replace(guard, "if (false) return;", 1))
         self.assertIn("NativePaneStartupPolicy.MaximumAttempts", source)
         self.assertIn("if (!projectReady)", source)
         self.assertIn("!active.IsFamilyDocument && !active.IsLinked", source)
