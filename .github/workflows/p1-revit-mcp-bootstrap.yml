@@ -57,6 +57,11 @@ jobs:
         run: |
           node scripts/test-model-authority.mjs
 
+      - name: Test explicit read intent without cross-request admission state
+        shell: pwsh
+        run: |
+          node scripts/test-read-intent-gate.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |

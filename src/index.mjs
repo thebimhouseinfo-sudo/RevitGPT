@@ -13,6 +13,7 @@ import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
+import { callReadOnlyTool, ensureReadRuntime } from "./read-intent-gate.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -28,6 +29,12 @@ if (!TOKEN) {
 }
 
 let shuttingDown = false;
+
+const ensureExplicitReadReady = () => ensureReadRuntime({
+  upstream: revitUpstream,
+  processState: revitProcessState,
+  bridgeState: bridgeHealth
+});
 
 async function revitProcessState() {
   if (process.platform !== "win32") {
@@ -79,17 +86,17 @@ async function bridgeHealth() {
 }
 
 function createServer(sessionKey) {
-  // Admission belongs to this MCP server instance, never to the untrusted
-  // x-openai-subject / x-openai-session string shared across connections.
-  let admitted = false;
+  // Each tool request may be routed through a new/recovered MCP transport.
+  // Read permission comes from native binding on THIS request, not a
+  // previously executed revitgpt_admission call in another server instance.
   const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
     {
       instructions: [
         "RevitGPT P1 bootstrap surface.",
-        "Bare @rg / RevitGPT invocation must call revitgpt_admission first.",
-        "Only @rg / revitgpt_admission may activate the full Revit MCP when Revit is running.",
+        "Bare @rg may call revitgpt_admission for an explicit status/connection report.",
+        "An explicit read tool call also initializes the full Revit MCP if Revit and the native bridge are ready.",
         "Revit being ON by itself must not auto-start the full Revit MCP.",
         "With exactly one open project, Revit binds it automatically. On multiple projects, use Bind Current only to switch models.",
         "After admission, read calls automatically check current native binding and require the bound model to be active.",
@@ -157,7 +164,6 @@ function createServer(sessionKey) {
       }
 
       const tools = await revitUpstream.activate();
-      admitted = true;
       await logToolCall({tool:"revitgpt_admission",ok:true,status:"READY",tool_count:tools.length,duration_ms:Date.now()-started});
       const names = tools.map((tool) => tool.name);
       return {
@@ -198,7 +204,8 @@ function createServer(sessionKey) {
           bridge,
           revit_process: revitProcess,
           revit_mcp: upstream,
-          admitted: admitted
+          admission_required_for_reads: false,
+          authorization: "native_binding_verified_per_read"
         }
       };
     }
@@ -228,10 +235,9 @@ function createServer(sessionKey) {
       inputSchema: {}
     },
     async () => {
-      if (!admitted || !revitUpstream.status().connected) {
-        throw new Error("REVITGPT_ADMISSION_REQUIRED");
-      }
-      const tools = revitUpstream.cachedTools();
+      // Explicit list request may initialize the runtime, but never
+      // binds a model or allows a write.
+      const tools = await ensureExplicitReadReady();
       return {
         content: [{ type: "text", text: tools.map((tool) => tool.name).join("\n") }],
         structuredContent: {
@@ -249,16 +255,15 @@ function createServer(sessionKey) {
     "revitgpt_call",
     {
       title: "Call Revit MCP Tool",
-      description: "Invoke a discovered Python Revit MCP tool. Project reads auto-follow the explicit native binding without pairing. Name revitgpt_binding_status reads native bound status.",
+      description: "Read Revit via the current native-bound model. No manual pairing, admission or session lease required. Only read/diagnostic tools are allowed; writes are blocked.",
       inputSchema: {
         name: z.string().min(1),
         arguments: z.record(z.string(), z.unknown()).optional()
       }
     },
     async ({ name, arguments: args }) => {
-      if (!admitted || !revitUpstream.status().connected) {
-        throw new Error("REVITGPT_ADMISSION_REQUIRED");
-      }
+      // Do not gate by a previous MCP admission boolean: ChatGPT's connector
+      // can issue the next call on a different reconstructed MCP instance.
       // Old connector catalogues may omit named status; no pairing aliases.
       if (name === "revitgpt_binding_status") {
         if (args && Object.keys(args).length)
@@ -269,13 +274,16 @@ function createServer(sessionKey) {
           structuredContent: { native_binding: native }
         };
       }
-      const known = revitUpstream.cachedTools().some((tool) => tool.name === name);
-      if (!known) throw new Error("REVIT_MCP_TOOL_NOT_DISCOVERED: " + name);
       const started=Date.now();
       let result;
       try {
-        const safeArgs = await authority.authorize(name, args || {});
-        result = await revitUpstream.callTool(name, safeArgs);
+        result = await callReadOnlyTool({
+          name,
+          args: args || {},
+          authority,
+          ensureReady: ensureExplicitReadReady,
+          invoke: (tool, safeArgs) => revitUpstream.callTool(tool, safeArgs)
+        });
         await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
       } catch (error) {
         const message=error instanceof Error?error.message:String(error);
