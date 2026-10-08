@@ -15,6 +15,16 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("new RevitGptPane(_binding)", provider)
         self.assertIn("public RevitGptPaneProvider(NativeModelBindingState binding)", provider)
         self.assertIn("RegisterDockablePane", host)
+        self.assertIn("_initialPaneShowPending = true;", host)
+        self.assertIn("TryShowInitialPane(uiapp);", host)
+        self.assertIn("uiapp.GetDockablePane(RevitGptPaneProvider.PaneId)", host)
+        self.assertIn("if (!pane.IsShown()) pane.Show();", host)
+        self.assertIn("_initialPaneShowPending = false;", host)
+        self.assertIn("_initialPaneShowAttempts >= 3", host)
+        # Reopening the pane on every Idling tick would override manual hide.
+        self.assertEqual(host.count("pane.Show();"), 1)
+        self.assertLess(host.index("TryShowInitialPane(uiapp);"),
+                        host.index("if (_server != null && _server.IsRunning)"))
         self.assertIn("RevitGptPaneProvider.PaneId", host)
         self.assertNotIn(".Wait()", host)
         self.assertNotIn("GetAwaiter().GetResult()", host)

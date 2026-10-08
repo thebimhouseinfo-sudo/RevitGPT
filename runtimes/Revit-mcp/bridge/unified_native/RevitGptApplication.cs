@@ -19,6 +19,12 @@ namespace RevitGPT.Native
         private readonly BridgeRetryState _retry = new BridgeRetryState();
         private readonly NativeBridgeRecoveryPolicy _recovery = new NativeBridgeRecoveryPolicy();
         private readonly NativeModelBindingState _binding = new NativeModelBindingState();
+        // Revit remembers whether a pane was hidden in its previous session.
+        // VisibleByDefault only applies on first registration. Explicitly
+        // show once at startup; never force it back after user closes it.
+        private bool _paneRegistered;
+        private bool _initialPaneShowPending;
+        private int _initialPaneShowAttempts;
 
         public Result OnStartup(UIControlledApplication app)
         {
@@ -28,6 +34,8 @@ namespace RevitGPT.Native
                 // WPF pane lifetime never owns or blocks the native listener.
                 app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
                     new RevitGptPaneProvider(_binding));
+                _paneRegistered = true;
+                _initialPaneShowPending = true;
             }
             catch (Exception error)
             {
@@ -41,6 +49,7 @@ namespace RevitGPT.Native
         {
             var uiapp = sender as UIApplication;
             if (uiapp == null) return;
+            TryShowInitialPane(uiapp);
             try
             {
                 // Only this Revit callback can access the Revit API.
@@ -96,6 +105,38 @@ namespace RevitGPT.Native
             }
         }
 
+        private void TryShowInitialPane(UIApplication uiapp)
+        {
+            if (!_paneRegistered || !_initialPaneShowPending) return;
+            // Called from a real Revit UI callback, not from OnStartup,
+            // WPF, WebView2, an HTTP listener, or a background thread.
+            ++_initialPaneShowAttempts;
+            try
+            {
+                var pane = uiapp.GetDockablePane(RevitGptPaneProvider.PaneId);
+                if (!pane.IsShown()) pane.Show();
+                // Stop retrying after success. A manual hide must STAY hidden.
+                if (pane.IsShown())
+                {
+                    _initialPaneShowPending = false;
+                    Debug.WriteLine("[RevitGPT] Dockable panel visible on startup.");
+                    return;
+                }
+                Debug.WriteLine("[RevitGPT] Dockable panel was not visible after Show.");
+            }
+            catch (Exception error)
+            {
+                // A temporarily unavailable UI may recover on another Idling
+                // tick; permanent registration errors must not retry forever.
+                Debug.WriteLine("[RevitGPT] Startup pane Show failed: " + error);
+            }
+            if (_initialPaneShowAttempts >= 3)
+            {
+                _initialPaneShowPending = false;
+                Debug.WriteLine("[RevitGPT] Startup pane Show retries exhausted.");
+            }
+        }
+
         private void DisposeBridge()
         {
             try { _server?.Dispose(); } catch { }
@@ -111,6 +152,8 @@ namespace RevitGPT.Native
             // Shutdown is never a synchronous wait on a pending UI request.
             DisposeBridge();
             _binding.ClearOnShutdown();
+            _initialPaneShowPending = false;
+            _paneRegistered = false;
             _application = null;
             return Result.Succeeded;
         }
