@@ -41,7 +41,10 @@ try:
     import revit_mcp_bridge
 
     result = revit_mcp_bridge.ensure_server_started()
-    _startup_log("startup_complete", result=result)
+    if result.get("ready") and result.get("running"):
+        _startup_log("startup_complete", result=result)
+    else:
+        _startup_log("startup_failed", reason="bridge_not_ready", result=result)
 except Exception as exc:
     _startup_log(
         "startup_failed",

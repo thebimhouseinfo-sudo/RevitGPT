@@ -21,6 +21,7 @@ import traceback
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+REVIT_IMPORT_ERROR = None
 try:
     import clr
     clr.AddReference("RevitAPI")
@@ -73,9 +74,12 @@ try:
     from Autodesk.Revit.Creation import XYZ as CreateXYZ
     from Autodesk.Revit.UI import UIApplication
     REVIT_AVAILABLE = True
-except ImportError:
+except Exception:
+    # Keep the original traceback: ImportError alone cannot identify which
+    # Revit API symbol or pyRevit CPython dependency was unavailable.
     REVIT_AVAILABLE = False
-    print("Warning: Revit API not available. Running in test mode.")
+    REVIT_IMPORT_ERROR = traceback.format_exc()
+    print("Revit MCP Bridge: Revit API import unavailable; refusing readiness.")
 
 
 PORT = int(os.getenv("REVIT_MCP_PORT", "8765"))
@@ -1421,6 +1425,17 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
 def run_server():
     global _SERVER_START_ERROR, _SERVER_READY
+    if not REVIT_AVAILABLE:
+        _SERVER_READY = False
+        _SERVER_START_ERROR = "Revit API import unavailable"
+        bridge_log(
+            "bridge_start_blocked",
+            port=PORT,
+            reason="revit_api_unavailable",
+            import_error=REVIT_IMPORT_ERROR,
+        )
+        _SERVER_START_EVENT.set()
+        return
     server = None
     try:
         server = HTTPServer(("127.0.0.1", PORT), BridgeHandler)
@@ -1464,6 +1479,23 @@ def run_server():
 
 def ensure_server_started():
     global _SERVER_THREAD, _SERVER_START_ERROR, _SERVER_READY
+    if not REVIT_AVAILABLE:
+        _SERVER_READY = False
+        _SERVER_START_ERROR = "Revit API import unavailable"
+        bridge_log(
+            "bridge_start_blocked",
+            port=PORT,
+            reason="revit_api_unavailable",
+            import_error=REVIT_IMPORT_ERROR,
+        )
+        return {
+            "started": False,
+            "running": False,
+            "ready": False,
+            "port": PORT,
+            "error": _SERVER_START_ERROR,
+            "import_error": REVIT_IMPORT_ERROR,
+        }
     if _SERVER_THREAD is not None and _SERVER_THREAD.is_alive() and _SERVER_READY:
         return {"started": False, "running": True, "ready": True, "port": PORT}
 

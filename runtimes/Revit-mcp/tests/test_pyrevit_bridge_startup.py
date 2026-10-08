@@ -115,6 +115,24 @@ class PyRevitBridgeStartupTests(unittest.TestCase):
             self.assertIn('"event": "startup_complete"', text)
             self.assertNotIn('"event": "startup_failed"', text)
 
+    def test_startup_py_records_not_ready_as_failure_not_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def unavailable():
+                return {
+                    "started": False,
+                    "running": False,
+                    "ready": False,
+                    "port": 8765,
+                    "error": "Revit API import unavailable",
+                }
+
+            self._run_startup_with_fake_bridge(unavailable, pathlib.Path(tmp))
+            log_path = pathlib.Path(tmp) / "logs" / "bridge-startup.ndjson"
+            content = log_path.read_text()
+            self.assertIn('"event": "startup_failed"', content)
+            self.assertIn('"reason": "bridge_not_ready"', content)
+            self.assertNotIn('"event": "startup_complete"', content)
+
     def test_startup_py_logs_failure_without_crashing_revit_startup(self):
         with tempfile.TemporaryDirectory() as tmp:
             def ensure():
@@ -127,7 +145,34 @@ class PyRevitBridgeStartupTests(unittest.TestCase):
             self.assertIn('"event": "startup_failed"', text)
             self.assertIn("synthetic startup failure", text)
 
+    def test_server_does_not_bind_when_revit_api_import_failed(self):
+        self.bridge.PORT = 8765
+        self.assertFalse(self.bridge.REVIT_AVAILABLE)
+        self.assertIn("Revit API intentionally unavailable", self.bridge.REVIT_IMPORT_ERROR)
+        events = []
+
+        with (
+            patch.object(self.bridge, "HTTPServer") as server,
+            patch.object(
+                self.bridge, "bridge_log",
+                side_effect=lambda event, **fields: events.append((event, fields)),
+            ),
+        ):
+            response = self.bridge.ensure_server_started()
+            self.assertFalse(response["started"])
+            self.assertFalse(response["running"])
+            self.assertFalse(response["ready"])
+            self.assertIn("Revit API import unavailable", response["error"])
+            self.assertIn("Revit API intentionally unavailable", response["import_error"])
+            self.assertIsNone(self.bridge._SERVER_THREAD)
+            server.assert_not_called()
+            self.bridge.run_server()
+            server.assert_not_called()
+
+        self.assertTrue(any(event == "bridge_start_blocked" for event, _ in events))
+
     def test_server_start_success_is_ready_and_idempotent(self):
+        self.bridge.REVIT_AVAILABLE = True
         self.bridge.PORT = 8765
         events = []
         events_lock = threading.Lock()
@@ -161,6 +206,7 @@ class PyRevitBridgeStartupTests(unittest.TestCase):
         self.assertIn("bridge_start", events)
 
     def test_bind_failure_is_reported_and_logged(self):
+        self.bridge.REVIT_AVAILABLE = True
         with tempfile.TemporaryDirectory() as tmp:
             log_path = pathlib.Path(tmp) / "bridge.ndjson"
             self.bridge.BRIDGE_LOG_PATH = str(log_path)
