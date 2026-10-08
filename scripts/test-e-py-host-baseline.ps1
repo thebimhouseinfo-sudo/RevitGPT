@@ -67,11 +67,33 @@ try {
     New-Item -ItemType Directory -Path (Split-Path -Parent $installed) -Force | Out-Null
     Copy-Item -LiteralPath $extensionSource -Destination $installed -Recurse -Force
 
+
+    # Positive control must include a real-shaped pyRevit loader manifest.
+    # An extension directory alone must NEVER satisfy host readiness.
+    $pyRevitLoader = Join-Path $temp "loader\pyRevitLoader.dll"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pyRevitLoader) | Out-Null
+    [System.IO.File]::WriteAllBytes($pyRevitLoader, [byte[]](1,2,3))
+    $pyRevitManifest = Join-Path $nativeFolder "pyRevit.addin"
+    @"
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>PyRevitLoader</Name>
+    <Assembly>$pyRevitLoader</Assembly>
+    <AddInId>B39107C3-A1D7-47F4-A5A1-532DDF6EDB5D</AddInId>
+    <FullClassName>PyRevitLoader.PyRevitLoaderApplication</FullClassName>
+    <VendorId>eirannejad</VendorId>
+  </AddIn>
+</RevitAddIns>
+"@ | Set-Content -LiteralPath $pyRevitManifest -Encoding UTF8
+
     # Positive control: prepare on an isolated manifest and restore exactly.
     $preparedEvidence = Join-Path $temp "prepared.json"
     & $baseline -Mode PreparePyRevit -EvidencePath $preparedEvidence
     $prepared = Get-Content -LiteralPath $preparedEvidence -Raw | ConvertFrom-Json
     Assert $prepared.pyrevit_evidence_ready "Prepared fixture did not produce ready evidence"
+    Assert $prepared.pyrevit_attachment_ready "Verified pyRevit attachment not reported ready"
+    Assert (@($prepared.pyrevit_attachments | Where-Object { $_.ready }).Count -eq 1) "Expected one valid pyRevit loader attachment"
     Assert $prepared.port_8765.checked "Port preflight did not complete"
     Assert (-not $prepared.port_8765.listening) "Port 8765 is busy in test runner"
     Assert (-not (Test-Path -LiteralPath $nativePath)) "Native manifest remained enabled"
@@ -86,6 +108,38 @@ try {
     Assert (-not (Test-Path -LiteralPath $disabledPath)) "Disabled manifest was left after restore"
     Assert ((Get-TestSha256 $nativePath) -eq $nativeHash) "Restore changed manifest hash"
     Write-Host "[PASS] Isolated prepare/idempotence/restore + exact hash"
+
+
+    # Red control: extension is present but loader manifest is missing.
+    # This reproduces the actual host false-green reported on Revit 2024.
+    Remove-Item -LiteralPath $pyRevitManifest -Force
+    Invoke-ExpectFailure (Join-Path $temp "missing-attachment.json") "loader attachment is missing or invalid"
+    $missingAttachment = Get-Content -LiteralPath (Join-Path $temp "missing-attachment.json") -Raw | ConvertFrom-Json
+    Assert (-not $missingAttachment.pyrevit_attachment_ready) "Missing loader incorrectly marked ready"
+    Assert (-not $missingAttachment.pyrevit_evidence_ready) "Missing loader incorrectly marked host ready"
+    Assert (Test-Path -LiteralPath $nativePath) "Missing loader preflight mutated native manifest"
+    Assert (-not (Test-Path -LiteralPath $disabledPath)) "Missing loader preflight disabled native manifest"
+    Write-Host "[RED CONTROL PASS] extension without pyRevit loader attachment"
+
+    # Red control: loader manifest exists but its DLL is missing.
+    @"
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>PyRevitLoader</Name>
+    <Assembly>$pyRevitLoader</Assembly>
+    <FullClassName>PyRevitLoader.PyRevitLoaderApplication</FullClassName>
+  </AddIn>
+</RevitAddIns>
+"@ | Set-Content -LiteralPath $pyRevitManifest -Encoding UTF8
+    Remove-Item -LiteralPath $pyRevitLoader -Force
+    Invoke-ExpectFailure (Join-Path $temp "missing-loader-dll.json") "loader attachment is missing or invalid"
+    $missingDll = Get-Content -LiteralPath (Join-Path $temp "missing-loader-dll.json") -Raw | ConvertFrom-Json
+    Assert (-not $missingDll.pyrevit_evidence_ready) "Missing loader DLL incorrectly marked host ready"
+    Assert (Test-Path -LiteralPath $nativePath) "Missing DLL preflight mutated native manifest"
+    Write-Host "[RED CONTROL PASS] pyRevit loader manifest with missing DLL"
+
+    [System.IO.File]::WriteAllBytes($pyRevitLoader, [byte[]](1,2,3))
 
     # Red control: installed extension does not match source => no mutation.
     $installedStartup = Join-Path $installed "startup.py"

@@ -100,6 +100,60 @@ function Get-NativeBridgeManifestRecords([int[]]$Years) {
     return @($records)
 }
 
+
+function Get-PyRevitAttachmentRecords([int[]]$Years) {
+    $records = @()
+    foreach ($year in @($Years | Sort-Object -Unique)) {
+        $roots = @(
+            (Join-Path $env:APPDATA "Autodesk\Revit\Addins\$year")
+        )
+        if ($year -ge 2027) {
+            $roots += (Join-Path $env:ProgramFiles "Autodesk\Revit\Addins\$year")
+        } else {
+            $roots += (Join-Path $env:ProgramData "Autodesk\Revit\Addins\$year")
+        }
+        foreach ($root in @($roots | Select-Object -Unique)) {
+            $path = Join-Path $root "pyRevit.addin"
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $assembly = $null
+            $fullClassName = $null
+            $parseError = $null
+            try {
+                [xml]$manifest = Get-Content -LiteralPath $path -Raw
+                $addin = @($manifest.RevitAddIns.AddIn) |
+                    Where-Object { $_.Type -eq "Application" -and
+                        ([string]$_.FullClassName -match '^PyRevitLoader[.]') } |
+                    Select-Object -First 1
+                if (-not $addin) {
+                    throw "Missing Revit Application entry with PyRevitLoader class"
+                }
+                $fullClassName = [string]$addin.FullClassName
+                $assembly = [Environment]::ExpandEnvironmentVariables([string]$addin.Assembly)
+                if ([string]::IsNullOrWhiteSpace($assembly)) {
+                    throw "Loader assembly path is empty"
+                }
+            } catch {
+                $parseError = $_.Exception.Message
+            }
+            $assemblyExists = $false
+            if ($assembly -and -not $parseError) {
+                $assemblyExists = Test-Path -LiteralPath $assembly -PathType Leaf
+            }
+            $records += [pscustomobject]@{
+                year = $year
+                path = $path
+                sha256 = Get-Sha256 $path
+                loader_class = $fullClassName
+                assembly = $assembly
+                assembly_exists = [bool]$assemblyExists
+                parse_error = $parseError
+                ready = ($null -eq $parseError -and [bool]$assemblyExists)
+            }
+        }
+    }
+    return @($records)
+}
+
 function Get-PyRevitBridgeRecords {
     $sourceRoot = Join-Path $repoRoot "runtimes\Revit-mcp\bridge\pyrevit_extension\RevitMCPBridge.extension"
     $sourceStartup = Join-Path $sourceRoot "startup.py"
@@ -268,6 +322,14 @@ try {
         }).Count -eq 0) {
             throw "No installed pyRevit bridge matches the source CPython startup/bridge files; refusing manifest changes."
         }
+        Write-Stage "Preflight: validating Revit pyRevit.addin attachment and loader"
+        $attachments = @(Get-PyRevitAttachmentRecords $RevitYears)
+        $attachedYears = @($attachments | Where-Object { $_.ready } | ForEach-Object { $_.year })
+        foreach ($year in @($RevitYears | Sort-Object -Unique)) {
+            if ($year -notin $attachedYears) {
+                throw "pyRevit Revit $year loader attachment is missing or invalid; refusing manifest changes."
+            }
+        }
         Write-Stage "Preflight complete. Disabling only verified native manifests"
         $moved = @()
         try {
@@ -337,6 +399,16 @@ Write-Stage "Inspecting native manifests"
 $native = @(Get-NativeBridgeManifestRecords $RevitYears)
 Write-Stage "Inspecting installed pyRevit extensions"
 $pyrevit = @(Get-PyRevitBridgeRecords)
+Write-Stage "Checking pyRevit.addin loader attachment for Revit $($RevitYears -join ',')"
+$attachments = @(Get-PyRevitAttachmentRecords $RevitYears)
+$attachmentYears = @($attachments | Where-Object { $_.ready } | ForEach-Object { $_.year })
+$attachmentReady = $true
+foreach ($year in @($RevitYears | Sort-Object -Unique)) {
+    if ($year -notin $attachmentYears) {
+        $attachmentReady = $false
+        Write-Host "[WARN] pyRevit loader for Revit $year is missing or invalid. Extension presence does not prove attachment."
+    }
+}
 Write-Stage "Checking final port 8765 ownership (8-second maximum)"
 $port = Get-Port8765Owner
 if (-not $port.checked -and [string]::IsNullOrWhiteSpace($errorText)) {
@@ -354,6 +426,8 @@ $evidence = @{
     revit_processes_after = $revitAfter
     native_bridge_manifests = $native
     pyrevit_bridge_extensions = $pyrevit
+    pyrevit_attachments = $attachments
+    pyrevit_attachment_ready = $attachmentReady
     port_8765 = $port
     actions = $actions
     error = $errorText
@@ -361,6 +435,7 @@ $evidence = @{
         [string]::IsNullOrWhiteSpace($errorText) -and
         $revitAfter.Count -eq 0 -and
         $enabledNativeCount -eq 0 -and
+        $attachmentReady -and
         @($pyrevit | Where-Object {
             $_.startup_source_match -and $_.bridge_source_match -and $_.startup_first_line -eq "#! python3"
         }).Count -gt 0 -and
@@ -377,7 +452,7 @@ if (-not [string]::IsNullOrWhiteSpace($errorText)) {
 }
 
 if ($Mode -eq "PreparePyRevit" -and -not $evidence.pyrevit_evidence_ready) {
-    throw "E-PY host is not ready: require Revit closed, no enabled native RevitMCPBridge.addin, at least one pyRevit bridge extension, and port 8765 free."
+    throw "E-PY host is not ready: require Revit closed, no enabled native bridge, installed matching pyRevit extension, valid pyRevit.addin loader attachment for requested Revit years, and free port 8765."
 }
 
 if ($Mode -eq "PreparePyRevit") {
