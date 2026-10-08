@@ -42,7 +42,7 @@ const aliasCall=source.indexOf("await handleRetiredPanelCommand(name, args,");
 const standardCall=source.indexOf("await callReadOnlyTool({");
 assert.ok(aliasCall>0 && standardCall>aliasCall);
 assert.ok(source.includes("if (retired)"));
-assert.match(source, /No manual Pair(?:\\/| or )lease/i, "Legacy Pair/Lease prohibition must remain documented");
+assert.ok(source.includes("No manual Pair/lease") || source.includes("No manual Pair or lease"), "Legacy Pair/Lease prohibition must remain documented");
 const corrupted=source.replace("if (retired) {","if (false) {");
 assert.notEqual(corrupted,source);
 assert.ok(!corrupted.includes("if (retired) {"),"negative control catches missing alias handling");
