@@ -64,22 +64,27 @@ jobs:
       - name: Test bounded E-PY host preflight, rollback and red controls
         shell: powershell
         run: |
-          $out = Join-Path $env:RUNNER_TEMP "e-py-host-test.stdout.log"
-          $err = Join-Path $env:RUNNER_TEMP "e-py-host-test.stderr.log"
-          $args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-e-py-host-baseline.ps1"'
-          $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err -NoNewWindow -PassThru
-          $timedOut = $false
-          try {
-            if (-not $proc.WaitForExit(120000)) {
-              $timedOut = $true
-              try { $proc.Kill() } catch {}
-            }
-          } finally {
-            if (Test-Path -LiteralPath $out) { Get-Content -LiteralPath $out | ForEach-Object { Write-Host $_ } }
-            if (Test-Path -LiteralPath $err) { Get-Content -LiteralPath $err | ForEach-Object { Write-Host $_ } }
-          }
-          if ($timedOut) { throw "E-PY host test watchdog: test exceeded 120 seconds" }
-          if ($proc.ExitCode -ne 0) { throw "E-PY host regression test failed with exit $($proc.ExitCode)" }
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = "powershell.exe"
+          $psi.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-e-py-host-baseline.ps1"'
+          $psi.WorkingDirectory = (Get-Location).Path
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $child = New-Object System.Diagnostics.Process
+          $child.StartInfo = $psi
+          if (-not $child.Start()) { throw "Cannot launch E-PY host regression tests" }
+          $out = $child.StandardOutput.ReadToEndAsync()
+          $err = $child.StandardError.ReadToEndAsync()
+          $finished = $child.WaitForExit(120000)
+          if (-not $finished) { try { $child.Kill() } catch {} }
+          if ($out.IsCompleted) { Write-Host $out.GetAwaiter().GetResult() }
+          if ($err.IsCompleted) { Write-Host $err.GetAwaiter().GetResult() }
+          if (-not $finished) { throw "E-PY host test watchdog: test exceeded 120 seconds" }
+          $child.Refresh()
+          if ($child.ExitCode -ne 0) { throw "E-PY host regression test failed with exit $($child.ExitCode)" }
+          $child.Dispose()
 
       - name: Check static native Revit bridge package contract
         shell: pwsh
