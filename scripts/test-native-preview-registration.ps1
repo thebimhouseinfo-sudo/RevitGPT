@@ -4,9 +4,9 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $scriptPath = Join-Path $PSScriptRoot "manage-native-revitgpt-preview.ps1"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$temp = Join-Path ([IO.Path]::GetTempPath()) ("RevitGPT-manifest-e2e-" + [Guid]::NewGuid().ToString("N"))
 $package = Join-Path $temp "staged-native-preview"
 $prepare = Join-Path $PSScriptRoot "prepare-native-revitgpt-preview.ps1"
-$temp = Join-Path ([IO.Path]::GetTempPath()) ("RevitGPT-manifest-e2e-" + [Guid]::NewGuid().ToString("N"))
 $saveApp = $env:APPDATA
 $saveProgram = $env:ProgramData
 $saveLocal = $env:LOCALAPPDATA
