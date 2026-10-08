@@ -42,11 +42,11 @@ namespace RevitGPT.Native
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
-                        .Select(x => new { id = x.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                        .Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, view_type = x.ViewType.ToString() }).ToList());
                 if (path == "/levels")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(Level))
-                        .Cast<Level>().Select(x => new { id = x.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                        .Cast<Level>().Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, elevation = x.Elevation }).ToList());
                 if (path == "/elements") return Elements(doc, payload);
                 if (path == "/element") return Element(doc, payload);
@@ -56,7 +56,7 @@ namespace RevitGPT.Native
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(Family))
                         .Cast<Family>().Where(x => category == null ||
                             (x.FamilyCategory != null && EqualsIgnoreCase(x.FamilyCategory.Name, category)))
-                        .Select(x => new { id = x.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                        .Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, category = x.FamilyCategory?.Name ?? "" }).ToList());
                 }
                 if (path == "/family/types")
@@ -66,7 +66,7 @@ namespace RevitGPT.Native
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(FamilySymbol))
                         .Cast<FamilySymbol>().Where(x => (family == null || EqualsIgnoreCase(x.Family.Name, family)) &&
                             (category == null || (x.Category != null && EqualsIgnoreCase(x.Category.Name, category))))
-                        .Select(x => new { id = x.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                        .Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             family = x.Family.Name, name = x.Name, category = x.Category?.Name ?? "" }).ToList());
                 }
                 if (path == "/system/types")
@@ -77,14 +77,14 @@ namespace RevitGPT.Native
                     {
                         string classification = type.SystemClassification.ToString();
                         if (filter == null || EqualsIgnoreCase(classification, filter))
-                            types.Add(new { id = type.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                            types.Add(new { id = type.Id.Value.ToString(CultureInfo.InvariantCulture),
                                 name = type.Name, classification = classification, kind = "duct" });
                     }
                     foreach (PipingSystemType type in new FilteredElementCollector(doc).OfClass(typeof(PipingSystemType)))
                     {
                         string classification = type.SystemClassification.ToString();
                         if (filter == null || EqualsIgnoreCase(classification, filter))
-                            types.Add(new { id = type.Id.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                            types.Add(new { id = type.Id.Value.ToString(CultureInfo.InvariantCulture),
                                 name = type.Name, classification = classification, kind = "pipe" });
                     }
                     return Data(types);
@@ -122,7 +122,7 @@ namespace RevitGPT.Native
 
         private static string Elements(Document doc, JObject payload)
         {
-            int? viewId = Integer(payload, "view_id");
+            long? viewId = LongNumber(payload, "view_id");
             var source = viewId.HasValue
                 ? new FilteredElementCollector(doc, new ElementId(viewId.Value))
                 : new FilteredElementCollector(doc);
@@ -148,7 +148,7 @@ namespace RevitGPT.Native
 
         private static string Element(Document doc, JObject payload)
         {
-            int? id = Integer(payload, "element_id");
+            long? id = LongNumber(payload, "element_id");
             if (!id.HasValue) return Error(400, "element_id required.");
             Element item = doc.GetElement(new ElementId(id.Value));
             if (item == null) return Error(404, "Element does not exist.");
@@ -159,7 +159,7 @@ namespace RevitGPT.Native
 
         private static string Annotations(Document doc, JObject payload)
         {
-            int? viewId = Integer(payload, "view_id");
+            long? viewId = LongNumber(payload, "view_id");
             if (!viewId.HasValue) return Error(400, "view_id required.");
             var view = doc.GetElement(new ElementId(viewId.Value)) as View;
             if (view == null) return Error(404, "View not found.");
@@ -181,7 +181,7 @@ namespace RevitGPT.Native
         {
             var result = new Dictionary<string, object>
             {
-                { "id", element.Id.IntegerValue.ToString(CultureInfo.InvariantCulture) },
+                { "id", element.Id.Value.ToString(CultureInfo.InvariantCulture) },
                 { "category", element.Category?.Name ?? "" },
                 { "class", element.GetType().Name },
                 { "name", element.Name ?? "" }
@@ -212,10 +212,10 @@ namespace RevitGPT.Native
 
         private static string Token(JObject payload, string key) =>
             payload[key]?.Type == JTokenType.Null ? null : payload[key]?.ToString();
-        private static int? Integer(JObject payload, string key) =>
+        private static long? LongNumber(JObject payload, string key) =>
             String.IsNullOrEmpty(Token(payload, key))
-                ? (int?)null
-                : Int32.Parse(Token(payload, key), CultureInfo.InvariantCulture);
+                ? (long?)null
+                : Int64.Parse(Token(payload, key), CultureInfo.InvariantCulture);
         private static bool EqualsIgnoreCase(string a, string b) =>
             String.Equals(a, b, StringComparison.OrdinalIgnoreCase);
         private static string Data(object result) =>
