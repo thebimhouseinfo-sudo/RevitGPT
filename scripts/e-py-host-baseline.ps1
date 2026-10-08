@@ -222,11 +222,19 @@ function Get-Port8765Owner {
 }
 
 function Write-Evidence([hashtable]$Evidence) {
+    Write-Stage "Evidence: creating directory"
     $dir = Split-Path -Parent $EvidencePath
     if (-not [string]::IsNullOrWhiteSpace($dir)) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
     }
-    $Evidence | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $EvidencePath -Encoding UTF8
+    Write-Stage "Evidence: serializing plain data"
+    $json = ConvertTo-Json -InputObject $Evidence -Depth 8 -Compress
+    Write-Stage "Evidence: writing JSON file"
+    [System.IO.File]::WriteAllText(
+        $EvidencePath,
+        $json,
+        [System.Text.UTF8Encoding]::new($false)
+    )
     Write-Host ("[E-PY] Evidence: " + $EvidencePath)
 }
 
