@@ -11,6 +11,7 @@ import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
 import { createSessionManager, extractRequestId, isInitializeRequest } from "./mcp-session-manager.mjs";
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
+import { probeBridgeHealth } from "./bridge-health.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -74,21 +75,7 @@ async function revitProcessState() {
 }
 
 async function bridgeHealth() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2000);
-  try {
-    const response = await fetch(BRIDGE_URL + "/health", { signal: controller.signal });
-    if (!response.ok) return { available: false, status: response.status };
-    const body = await response.json().catch(() => ({}));
-    return { available: true, body };
-  } catch (error) {
-    return {
-      available: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+  return probeBridgeHealth(BRIDGE_URL);
 }
 
 function createServer(sessionKey) {
@@ -157,7 +144,9 @@ function createServer(sessionKey) {
             revit_mcp_on: false,
             tool_count: 0,
             tool_names: [],
-            text: "Revit is running, but the Revit bridge is not reachable yet. Start the Revit MCP Bridge, then invoke RevitGPT again."
+            text: bridge.status
+              ? `Revit bridge answered HTTP ${bridge.status} to /health. Check protocol compatibility; do not start a second bridge.`
+              : "Revit is running, but the Revit bridge is not reachable yet. Check its listener/port before invoking RevitGPT again."
           }
         };
       }
