@@ -64,6 +64,52 @@ class LiveProbeSafetyGateTests(unittest.TestCase):
         views.assert_called_once_with()
         levels.assert_called_once_with()
 
+    def test_missing_runtime_ids_cannot_match_as_none(self):
+        active = {"title": "Disposable Model", "id": "100"}
+        listed = [{"title": "Disposable Model", "id": "100"}]
+        with (
+            patch.dict(os.environ, {self.probe.SAFE_DISPATCH_ENV: "1"}, clear=True),
+            patch.object(self.probe, "health_check",
+                         return_value={"available": True, "bridge": {"status": "ok"}}),
+            patch.object(self.probe, "get_active_document", return_value=active),
+            patch.object(self.probe, "get_documents", return_value=listed) as docs,
+            patch.object(self.probe, "get_views") as views,
+        ):
+            result = self.probe.main()
+        self.assertEqual(result, 1)
+        docs.assert_not_called()
+        views.assert_not_called()
+
+    def test_missing_listed_runtime_id_fails_closed(self):
+        active = {"title": "Disposable Model", "runtime_id": "100"}
+        listed = [{"title": "Disposable Model", "id": "100"}]
+        with (
+            patch.dict(os.environ, {self.probe.SAFE_DISPATCH_ENV: "1"}, clear=True),
+            patch.object(self.probe, "health_check",
+                         return_value={"available": True, "bridge": {"status": "ok"}}),
+            patch.object(self.probe, "get_active_document", return_value=active),
+            patch.object(self.probe, "get_documents", return_value=listed),
+            patch.object(self.probe, "get_views") as views,
+        ):
+            result = self.probe.main()
+        self.assertEqual(result, 1)
+        views.assert_not_called()
+
+    def test_mismatched_runtime_ids_fail_closed(self):
+        active = {"title": "Disposable Model", "runtime_id": "100"}
+        listed = [{"title": "Another Model", "runtime_id": "200"}]
+        with (
+            patch.dict(os.environ, {self.probe.SAFE_DISPATCH_ENV: "1"}, clear=True),
+            patch.object(self.probe, "health_check",
+                         return_value={"available": True, "bridge": {"status": "ok"}}),
+            patch.object(self.probe, "get_active_document", return_value=active),
+            patch.object(self.probe, "get_documents", return_value=listed),
+            patch.object(self.probe, "get_views") as views,
+        ):
+            result = self.probe.main()
+        self.assertEqual(result, 1)
+        views.assert_not_called()
+
     def test_truthy_but_unapproved_value_still_blocks(self):
         with (
             patch.dict(

@@ -64,11 +64,17 @@ def main() -> int:
         return 1
     print("[PASS] active document:", doc.get("title"))
 
+    runtime_id = doc.get("runtime_id")
+    if not isinstance(runtime_id, str) or not runtime_id.strip():
+        print("[FAIL] Active document missing a valid runtime_id.")
+        return 1
+
     documents = get_documents()
     if not isinstance(documents, list) or not documents:
         print("[FAIL] Open-document list is empty or invalid:", documents)
         return 1
-    if not any(item.get("runtime_id") == doc.get("runtime_id") for item in documents):
+    if not any(isinstance(item, dict) and item.get("runtime_id") == runtime_id
+               for item in documents):
         print("[FAIL] Active document is missing from /documents result.")
         return 1
     print("[PASS] documents:", len(documents))

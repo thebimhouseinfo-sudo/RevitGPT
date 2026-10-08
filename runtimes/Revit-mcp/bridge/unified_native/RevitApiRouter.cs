@@ -102,12 +102,10 @@ namespace RevitGPT.Native
 
         private static object DocumentInfo(Document doc)
         {
-            return new {
-                id = doc.GetHashCode().ToString(CultureInfo.InvariantCulture),
-                title = doc.Title, path = doc.PathName ?? "",
-                is_workshared = doc.IsWorkshared,
-                revit_version = doc.Application.VersionNumber
-            };
+            return NativeDocumentContract.Create(
+                doc.GetHashCode().ToString(CultureInfo.InvariantCulture),
+                doc.Title, doc.PathName, doc.IsWorkshared,
+                doc.Application.VersionNumber);
         }
 
         private static Document FindDocument(UIApplication app, JObject payload)

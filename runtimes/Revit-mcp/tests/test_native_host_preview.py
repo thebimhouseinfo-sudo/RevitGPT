@@ -33,6 +33,7 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("if (BridgeHttpProtocol.IsWrite(path))", source)
         self.assertIn("return Error(501,", source)
         self.assertIn("Int64.Parse", source)
+        self.assertIn("NativeDocumentContract.Create(", source)
         self.assertIn(".Value", source)
         self.assertNotIn("IntegerValue", source)
         for dangerous in ("new Transaction(", "Transaction.Start(", ".Delete(",

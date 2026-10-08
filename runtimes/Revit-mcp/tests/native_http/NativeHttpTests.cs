@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using RevitGPT.Native;
 
 internal static class NativeProtocolTests
@@ -16,6 +17,29 @@ internal static class NativeProtocolTests
 
     static async Task Main()
     {
+        // Exercise production wire serializer with observed Revit 2024 IDs.
+        var active = JObject.FromObject(NativeDocumentContract.Create(
+            "640604672", "MAGS", "sample.rvt", false, "2024"));
+        var linked = JObject.FromObject(NativeDocumentContract.Create(
+            "1408674816", "Linked IFC", "link.ifc.RVT", false, "2024"));
+        Check(active.Value<string>("id") == "640604672" &&
+              active.Value<string>("runtime_id") == active.Value<string>("id"),
+            "active exposes matching nonempty id/runtime_id");
+        Check(linked.Value<string>("runtime_id") == linked.Value<string>("id") &&
+              linked.Value<string>("runtime_id") != active.Value<string>("runtime_id"),
+            "linked model has distinct runtime identity");
+        Check(new[] { active, linked }.Count(x => x.Value<string>("runtime_id") ==
+            active.Value<string>("runtime_id")) == 1,
+            "active ID matches exactly one document");
+        Check(active.Value<string>("title") == "MAGS" &&
+              active.Value<string>("revit_version") == "2024" &&
+              active.Value<bool>("is_workshared") == false,
+            "document metadata preserved");
+        bool blankRejected = false;
+        try { NativeDocumentContract.Create("", "Invalid", "", false, "2024"); }
+        catch (ArgumentException) { blankRejected = true; }
+        Check(blankRejected, "empty runtime ID is rejected");
+
         int called = 0;
         var seen = new List<string>();
         var api = new BridgeHttpProtocol((id,method,path,body,cancel) =>

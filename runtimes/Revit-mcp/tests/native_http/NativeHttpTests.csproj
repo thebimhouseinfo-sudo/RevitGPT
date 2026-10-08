@@ -11,5 +11,6 @@
     <Compile Include="../../bridge/unified_native/BridgeRouteContract.cs" Link="BridgeRouteContract.cs" />
     <Compile Include="../../bridge/unified_native/BridgeHttpProtocol.cs" Link="BridgeHttpProtocol.cs" />
     <Compile Include="../../bridge/unified_native/BridgeHttpServer.cs" Link="BridgeHttpServer.cs" />
+    <Compile Include="../../bridge/unified_native/NativeDocumentContract.cs" Link="NativeDocumentContract.cs" />
   </ItemGroup>
 </Project>
