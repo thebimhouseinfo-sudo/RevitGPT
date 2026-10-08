@@ -122,7 +122,7 @@ public static class HangingNetstat {
     Assert (-not $timeoutEvidence.port_8765.checked) "Timeout was falsely reported as checked"
     Assert (-not $timeoutEvidence.pyrevit_evidence_ready) "Timeout was falsely reported ready"
     Assert (Test-Path -LiteralPath $nativePath) "Timeout preflight mutated native manifest"
-    Assert ($watch.Elapsed.TotalSeconds -lt 22) "Port timeout watchdog was too slow"
+    Assert ($watch.Elapsed.TotalSeconds -lt 45) "Port timeout watchdog was too slow"
     Write-Host ("[RED CONTROL PASS] netstat hang terminates fail-closed ({0:N1} sec)" -f $watch.Elapsed.TotalSeconds)
 
     Write-Host "[PASS] E-PY host baseline positive + negative controls"

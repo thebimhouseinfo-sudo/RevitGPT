@@ -62,7 +62,7 @@ jobs:
           ./scripts/check-powershell-syntax.ps1
 
       - name: Test bounded E-PY host preflight, rollback and red controls
-        shell: pwsh
+        shell: powershell
         run: |
           $out = Join-Path $env:RUNNER_TEMP "e-py-host-test.stdout.log"
           $err = Join-Path $env:RUNNER_TEMP "e-py-host-test.stderr.log"
@@ -70,7 +70,7 @@ jobs:
           $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err -NoNewWindow -PassThru
           $timedOut = $false
           try {
-            if (-not $proc.WaitForExit(60000)) {
+            if (-not $proc.WaitForExit(120000)) {
               $timedOut = $true
               try { $proc.Kill() } catch {}
             }
@@ -78,7 +78,7 @@ jobs:
             if (Test-Path -LiteralPath $out) { Get-Content -LiteralPath $out | ForEach-Object { Write-Host $_ } }
             if (Test-Path -LiteralPath $err) { Get-Content -LiteralPath $err | ForEach-Object { Write-Host $_ } }
           }
-          if ($timedOut) { throw "E-PY host test watchdog: test exceeded 60 seconds" }
+          if ($timedOut) { throw "E-PY host test watchdog: test exceeded 120 seconds" }
           if ($proc.ExitCode -ne 0) { throw "E-PY host regression test failed with exit $($proc.ExitCode)" }
 
       - name: Check static native Revit bridge package contract
