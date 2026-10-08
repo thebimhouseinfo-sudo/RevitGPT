@@ -18,6 +18,16 @@ namespace RevitGPT.Native
         {
             _application = app;
             _attempted = false;
+            try
+            {
+                // WPF pane lifetime never owns or blocks the native listener.
+                app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
+                    new RevitGptPaneProvider());
+            }
+            catch (Exception error)
+            {
+                Debug.WriteLine("[RevitGPT] Pane unavailable: " + error);
+            }
             app.Idling += OnFirstIdle;
             return Result.Succeeded;
         }
