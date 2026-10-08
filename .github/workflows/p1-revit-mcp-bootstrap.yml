@@ -57,6 +57,11 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
+      - name: Test bounded E-PY host preflight, rollback and red controls
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/test-e-py-host-baseline.ps1
+
       - name: Check static native Revit bridge package contract
         shell: pwsh
         run: |
