@@ -91,6 +91,11 @@ jobs:
         run: |
           ./scripts/check-native-revit-bridge.ps1
 
+      - name: Verify RevitGPT tray icon and red control
+        shell: powershell
+        run: |
+          ./scripts/test-revitgpt-tray-icon.ps1
+
       - name: Test pyRevit package validator with red controls
         shell: pwsh
         run: |

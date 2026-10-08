@@ -71,7 +71,6 @@ try:
     )
     from Autodesk.Revit.DB.Mechanical import Duct, DuctSystemType
     from Autodesk.Revit.DB.Plumbing import Pipe, PipingSystemType
-    from Autodesk.Revit.Creation import XYZ as CreateXYZ
     from Autodesk.Revit.UI import UIApplication
     REVIT_AVAILABLE = True
 except Exception:

@@ -145,6 +145,66 @@ class PyRevitBridgeStartupTests(unittest.TestCase):
             self.assertIn('"event": "startup_failed"', text)
             self.assertIn("synthetic startup failure", text)
 
+
+    def test_correct_revit_db_xyz_import_with_negative_control(self):
+        """Prove the Revit 2024 import path; do not rely only on source grep."""
+        import ast
+
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        fake_modules = {}
+        for name in (
+            "Autodesk",
+            "Autodesk.Revit",
+            "Autodesk.Revit.DB",
+            "Autodesk.Revit.DB.Mechanical",
+            "Autodesk.Revit.DB.Plumbing",
+            "Autodesk.Revit.UI",
+            "Autodesk.Revit.Creation",
+        ):
+            item = types.ModuleType(name)
+            item.__path__ = []
+            fake_modules[name] = item
+        fake_clr = types.ModuleType("clr")
+        fake_clr.AddReference = lambda _name: None
+        fake_modules["clr"] = fake_clr
+
+        # Supply the Revit DB/UI types exposed by a healthy Revit host,
+        # deliberately leaving Autodesk.Revit.Creation.XYZ undefined.
+        for node in ast.walk(ast.parse(source)):
+            if isinstance(node, ast.ImportFrom) and node.module in fake_modules:
+                if node.module == "Autodesk.Revit.Creation":
+                    continue
+                for alias in node.names:
+                    setattr(fake_modules[node.module], alias.name, type(alias.name, (), {}))
+
+        def load_source(text_source, unique_name):
+            with tempfile.TemporaryDirectory() as temp:
+                fixture = pathlib.Path(temp) / "bridge_import_fixture.py"
+                fixture.write_text(text_source, encoding="utf-8")
+                with patch.dict(sys.modules, fake_modules):
+                    spec = importlib.util.spec_from_file_location(unique_name, fixture)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                return module
+
+        positive = load_source(source, "revit_db_import_positive")
+        self.assertTrue(positive.REVIT_AVAILABLE, positive.REVIT_IMPORT_ERROR)
+        self.assertIsNone(positive.REVIT_IMPORT_ERROR)
+        self.assertIs(positive.XYZ, fake_modules["Autodesk.Revit.DB"].XYZ)
+
+        bad_import = "    from Autodesk.Revit.Creation import XYZ as CreateXYZ\n"
+        self.assertNotIn(bad_import, source)
+        mutated = source.replace(
+            "    REVIT_AVAILABLE = True",
+            bad_import + "    REVIT_AVAILABLE = True",
+            1,
+        )
+        self.assertNotEqual(mutated, source)
+        negative = load_source(mutated, "revit_db_import_negative")
+        self.assertFalse(negative.REVIT_AVAILABLE)
+        self.assertIn("Autodesk.Revit.Creation", negative.REVIT_IMPORT_ERROR)
+        self.assertIn("XYZ", negative.REVIT_IMPORT_ERROR)
+
     def test_server_does_not_bind_when_revit_api_import_failed(self):
         self.bridge.PORT = 8765
         self.assertFalse(self.bridge.REVIT_AVAILABLE)

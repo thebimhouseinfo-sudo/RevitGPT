@@ -105,19 +105,12 @@ REM ------------------------------------------------------------
 echo.
 echo [5/6] Installing RevitGPT Windows tray auto-start...
 
-REM Temporary icon reuse from sibling CadGPT repo.
-REM Replace RevitGPT\icon.png later with the real product icon.
-if not exist "%CD%\icon.png" (
-  if exist "%CD%\..\Cadgpt\icon.png" (
-    copy /Y "%CD%\..\Cadgpt\icon.png" "%CD%\icon.png" >nul
-    echo [OK] Copied temporary tray icon from sibling Cadgpt repo.
-  ) else if exist "%CD%\..\cadgpt\icon.png" (
-    copy /Y "%CD%\..\cadgpt\icon.png" "%CD%\icon.png" >nul
-    echo [OK] Copied temporary tray icon from sibling cadgpt repo.
-  ) else (
-    echo [INFO] CadGPT icon.png not found beside RevitGPT; tray will use the Windows fallback icon.
-  )
+REM Use the tracked RevitGPT-owned icon. Never copy a sibling CadGPT icon.
+if not exist "%CD%\assets\revitgpt-tray.png" (
+  echo [ERROR] Missing assets\revitgpt-tray.png from RevitGPT checkout.
+  exit /b 1
 )
+echo [OK] RevitGPT tray icon is bundled with this repository.
 
 echo.
 call "%CD%\run.bat" install
