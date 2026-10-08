@@ -33,9 +33,11 @@ namespace RevitGPT.Native
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
             var grid = new Grid();
+            // Two rows only: no reserved footer strip under the WebView.
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.Background = Brushes.White;
+            Background = Brushes.White;
 
             _header = new Border { Padding = new Thickness(8, 5, 8, 5) };
             var columns = new Grid();
@@ -64,7 +66,7 @@ namespace RevitGPT.Native
             columns.Children.Add(_bind);
 
             _theme = new ToggleButton {
-                Content = "Dark", IsChecked = true,
+                Content = "Light", IsChecked = false,
                 ToolTip = "Toggle light/dark",
                 Padding = new Thickness(7, 3, 7, 3),
                 Margin = new Thickness(2, 0, 2, 0)
@@ -76,7 +78,10 @@ namespace RevitGPT.Native
             Grid.SetRow(_header, 0);
             grid.Children.Add(_header);
 
-            _browser = new WebView2 { ZoomFactor = 0.8 };
+            _browser = new WebView2 {
+                ZoomFactor = 0.8,
+                DefaultBackgroundColor = System.Drawing.Color.White
+            };
             Grid.SetRow(_browser, 1);
             grid.Children.Add(_browser);
 
@@ -84,9 +89,12 @@ namespace RevitGPT.Native
                 Margin = new Thickness(8, 3, 8, 3),
                 Foreground = Brushes.DimGray,
                 TextWrapping = TextWrapping.Wrap,
-                Visibility = Visibility.Collapsed
+                Visibility = Visibility.Collapsed,
+                VerticalAlignment = VerticalAlignment.Top,
+                Background = Brushes.White
             };
-            Grid.SetRow(_status, 2);
+            // Only show errors as an overlay; collapsed status occupies zero height.
+            Grid.SetRow(_status, 1);
             grid.Children.Add(_status);
 
             _bindingTimer = new DispatcherTimer {
@@ -122,6 +130,13 @@ namespace RevitGPT.Native
         {
             bool dark = _theme.IsChecked == true;
             _theme.Content = dark ? "Dark" : "Light";
+            var pageBrush = dark ? (Brush)new SolidColorBrush(Color.FromRgb(24, 26, 30)) : Brushes.White;
+            Background = pageBrush;
+            _status.Background = pageBrush;
+            _status.Foreground = dark ? Brushes.White : Brushes.DimGray;
+            _browser.DefaultBackgroundColor = dark
+                ? System.Drawing.Color.FromArgb(24, 26, 30)
+                : System.Drawing.Color.White;
             RefreshBindingIndicator();
             // Respect WebView2's browser preference without injecting scripts.
             // ChatGPT account-specific appearance may override this preference.
