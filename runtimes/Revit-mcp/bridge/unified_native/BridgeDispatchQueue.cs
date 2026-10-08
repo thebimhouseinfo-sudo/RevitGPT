@@ -33,11 +33,15 @@ namespace RevitGPT.Native
             {
                 if (!token.CanBeCanceled) return;
                 var registration = token.Register(() => CancelPending());
+                bool dispose = false;
                 lock (_gate)
                 {
                     if (_state != 2) _registration = registration;
-                    else registration.Dispose();
+                    else dispose = true;
                 }
+                // Never Dispose an in-flight CancellationTokenRegistration
+                // while holding a lock that its callback needs.
+                if (dispose) registration.Dispose();
             }
 
             internal bool Begin()
@@ -52,25 +56,29 @@ namespace RevitGPT.Native
 
             internal void Complete(string value, Exception error)
             {
+                CancellationTokenRegistration registration;
                 lock (_gate)
                 {
                     if (_state != 1) return;
                     _state = 2;
-                    _registration.Dispose();
-                    if (error == null) _source.TrySetResult(value);
-                    else _source.TrySetException(error);
+                    registration = _registration;
                 }
+                registration.Dispose();
+                if (error == null) _source.TrySetResult(value);
+                else _source.TrySetException(error);
             }
 
             internal void FailPending(Exception error)
             {
+                CancellationTokenRegistration registration;
                 lock (_gate)
                 {
                     if (_state != 0) return;
                     _state = 2;
-                    _registration.Dispose();
-                    _source.TrySetException(error);
+                    registration = _registration;
                 }
+                registration.Dispose();
+                _source.TrySetException(error);
             }
 
             private void CancelPending()

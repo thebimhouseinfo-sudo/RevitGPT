@@ -36,9 +36,12 @@ internal static class NativeDispatchTests
         // Ten independent callers. None executes Revit action from HTTP thread.
         int raises = 0, executions = 0;
         var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });
-        var tasks = Enumerable.Range(0, 10).Select(i => Task.Run(() =>
-            queue.Submit("req-" + i, () => { Interlocked.Increment(ref executions); return "result-" + i; }))).ToArray();
-        var pending = await Task.WhenAll(tasks);
+        var pending = new Task<string>[10];
+        var producers = Enumerable.Range(0, 10).Select(i => Task.Run(() =>
+        {
+            pending[i] = queue.Submit("req-" + i, () => { Interlocked.Increment(ref executions); return "result-" + i; });
+        })).ToArray();
+        await Task.WhenAll(producers);
         True(executions == 0, "HTTP callbacks never execute Revit API before UI callback");
         True(raises == 1, "single-flight only one scheduled ExternalEvent");
         queue.DrainOnRevitUiThread();
@@ -99,6 +102,21 @@ internal static class NativeDispatchTests
         }, runningCts.Token);
         queue.DrainOnRevitUiThread();
         True(await Timeout(running, "running mutation") == "mutation completed", "running mutation not deceptively canceled");
+
+        // Regression: cancellation callback and successful completion race.
+        // CancellationTokenRegistration.Dispose must NOT wait while holding
+        // the item's state lock or a deadlock can occur.
+        for (int i = 0; i < 20; i++)
+        {
+            using (var raceCancel = new CancellationTokenSource())
+            {
+                var item = queue.Submit("cancel-race-" + i, () => "finished", raceCancel.Token);
+                var waiter = Task.Run(() => raceCancel.Cancel());
+                queue.DrainOnRevitUiThread();
+                await Timeout(waiter.ContinueWith(_ => "canceled", TaskScheduler.Default), "cancel callback finishes");
+                True(item.IsCompleted, "race resolved without stranded request");
+            }
+        }
 
         // Individual exception is isolated from sibling responses.
         var fault = queue.Submit("fault", () => throw new InvalidOperationException("element unavailable"));
