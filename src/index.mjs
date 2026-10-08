@@ -14,6 +14,7 @@ import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
 import { PanelPairingRegistry } from "./panel-pairing.mjs";
+import { isLocalPanelRequest } from "./panel-local-guard.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -331,12 +332,13 @@ const route = "/mcp/" + TOKEN;
 // Panel-only local commands: no browser Origin, no remote Host, no network
 // exposure. Possession of a single-use challenge / 256-bit bearer is required.
 function requireLocalPanel(req,res,next) {
-  const ip = String(req.socket.remoteAddress || "");
-  const host = String(req.headers.host || "");
-  if (!["127.0.0.1","::ffff:127.0.0.1","::1"].includes(ip) ||
-      host !== "127.0.0.1:" + PORT ||
-      req.headers.origin || req.headers.referer ||
-      !String(req.headers["content-type"] || "").startsWith("application/json")) {
+  if (!isLocalPanelRequest({
+    remoteAddress:req.socket.remoteAddress,
+    host:req.headers.host,
+    origin:req.headers.origin,
+    referer:req.headers.referer,
+    contentType:req.headers["content-type"]
+  },PORT)) {
     res.status(403).json({ error:"PANEL_LOCAL_ONLY" });
     return;
   }

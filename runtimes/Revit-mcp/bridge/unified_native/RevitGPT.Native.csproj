@@ -11,6 +11,10 @@
     <RevitInstallDir Condition="'$(RevitInstallDir)' == ''">C:\Program Files\Autodesk\Revit 2024</RevitInstallDir>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Framework reference for async localhost-only pairing (not bundled). -->
+    <Reference Include="System.Net.Http"><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup>
     <!-- CI preview compile dependency; installation/host version QA still required. -->
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
   </ItemGroup>
