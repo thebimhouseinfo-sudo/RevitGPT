@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../bridge/unified_native/BridgeDispatchQueue.cs" Link="BridgeDispatchQueue.cs" />
+    <Compile Include="../../bridge/unified_native/RevitExternalEventAdapter.cs" Link="RevitExternalEventAdapter.cs" />
   </ItemGroup>
 </Project>

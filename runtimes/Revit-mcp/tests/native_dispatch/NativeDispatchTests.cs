@@ -149,6 +149,29 @@ internal static class NativeDispatchTests
         catch (ObjectDisposedException) { stopped = true; }
         True(stopped, "post-shutdown request refused");
 
+        // Revit API adapter positive and negative controls with a fake
+        // ExternalEvent. This does NOT represent a real Revit host test.
+        using (var adapter = RevitExternalEventAdapter.CreateOnRevitUiThread())
+        {
+            var external = Autodesk.Revit.UI.ExternalEvent.Last;
+            var fakeApp = new Autodesk.Revit.UI.UIApplication { ModelName = "TEST.RVT" };
+            int reads = 0;
+            var document = adapter.Submit("read-ui", app => { reads++; return app.ModelName; });
+            True(reads == 0 && !document.IsCompleted, "API read deferred until UI callback");
+            True(external.RaiseCount == 1, "one ExternalEvent raised");
+            external.Dispatch(fakeApp);
+            True(await Timeout(document, "fake UI read") == "TEST.RVT", "result from callback");
+            True(reads == 1, "read executed exactly once");
+
+            external.Response = Autodesk.Revit.UI.ExternalEventRequest.Denied;
+            var denied = adapter.Submit("denied", app => "must not execute");
+            await ExpectFailure(denied, "Denied");
+            external.Response = Autodesk.Revit.UI.ExternalEventRequest.Accepted;
+            var recovered = adapter.Submit("recovered", app => app.ModelName);
+            external.Dispatch(fakeApp);
+            True(await Timeout(recovered, "fake UI recovery") == "TEST.RVT", "denied event can retry safely");
+        }
+
         Console.WriteLine("[PASS] Native dispatcher concurrency tests: " + _count + " assertions.");
     }
 }
