@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using RevitGPT.Native;
+
+internal static class NativeDispatchTests
+{
+    private static int _count;
+
+    private static void True(bool value, string label)
+    {
+        if (!value) throw new Exception("FAIL: " + label);
+        _count++;
+    }
+
+    private static async Task<T> Timeout<T>(Task<T> task, string label)
+    {
+        var done = await Task.WhenAny(task, Task.Delay(2500));
+        True(Object.ReferenceEquals(done, task), label + " completed without stranding");
+        return await task;
+    }
+
+    private static async Task ExpectFailure(Task<string> task, string text)
+    {
+        try { await Timeout(task, "negative result"); throw new Exception("FAIL: expected " + text); }
+        catch (InvalidOperationException ex)
+        {
+            True(ex.Message.Contains(text), "specific raise failure: " + text);
+        }
+    }
+
+    private static async Task Main()
+    {
+        // Ten independent callers. None executes Revit action from HTTP thread.
+        int raises = 0, executions = 0;
+        var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });
+        var tasks = Enumerable.Range(0, 10).Select(i => Task.Run(() =>
+            queue.Submit("req-" + i, () => { Interlocked.Increment(ref executions); return "result-" + i; }))).ToArray();
+        var pending = await Task.WhenAll(tasks);
+        True(executions == 0, "HTTP callbacks never execute Revit API before UI callback");
+        True(raises == 1, "single-flight only one scheduled ExternalEvent");
+        queue.DrainOnRevitUiThread();
+        var responses = await Task.WhenAll(pending.Select((t,i) => Timeout(t, "req " + i)));
+        True(responses.Distinct().Count() == 10, "all 10 per-request results distinct");
+        True(executions == 10, "all 10 actions executed exactly once");
+
+        // Race: new work arrives from worker during a drain.
+        Task<string> nested = null;
+        var first = queue.Submit("first", () =>
+        {
+            nested = queue.Submit("arriving-during-drain", () => "nested-value");
+            return "first-value";
+        });
+        queue.DrainOnRevitUiThread();
+        True(await Timeout(first, "drain first") == "first-value", "first result");
+        True(nested != null && await Timeout(nested, "drain nested") == "nested-value", "arrival during drain served");
+        True(raises == 2, "drain arrival did not schedule redundant Raise");
+
+        var after = queue.Submit("after-drain", () => "after-value");
+        True(raises == 3, "request after empty-drain schedules fresh Raise");
+        queue.DrainOnRevitUiThread();
+        True(await Timeout(after, "after-drain") == "after-value", "no exit-boundary lost wakeup");
+
+        // Denied and Pending are fail-closed; recovery enqueues a new event.
+        foreach (var rejection in new [] { RaiseOutcome.Denied, RaiseOutcome.TimedOut, RaiseOutcome.Pending })
+        {
+            using (var bad = new BridgeDispatchQueue(() => rejection))
+            {
+                var blocked = bad.Submit("blocked", () => throw new Exception("must not execute"));
+                await ExpectFailure(blocked, rejection.ToString());
+                bad.DrainOnRevitUiThread();
+            }
+        }
+        using (var recover = new BridgeDispatchQueue(() =>
+                   Interlocked.Increment(ref raises) > 0 ? RaiseOutcome.Accepted : RaiseOutcome.Denied))
+        {
+            var t = recover.Submit("recovered", () => "works");
+            recover.DrainOnRevitUiThread();
+            True(await Timeout(t, "recovered") == "works", "recover after fresh accepted event");
+        }
+
+        // Cancellation before Revit execution cannot mutate the document.
+        var cts = new CancellationTokenSource();
+        int mutations = 0;
+        var canceled = queue.Submit("cancel", () => { mutations++; return "unexpected"; }, cts.Token);
+        cts.Cancel();
+        queue.DrainOnRevitUiThread();
+        True(canceled.IsCanceled, "canceled pending item reported canceled");
+        True(mutations == 0, "cancel before dispatch skips Revit mutation");
+
+        // Cancellation DURING execution must not claim to undo a mutation.
+        var runningCts = new CancellationTokenSource();
+        var running = queue.Submit("running", () =>
+        {
+            runningCts.Cancel();
+            return "mutation completed";
+        }, runningCts.Token);
+        queue.DrainOnRevitUiThread();
+        True(await Timeout(running, "running mutation") == "mutation completed", "running mutation not deceptively canceled");
+
+        // Individual exception is isolated from sibling responses.
+        var fault = queue.Submit("fault", () => throw new InvalidOperationException("element unavailable"));
+        var healthy = queue.Submit("healthy", () => "safe");
+        queue.DrainOnRevitUiThread();
+        await ExpectFailure(fault, "element unavailable");
+        True(await Timeout(healthy, "healthy sibling") == "safe", "one failure does not contaminate sibling");
+
+        // Bounded queue never overflows silently.
+        using (var bounded = new BridgeDispatchQueue(() => RaiseOutcome.Accepted, maximumPending: 1))
+        {
+            var slot = bounded.Submit("one", () => "one");
+            bool rejected = false;
+            try { bounded.Submit("two", () => "two"); }
+            catch (InvalidOperationException ex) { rejected = ex.Message.Contains("full"); }
+            True(rejected, "queue capacity enforced");
+            bounded.DrainOnRevitUiThread();
+            True(await Timeout(slot, "bounded slot") == "one", "original survives overflow");
+        }
+
+        // Shutdown clears queued requests, rejects new work, never blocks caller.
+        var beforeStop = queue.Submit("shutdown", () => "should not run");
+        queue.Dispose();
+        bool stopped = false;
+        try { await beforeStop; }
+        catch (ObjectDisposedException) { stopped = true; }
+        True(stopped, "pending item fails on shutdown");
+        stopped = false;
+        try { queue.Submit("after-close", () => "no"); }
+        catch (ObjectDisposedException) { stopped = true; }
+        True(stopped, "post-shutdown request refused");
+
+        Console.WriteLine("[PASS] Native dispatcher concurrency tests: " + _count + " assertions.");
+    }
+}

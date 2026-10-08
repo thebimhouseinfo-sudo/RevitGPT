@@ -149,6 +149,11 @@ jobs:
         run: |
           python -m compileall -q runtimes/Revit-mcp
 
+      - name: Test unified-native ExternalEvent dispatch concurrency
+        shell: pwsh
+        run: |
+          dotnet run --project runtimes/Revit-mcp/tests/native_dispatch/NativeDispatchTests.csproj --configuration Release
+
       - name: Run classified offline Revit MCP tests
         shell: pwsh
         run: |
