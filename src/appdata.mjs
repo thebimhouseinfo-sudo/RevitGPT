@@ -58,6 +58,7 @@ export async function ensureAppDataLayout() {
   await ensureJson(registryLibrariesPath(),{version:1,libraries:[]});
   await seedFile(path.join(REPO_ROOT,"knowledge","revit","WORKING_KNOWLEDGE.md"),path.join(knowledgeRoot(),"revit","WORKING_KNOWLEDGE.md"));
   await seedFile(path.join(REPO_ROOT,"knowledge","revit","SELF_IMPROVEMENT.md"),path.join(knowledgeRoot(),"revit","SELF_IMPROVEMENT.md"));
+  await seedFile(path.join(REPO_ROOT,"knowledge","revit","HVAC_EQUIPMENT_CLASSIFICATION.md"),path.join(knowledgeRoot(),"revit","HVAC_EQUIPMENT_CLASSIFICATION.md"));
   await seedFile(path.join(REPO_ROOT,"knowledge","jobs","JOB_RULES.md"),path.join(knowledgeRoot(),"api","JOB_RULES.md"));
   await seedFile(path.join(REPO_ROOT,"diagnostics","revit","ERROR_LOG.md"),path.join(knowledgeRoot(),"failures","ERROR_LOG.md"));
 }

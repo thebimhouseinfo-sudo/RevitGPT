@@ -67,6 +67,11 @@ jobs:
         run: |
           node scripts/test-retired-panel-commands.mjs
 
+      - name: Verify unified Revit capability registry and non-executable discovery
+        shell: pwsh
+        run: |
+          node scripts/test-capability-registry.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |

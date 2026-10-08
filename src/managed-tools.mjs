@@ -11,6 +11,7 @@ import {
   pythonDraftRoot,dynamoDraftRoot,jobDraftRoot,runDataRoot
 } from "./appdata.mjs";
 import { logToolCall, logError } from "./log-store.mjs";
+import { lookupRegistry } from "./capability-registry.mjs";
 
 const execFileAsync=promisify(execFile);
 const REPO_ROOT=path.resolve(process.cwd());
@@ -219,11 +220,20 @@ export function registerManagedTools(server){
     await fs.copyFile(source,target);const content=await fs.readFile(target);return textResult({draft_path:target,sha256:sha256(content),source_id:a.id});
   }));
 
-  server.registerTool("registry_list",{description:"List effective user capabilities registered in AppData.",inputSchema:{}},async()=>guarded("registry_list",{},async()=>textResult(await readJson(registryCapabilitiesPath(),{version:1,entries:[]}))));
-  server.registerTool("registry_get",{description:"Get one user capability record.",inputSchema:{id:z.string()}},async (a)=>guarded("registry_get",a,async()=>{
-    const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]}); const entry=(reg.entries||[]).find(x=>x.id===a.id);
-    if(!entry)throw new Error("REGISTRY_ENTRY_NOT_FOUND"); return textResult(entry);
-  }));
+  // Effective Internal + User Registry is discovery-only; no execution is
+  // ever authorized by metadata. User entries cannot override internal IDs.
+  server.registerTool("registry_list",{
+    description:"List tool/Job/Python/Dynamo capabilities from Internal + User Registry. Discovery only.",
+    inputSchema:{kind:z.enum(["tool","job","python","dynamo"]).optional(),registry:z.enum(["internal","user"]).optional(),limit:z.number().int().min(1).max(100).optional()}
+  },async(a)=>guarded("registry_list",a,async()=>textResult(await lookupRegistry(a))));
+  server.registerTool("registry_search",{
+    description:"Search semantic registry summaries and when_to_use to select the right read-only tool or registered Job/Dynamo script. Does NOT execute.",
+    inputSchema:{query:z.string().min(1),kind:z.enum(["tool","job","python","dynamo"]).optional(),limit:z.number().int().min(1).max(100).optional()}
+  },async(a)=>guarded("registry_search",a,async()=>textResult(await lookupRegistry(a))));
+  server.registerTool("registry_get",{
+    description:"Get one effective registry entry, including when_to_use/risk/status. Discovery only.",
+    inputSchema:{id:z.string().min(1)}
+  },async(a)=>guarded("registry_get",a,async()=>textResult(await lookupRegistry(a))));
 
   server.registerTool("python_scaffold",{description:"Create a user Python/pyRevit draft in AppData workspace.",inputSchema:{library_id:z.string(),name:z.string().regex(/^[A-Za-z0-9._-]+$/),summary:z.string().optional()}},async (a)=>guarded("python_scaffold",a,async()=>{
     const dir=path.join(pythonDraftRoot(),a.library_id); await fs.mkdir(dir,{recursive:true}); const p=path.join(dir,a.name.endsWith(".py")?a.name:a.name+".py");
@@ -287,6 +297,28 @@ Draft only. Promote after validation and real Revit test.
   server.registerTool("run_record_append",{description:"Append structured evidence for a user Job/script/MCP run.",inputSchema:{kind:z.string(),id:z.string(),record:z.record(z.string(),z.unknown())}},async (a)=>guarded("run_record_append",a,async()=>{
     const p=path.join(runDataRoot(),a.kind,a.id+".ndjson"); await fs.mkdir(path.dirname(p),{recursive:true});
     await fs.appendFile(p,JSON.stringify({timestamp:new Date().toISOString(),...a.record})+"\n","utf8"); return textResult({path:p});
+  }));
+
+
+  server.registerTool("knowledge_search",{
+    description:"Read-only keyword search over curated local RevitGPT knowledge (HVAC, Revit API, learned lessons). Results are evidence, not model facts.",
+    inputSchema:{query:z.string().min(2),limit:z.number().int().min(1).max(20).optional()}
+  },async(a)=>guarded("knowledge_search",a,async()=>{
+    const root=path.join(getAppDataRoot(),"knowledge");
+    const files=await walk(root,250), term=a.query.toLowerCase(),hits=[];
+    for(const file of files){
+      if(!file.endsWith(".md"))continue;
+      try{
+        const stat=await fs.stat(file); if(stat.size>128*1024)continue;
+        const content=await fs.readFile(file,"utf8"),at=content.toLowerCase().indexOf(term);
+        if(at<0)continue;
+        hits.push({source:path.relative(root,file).replaceAll("\\","/"),
+          sha256:sha256(content),
+          excerpt:content.slice(Math.max(0,at-100),Math.min(content.length,at+280))});
+        if(hits.length>=(a.limit||8))break;
+      }catch{}
+    }
+    return textResult({query:a.query,matches:hits,rule:"Knowledge is advisory; verify element counts/classification against live bound Revit model."});
   }));
 
   server.registerTool("knowledge_failure_append",{description:"Append one real failure/workaround as raw improvement evidence in AppData knowledge/failures.",inputSchema:{title:z.string(),context:z.string(),observed:z.string(),expected:z.string(),evidence:z.string(),workaround:z.string().optional(),candidate_improvement:z.string().optional()}},async (a)=>guarded("knowledge_failure_append",a,async()=>{
