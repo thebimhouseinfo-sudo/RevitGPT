@@ -7,7 +7,9 @@ $testRoot = Join-Path $runtimeRoot "tests"
 $offlineTests = @(
     "test_bridge.py",
     "test_pyrevit_bridge_startup.py",
-    "test_real_connection_gate.py"
+    "test_real_connection_gate.py",
+    "test_native_route_contract.py",
+    "test_native_host_preview.py"
 )
 $liveHostTests = @(
     "test_real_connection.py"

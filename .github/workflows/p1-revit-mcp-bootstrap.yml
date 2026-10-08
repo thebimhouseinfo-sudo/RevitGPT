@@ -154,6 +154,11 @@ jobs:
         run: |
           ./scripts/test-legacy-bridge-block.ps1
 
+      - name: Check native read-only preview host safety gates
+        shell: pwsh
+        run: |
+          python -m unittest discover -s runtimes/Revit-mcp/tests -p test_native_host_preview.py -v
+
       - name: Validate native HTTP routes match Python MCP consumer
         shell: pwsh
         run: |
