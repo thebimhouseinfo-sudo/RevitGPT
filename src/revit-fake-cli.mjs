@@ -21,6 +21,8 @@ export function parseRevitCommand(command) {
   if(!match)return null;
   const kind=(match[1]||"").toLowerCase();
   const query=(match[2]||"").trim();
+  // CLI arguments are search terms only, never local paths or shell syntax.
+  if(query.includes("..") || /[\\/;|`]/.test(query)) return null;
   if((kind===""||kind==="help"||kind==="status")&&query)
     throw new Error("RG_COMMAND_ARGUMENTS_INVALID");
   return {kind:kind||"help",query};
