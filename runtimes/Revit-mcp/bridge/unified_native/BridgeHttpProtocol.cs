@@ -1,4 +1,6 @@
 using System;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -101,6 +103,30 @@ namespace RevitGPT.Native
                     string result = await dispatched.ConfigureAwait(false);
                     if (String.IsNullOrWhiteSpace(result))
                         return Error(502, "Empty Revit API response.");
+                    // The Revit UI router serializes either {"data": ...} or
+                    // {"error": {"code": 4xx/5xx, "message": ...}}.
+                    // Never label a failed Revit operation as HTTP success.
+                    JObject envelope;
+                    try { envelope = JObject.Parse(result); }
+                    catch (JsonException) { return Error(502, "Invalid Revit API JSON response."); }
+                    JToken apiError = envelope["error"];
+                    if (apiError != null)
+                    {
+                        if (apiError.Type != JTokenType.Object)
+                            return Error(502, "Malformed Revit API error envelope.");
+                        var details = (JObject)apiError;
+                        JToken code = details["code"];
+                        JToken message = details["message"];
+                        int errorStatus;
+                        if (code == null || code.Type != JTokenType.Integer ||
+                            !Int32.TryParse(code.ToString(), out errorStatus) ||
+                            errorStatus < 400 || errorStatus > 599 ||
+                            message == null || message.Type != JTokenType.String)
+                            return Error(502, "Invalid Revit API error status.");
+                        return new BridgeHttpResponse(errorStatus, result);
+                    }
+                    if (envelope["data"] == null)
+                        return Error(502, "Missing Revit API data envelope.");
                     return new BridgeHttpResponse(200, result);
                 }
                 catch (OperationCanceledException)

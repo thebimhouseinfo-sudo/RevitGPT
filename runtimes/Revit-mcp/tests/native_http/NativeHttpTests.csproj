@@ -7,6 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <Compile Include="../../bridge/unified_native/BridgeRouteContract.cs" Link="BridgeRouteContract.cs" />
     <Compile Include="../../bridge/unified_native/BridgeHttpProtocol.cs" Link="BridgeHttpProtocol.cs" />
     <Compile Include="../../bridge/unified_native/BridgeHttpServer.cs" Link="BridgeHttpServer.cs" />

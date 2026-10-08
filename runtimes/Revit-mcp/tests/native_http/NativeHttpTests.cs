@@ -34,6 +34,37 @@ internal static class NativeProtocolTests
         good = await run("POST","/elements",H,null,"application/json; charset=utf-8",ID,"{}",CancellationToken.None);
         Check(good.StatusCode == 200, "POST JSON forwarded");
 
+        // Real router error JSON must preserve HTTP status, not look like success.
+        var routerError = new BridgeHttpProtocol((id,m,p,b,ct) =>
+            Task.FromResult("{\"error\":{\"code\":501,\"message\":\"Writes not enabled.\"}}"));
+        var notReady = await routerError.ProcessAsync("POST","/delete",H,null,"application/json",ID,"{}");
+        Check(notReady.StatusCode == 501 && notReady.Body.Contains("Writes not enabled."),
+            "router write-gate 501 is not false HTTP success");
+        var missingTarget = new BridgeHttpProtocol((id,m,p,b,ct) =>
+            Task.FromResult("{\"error\":{\"code\":404,\"message\":\"Model not open.\"}}"));
+        var missing = await missingTarget.ProcessAsync("POST","/element",H,null,"application/json",ID,"{}");
+        Check(missing.StatusCode == 404 && missing.Body.Contains("Model not open."),
+            "router missing-model 404 is not false HTTP success");
+
+        var malformed = new [] {
+            "{\"error\":{\"code\":200,\"message\":\"False success\"}}",
+            "{\"error\":{\"code\":\"501\",\"message\":\"Bad type\"}}",
+            "{\"error\":{\"code\":501}}",
+            "{\"error\":null}",
+            "{\"unrecognized\":true}",
+            "not-json",
+            "[]",
+            "{\"data\":true,\"error\":{\"code\":700,\"message\":\"Conflict\"}}"
+        };
+        foreach (var envelope in malformed)
+        {
+            var badRouter = new BridgeHttpProtocol((id,m,p,b,ct) =>
+                Task.FromResult(envelope));
+            var invalid = await badRouter.ProcessAsync("GET","/health",H,null,null,ID,"");
+            Check(invalid.StatusCode == 502 && invalid.Body.Contains("\"error\""),
+                "invalid API envelope fails closed without status 200");
+        }
+
         var bad = new [] {
             new {method="GET",path="/health",host="evil.test:8765",origin=(string)null,ct=(string)null,id=ID,body="",status=403},
             new {method="GET",path="/health",host=H,origin="https://evil.test",ct=(string)null,id=ID,body="",status=403},
