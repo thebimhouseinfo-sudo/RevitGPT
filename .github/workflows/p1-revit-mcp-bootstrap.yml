@@ -62,6 +62,11 @@ jobs:
         run: |
           node scripts/test-read-intent-gate.mjs
 
+      - name: Test retired pairing descriptions cannot trigger mutation error
+        shell: pwsh
+        run: |
+          node scripts/test-retired-panel-commands.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |

@@ -14,6 +14,7 @@ import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
 import { callReadOnlyTool, ensureReadRuntime } from "./read-intent-gate.mjs";
+import { handleRetiredPanelCommand } from "./retired-panel-commands.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -99,7 +100,9 @@ function createServer(sessionKey) {
         "An explicit read tool call also initializes the full Revit MCP if Revit and the native bridge are ready.",
         "Revit being ON by itself must not auto-start the full Revit MCP.",
         "With exactly one open project, Revit binds it automatically. On multiple projects, use Bind Current only to switch models.",
-        "After admission, read calls automatically check current native binding and require the bound model to be active.",
+        "Each read verifies native model binding directly and requires the bound model to be active.",
+        "P2E removed revitgpt_pair_panel and revitgpt_lease_bound_model. These old commands MUST NOT be used, even if an old connector description mentions them.",
+        "To count Levels use revitgpt_call with name='revit_list_levels' and arguments={}. No manual pairing or lease.",
         "Never assume active tab is model authority; native writes remain disabled."
       ].join("\n")
     }
@@ -167,14 +170,15 @@ function createServer(sessionKey) {
       await logToolCall({tool:"revitgpt_admission",ok:true,status:"READY",tool_count:tools.length,duration_ms:Date.now()-started});
       const names = tools.map((tool) => tool.name);
       return {
-        content: [{ type: "text", text: `RevitGPT READY\nREVIT MCP ON\nTOOLS ${names.length}` }],
+        content: [{ type: "text", text:
+          `RevitGPT READY\nREVIT MCP ON\nTOOLS ${names.length}\nPAIR/LEASE NOT REQUIRED. For Levels: revitgpt_call(name='revit_list_levels', arguments={}). Never call revitgpt_pair_panel or revitgpt_lease_bound_model.` }],
         structuredContent: {
           status: "READY",
           bridge_available: true,
           revit_mcp_on: true,
           tool_count: names.length,
           tool_names: names,
-          text: "RevitGPT is connected to the live Revit bridge."
+          text: "RevitGPT is connected. Model reads need no Pair or manual lease. Use revitgpt_call with name='revit_list_levels', arguments={}. The older revitgpt_pair_panel and revitgpt_lease_bound_model commands are retired."
         }
       };
     }
@@ -255,7 +259,7 @@ function createServer(sessionKey) {
     "revitgpt_call",
     {
       title: "Call Revit MCP Tool",
-      description: "Read Revit via the current native-bound model. No manual pairing, admission or session lease required. Only read/diagnostic tools are allowed; writes are blocked.",
+      description: "READ-ONLY Revit tools. To list Levels call with name='revit_list_levels', arguments={}. No manual Pair or lease. Old revitgpt_pair_panel/revitgpt_lease_bound_model commands are retired and return migration guidance. All writes are blocked.",
       inputSchema: {
         name: z.string().min(1),
         arguments: z.record(z.string(), z.unknown()).optional()
@@ -264,7 +268,15 @@ function createServer(sessionKey) {
     async ({ name, arguments: args }) => {
       // Do not gate by a previous MCP admission boolean: ChatGPT's connector
       // can issue the next call on a different reconstructed MCP instance.
-      // Old connector catalogues may omit named status; no pairing aliases.
+      // Old connector catalogues may advertise retired P2D controls.
+      // Only return read-only migration instructions, NEVER mint a lease.
+      const retired = await handleRetiredPanelCommand(name, args,
+        () => fetchNativeBindingStatus(BRIDGE_URL));
+      if (retired) {
+        await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,status:"RETIRED_CONTROL_NO_LEASE_REQUIRED"});
+        return retired;
+      }
+      // Old connector catalogues may omit named status.
       if (name === "revitgpt_binding_status") {
         if (args && Object.keys(args).length)
           throw new Error("BINDING_STATUS_ARGUMENTS_INVALID");
