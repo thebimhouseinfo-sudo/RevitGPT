@@ -11,6 +11,17 @@ $savedLocalAppData = $env:LOCALAPPDATA
 $savedProgramData = $env:ProgramData
 $savedWinDir = $env:WINDIR
 
+function Get-TestSha256([string]$Path) {
+    $file = [System.IO.File]::OpenRead($Path)
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (-join ($hasher.ComputeHash($file) | ForEach-Object { $_.ToString("X2") }))
+    } finally {
+        $file.Dispose()
+        $hasher.Dispose()
+    }
+}
+
 function Assert([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "ASSERTION_FAILED: $Message" }
 }
@@ -49,7 +60,7 @@ try {
   </AddIn>
 </RevitAddIns>
 '@ | Set-Content -LiteralPath $nativePath -Encoding UTF8
-    $nativeHash = (Get-FileHash -LiteralPath $nativePath -Algorithm SHA256).Hash
+    $nativeHash = (Get-TestSha256 $nativePath)
     $disabledPath = $nativePath + ".e-py-disabled"
 
     $installed = Join-Path $env:APPDATA "pyRevit\Extensions\RevitMCPBridge.extension"
@@ -65,7 +76,7 @@ try {
     Assert (-not $prepared.port_8765.listening) "Port 8765 is busy in test runner"
     Assert (-not (Test-Path -LiteralPath $nativePath)) "Native manifest remained enabled"
     Assert (Test-Path -LiteralPath $disabledPath) "Native manifest was not reversibly disabled"
-    Assert ((Get-FileHash -LiteralPath $disabledPath -Algorithm SHA256).Hash -eq $nativeHash) "Manifest hash changed"
+    Assert ((Get-TestSha256 $disabledPath) -eq $nativeHash) "Manifest hash changed"
 
     & $baseline -Mode PreparePyRevit -EvidencePath (Join-Path $temp "repeat.json")
     Assert (Test-Path -LiteralPath $disabledPath) "Repeat prepare damaged disabled manifest"
@@ -73,7 +84,7 @@ try {
     & $baseline -Mode RestoreNative -EvidencePath (Join-Path $temp "restored.json")
     Assert (Test-Path -LiteralPath $nativePath) "Restore did not restore original manifest"
     Assert (-not (Test-Path -LiteralPath $disabledPath)) "Disabled manifest was left after restore"
-    Assert ((Get-FileHash -LiteralPath $nativePath -Algorithm SHA256).Hash -eq $nativeHash) "Restore changed manifest hash"
+    Assert ((Get-TestSha256 $nativePath) -eq $nativeHash) "Restore changed manifest hash"
     Write-Host "[PASS] Isolated prepare/idempotence/restore + exact hash"
 
     # Red control: installed extension does not match source => no mutation.
