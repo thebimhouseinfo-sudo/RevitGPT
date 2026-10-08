@@ -12,17 +12,17 @@ namespace RevitGPT.Native
         private UIControlledApplication _application;
         private RevitExternalEventAdapter _dispatcher;
         private BridgeHttpServer _server;
-        private bool _attempted;
+        // Refresh requests are consumed only in Revit's Idling API context.
+        private readonly BridgeRetryState _retry = new BridgeRetryState();
 
         public Result OnStartup(UIControlledApplication app)
         {
             _application = app;
-            _attempted = false;
             try
             {
                 // WPF pane lifetime never owns or blocks the native listener.
                 app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
-                    new RevitGptPaneProvider());
+                    new RevitGptPaneProvider(_retry.Request));
             }
             catch (Exception error)
             {
@@ -34,11 +34,12 @@ namespace RevitGPT.Native
 
         private void OnFirstIdle(object sender, IdlingEventArgs args)
         {
-            if (_attempted) return;
             var uiapp = sender as UIApplication;
-            if (uiapp == null) return; // Wait for a real Revit API context.
-            _attempted = true;
-            _application.Idling -= OnFirstIdle;
+            if (uiapp == null || !_retry.TryConsume()) return;
+            // A healthy listener must never be replaced by a panel click.
+            if (_server != null && _server.IsRunning) return;
+            // A stopped/failed listener must release its old dispatcher first.
+            DisposeBridge();
             try
             {
                 // Both handler construction and ExternalEvent.Create occur in
@@ -58,11 +59,16 @@ namespace RevitGPT.Native
                 // Do NOT kill other port owners, block Revit, or start the
                 // retired standalone/pyRevit bridge as a workaround.
                 Debug.WriteLine("[RevitGPT] Native bridge unavailable: " + error);
-                try { _server?.Dispose(); } catch { }
-                _server = null;
-                try { _dispatcher?.Dispose(); } catch { }
-                _dispatcher = null;
+                DisposeBridge();
             }
+        }
+
+        private void DisposeBridge()
+        {
+            try { _server?.Dispose(); } catch { }
+            _server = null;
+            try { _dispatcher?.Dispose(); } catch { }
+            _dispatcher = null;
         }
 
         public Result OnShutdown(UIControlledApplication app)
@@ -70,10 +76,7 @@ namespace RevitGPT.Native
             if (_application != null)
                 _application.Idling -= OnFirstIdle;
             // Shutdown is never a synchronous wait on a pending UI request.
-            try { _server?.Dispose(); } catch { }
-            try { _dispatcher?.Dispose(); } catch { }
-            _server = null;
-            _dispatcher = null;
+            DisposeBridge();
             _application = null;
             return Result.Succeeded;
         }

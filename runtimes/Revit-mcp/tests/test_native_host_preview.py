@@ -15,6 +15,12 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("app.Idling += OnFirstIdle", source)
         self.assertIn("RevitExternalEventAdapter.CreateOnRevitUiThread()", source)
         self.assertIn("new BridgeHttpServer(protocol)", source)
+        self.assertIn("new RevitGptPaneProvider(_retry.Request)", source)
+        self.assertIn("_retry.TryConsume()", source)
+        self.assertIn("if (_server != null && _server.IsRunning) return;", source)
+        idle_body = source.split("private void OnFirstIdle", 1)[1].split("private void DisposeBridge", 1)[0]
+        self.assertNotIn("_application.Idling -= OnFirstIdle", idle_body)
+        self.assertIn("DisposeBridge();", idle_body)
         self.assertNotIn(".Wait()", source)
         self.assertNotIn("GetAwaiter().GetResult()", source)
         self.assertNotIn("StartBridgeCommand", source)

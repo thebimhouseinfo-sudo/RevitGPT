@@ -16,13 +16,15 @@ namespace RevitGPT.Native
         private readonly WebView2 _browser;
         private readonly TextBlock _status;
         private bool _starting;
+        private readonly Action _requestBridgeRetry;
 
         internal static string ProfileDirectory => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RevitGPT", "webview", "revit");
 
-        public RevitGptPane()
+        public RevitGptPane(Action requestBridgeRetry)
         {
+            _requestBridgeRetry = requestBridgeRetry ?? throw new ArgumentNullException(nameof(requestBridgeRetry));
             var grid = new Grid();
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -33,14 +35,14 @@ namespace RevitGPT.Native
                 Background = new SolidColorBrush(Color.FromRgb(34, 42, 54)),
                 LastChildFill = true
             };
-            var reload = new Button
+            var refresh = new Button
             {
-                Content = "Reload chat", MinWidth = 85,
+                Content = "Refresh", MinWidth = 85,
                 Margin = new Thickness(8, 5, 8, 5),
                 Padding = new Thickness(8, 3, 8, 3)
             };
-            DockPanel.SetDock(reload, Dock.Right);
-            header.Children.Add(reload);
+            DockPanel.SetDock(refresh, Dock.Right);
+            header.Children.Add(refresh);
             header.Children.Add(new TextBlock
             {
                 Text = "RevitGPT", Foreground = Brushes.White,
@@ -67,10 +69,11 @@ namespace RevitGPT.Native
 
             Content = grid;
             Loaded += (sender, args) => { _ = InitializeBrowserAsync(); };
-            reload.Click += (sender, args) =>
+            refresh.Click += (sender, args) =>
             {
-                if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Reload();
-                else _ = InitializeBrowserAsync();
+                // Never recreate the ChatGPT session to retry bridge startup.
+                _requestBridgeRetry();
+                _status.Text = "Native bridge retry requested | Preview (read only)";
             };
         }
 

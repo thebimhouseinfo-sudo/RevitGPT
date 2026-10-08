@@ -33,6 +33,18 @@ internal static class NativeDispatchTests
 
     private static async Task Main()
     {
+        // Retry requests coalesce, never busy-loop after failure, and survive
+        // a user Refresh without requiring a real Revit host.
+        var retry = new BridgeRetryState();
+        True(retry.TryConsume(), "one initial automatic bridge attempt");
+        True(!retry.TryConsume(), "failed startup does not spin on every idle");
+        Parallel.For(0, 64, _ => retry.Request());
+        True(retry.TryConsume(), "concurrent Refresh clicks schedule one retry");
+        True(!retry.TryConsume(), "no duplicate retry after coalescing");
+        retry.Request();
+        True(retry.TryConsume(), "later Refresh can retry a failed startup");
+        True(!retry.TryConsume(), "retry is one-shot until next user action");
+
         // Ten independent callers. None executes Revit action from HTTP thread.
         int raises = 0, executions = 0;
         var queue = new BridgeDispatchQueue(() => { Interlocked.Increment(ref raises); return RaiseOutcome.Accepted; });
