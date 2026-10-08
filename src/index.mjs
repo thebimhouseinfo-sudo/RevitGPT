@@ -15,6 +15,7 @@ import { probeBridgeHealth } from "./bridge-health.mjs";
 import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
 import { PanelPairingRegistry } from "./panel-pairing.mjs";
 import { isLocalPanelRequest } from "./panel-local-guard.mjs";
+import { PANEL_COMPAT_CATALOG, runPanelCompatTool } from "./panel-tool-compat.mjs";
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3300);
@@ -86,6 +87,12 @@ function createServer(sessionKey) {
   // x-openai-subject / x-openai-session string shared across connections.
   let admitted = false;
   const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
+  const panelContext = () => ({
+    admitted, upstreamConnected:revitUpstream.status().connected,
+    authority, panelPairing,
+    nativeBindingStatus:() => fetchNativeBindingStatus(BRIDGE_URL)
+  });
+  const panelCall = (name,args={}) => runPanelCompatTool(name,panelContext(),args);
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
     {
@@ -95,6 +102,7 @@ function createServer(sessionKey) {
         "Only @rg / revitgpt_admission may activate the full Revit MCP when Revit is running.",
         "Revit being ON by itself must not auto-start the full Revit MCP.",
         "Model reads require an explicit bound model and read-only session lease.",
+        "For panel pairing when revitgpt_pair_panel is not exposed by the plugin catalogue, call revitgpt_call with name='revitgpt_pair_panel' and arguments={}. This is a Slim control-plane alias, NOT a Python MCP tool.",
         "Never assume active tab is model authority; native writes remain disabled."
       ].join("\n")
     }
@@ -206,57 +214,25 @@ function createServer(sessionKey) {
     }
   );
 
-  server.registerTool(
-    "revitgpt_pair_panel",
-    {
-      title: "Pair RevitGPT Panel",
-      description: "Create a one-time code for THIS ChatGPT MCP session. Enter the code in the native RevitGPT panel to enable one-click read-only leasing. Do not share publicly.",
-      inputSchema: {}
-    },
-    async () => {
-      if (!admitted || !revitUpstream.status().connected)
-        throw new Error("REVITGPT_ADMISSION_REQUIRED");
-      const challenge = panelPairing.begin(authority);
-      return {
-        content: [{ type:"text", text:"Enter this one-time pairing code in RevitGPT panel: "+challenge.code }],
-        structuredContent:{ status:"PAIRING_PENDING", ...challenge }
-      };
-    }
-  );
+  // Named controls for refreshed clients; the generic proxy below provides
+  // identical session-scoped behavior when the published catalogue is stale.
+  server.registerTool("revitgpt_pair_panel",{
+    title:"Pair RevitGPT Panel",
+    description:"Issue a one-time pairing code for THIS admitted ChatGPT session. Enter the code in the native panel.",
+    inputSchema:{}
+  },async()=>panelCall("revitgpt_pair_panel"));
 
-  server.registerTool(
-    "revitgpt_binding_status",
-    {
-      title: "RevitGPT Model Binding Status",
-      description: "Inspect native model binding and this logical MCP session's read-only lease; never modifies binding.",
-      inputSchema: {}
-    },
-    async () => {
-      const native = await fetchNativeBindingStatus(BRIDGE_URL);
-      return {
-        content: [{ type: "text", text: "Native binding: " + String(native.status) }],
-        structuredContent: { native_binding: native, session_lease: authority.summary() }
-      };
-    }
-  );
+  server.registerTool("revitgpt_binding_status",{
+    title:"RevitGPT Model Binding Status",
+    description:"Inspect native model binding and this logical MCP session's read-only lease.",
+    inputSchema:{}
+  },async()=>panelCall("revitgpt_binding_status"));
 
-  server.registerTool(
-    "revitgpt_lease_bound_model",
-    {
-      title: "Lease Bound Model (Read-Only)",
-      description: "After user binds a model in the panel, explicitly lease it to THIS MCP session for reads; never grants write access.",
-      inputSchema: {}
-    },
-    async () => {
-      if (!admitted || !revitUpstream.status().connected)
-        throw new Error("REVITGPT_ADMISSION_REQUIRED");
-      const lease = await authority.leaseCurrent();
-      return {
-        content: [{ type: "text", text: "Read-only lease: " + lease.bound_title }],
-        structuredContent: { status: "LEASED_READ_ONLY", lease }
-      };
-    }
-  );
+  server.registerTool("revitgpt_lease_bound_model",{
+    title:"Lease Bound Model (Read-Only)",
+    description:"Lease native-bound Revit model for THIS admitted session only; never grants writes.",
+    inputSchema:{}
+  },async()=>panelCall("revitgpt_lease_bound_model"));
 
   server.registerTool(
     "revitgpt_list_tools",
@@ -271,13 +247,16 @@ function createServer(sessionKey) {
       }
       const tools = revitUpstream.cachedTools();
       return {
-        content: [{ type: "text", text: tools.map((tool) => tool.name).join("\n") }],
+        content: [{ type: "text", text: tools.map((tool) => tool.name).join("\n") +
+          "\nSlim panel controls (call through revitgpt_call):\n" +
+          PANEL_COMPAT_CATALOG.map(tool => tool.name).join("\n") }],
         structuredContent: {
           tools: tools.map((tool) => ({
             name: tool.name,
             description: tool.description || null,
             inputSchema: tool.inputSchema || null
-          }))
+          })),
+          slim_control_plane_tools: PANEL_COMPAT_CATALOG
         }
       };
     }
@@ -287,7 +266,7 @@ function createServer(sessionKey) {
     "revitgpt_call",
     {
       title: "Call Revit MCP Tool",
-      description: "Bootstrap generic proxy for invoking one discovered Revit MCP tool. P1 only; named proxies come after real-runtime evidence.",
+      description: "Invoke a discovered Python Revit MCP tool, or Slim control-plane aliases revitgpt_pair_panel, revitgpt_binding_status, revitgpt_lease_bound_model when named tools are not exposed. Call admission first.",
       inputSchema: {
         name: z.string().min(1),
         arguments: z.record(z.string(), z.unknown()).optional()
@@ -297,6 +276,10 @@ function createServer(sessionKey) {
       if (!admitted || !revitUpstream.status().connected) {
         throw new Error("REVITGPT_ADMISSION_REQUIRED");
       }
+      // Compatibility with plugin catalogues that predate P2D controls.
+      // This must run BEFORE Python tool discovery (the control is not in 23).
+      const panelResult = await panelCall(name, args || {});
+      if (panelResult) return panelResult;
       const known = revitUpstream.cachedTools().some((tool) => tool.name === name);
       if (!known) throw new Error("REVIT_MCP_TOOL_NOT_DISCOVERED: " + name);
       const started=Date.now();
