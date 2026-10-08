@@ -45,8 +45,9 @@ namespace RevitGPT.Native
                     binding.Observe(
                         active?.GetHashCode().ToString(CultureInfo.InvariantCulture),
                         active?.Title,
-                        app.Application.Documents.Cast<Document>().Select(d =>
-                            d.GetHashCode().ToString(CultureInfo.InvariantCulture)));
+                        app.Application.Documents.Cast<Document>()
+                            .Where(d => !d.IsLinked && !d.IsFamilyDocument)
+                            .Select(d => d.GetHashCode().ToString(CultureInfo.InvariantCulture)));
                 }
                 if (path == "/binding/status")
                 {

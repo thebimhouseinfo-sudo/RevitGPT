@@ -4,19 +4,12 @@ using Autodesk.Revit.UI;
 
 namespace RevitGPT.Native
 {
-    // A recreated pane must have a newly created browser, never a cached WebView2.
     public sealed class RevitGptPaneProvider : IDockablePaneProvider, IFrameworkElementCreator
     {
-        private readonly Action _requestBridgeRetry;
         private readonly NativeModelBindingState _binding;
-        private readonly NativePanelSession _panelSession;
-
-        public RevitGptPaneProvider(Action requestBridgeRetry, NativeModelBindingState binding,
-            NativePanelSession panelSession)
+        public RevitGptPaneProvider(NativeModelBindingState binding)
         {
-            _requestBridgeRetry = requestBridgeRetry ?? throw new ArgumentNullException(nameof(requestBridgeRetry));
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
-            _panelSession = panelSession ?? throw new ArgumentNullException(nameof(panelSession));
         }
 
         public static readonly DockablePaneId PaneId =
@@ -31,6 +24,6 @@ namespace RevitGPT.Native
             data.VisibleByDefault = true;
         }
 
-        public FrameworkElement CreateFrameworkElement() => new RevitGptPane(_requestBridgeRetry, _binding, _panelSession);
+        public FrameworkElement CreateFrameworkElement() => new RevitGptPane(_binding);
     }
 }

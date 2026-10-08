@@ -15,8 +15,10 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("app.Idling += OnFirstIdle", source)
         self.assertIn("RevitExternalEventAdapter.CreateOnRevitUiThread()", source)
         self.assertIn("new BridgeHttpServer(protocol)", source)
-        self.assertIn("new RevitGptPaneProvider(_retry.Request, _binding, _panelSession)", source)
+        self.assertIn("new RevitGptPaneProvider(_binding)", source)
         self.assertIn("_retry.TryConsume()", source)
+        self.assertIn("!d.IsLinked && !d.IsFamilyDocument", source)
+        self.assertNotIn("NativePanelSession", source)
         # A healthy listener must be left in place, even if Refresh is clicked.
         # Check behavior/early return within the healthy branch, not a brittle
         # one-line spelling of the old no-recovery implementation.

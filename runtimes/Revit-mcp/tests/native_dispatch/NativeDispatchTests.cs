@@ -45,6 +45,34 @@ internal static class NativeDispatchTests
         True(retry.TryConsume(), "later Refresh can retry a failed startup");
         True(!retry.TryConsume(), "retry is one-shot until next user action");
 
+        // Single-model bootstrap is automatic, but never rebinds implicitly.
+        var single = new NativeModelBindingState();
+        single.Observe(null, null, new[] { "A" });
+        True(single.Current.Status == "NOT_BOUND", "no active model cannot bootstrap");
+        single.Observe("A", "Test A", new[] { "A" });
+        True(single.Current.Status == "BOUND_CURRENT" &&
+            single.Current.BoundId == "A" && single.Current.Revision == 1,
+            "one active project is automatically bound");
+        True(single.ReadDenial(null) == null, "single project may be read immediately");
+        single.Observe("A", "Test A", new[] { "A", "B" });
+        True(single.Current.BoundId == "A" && single.Current.Revision == 1,
+            "opening B does not change the binding");
+        single.Observe("B", "Test B", new[] { "A", "B" });
+        True(single.Current.Status == "BOUND_OTHER_ACTIVE" &&
+            single.ReadDenial(null) == "ACTIVE_MODEL_MISMATCH",
+            "different active tab blocks access");
+        single.Observe("B", "Test B", new[] { "B" });
+        True(single.Current.Status == "BOUND_CLOSED" &&
+            single.ReadDenial(null) == "BOUND_MODEL_CLOSED",
+            "closing A never auto-binds sole remaining B");
+        single.Observe("A", "Reopened A", new[] { "A", "B" });
+        True(single.Current.Status == "BOUND_CLOSED",
+            "reopening same runtime id does not resurrect closed authority");
+        single.Observe("B", "Test B", new[] { "A", "B" });
+        True(single.RequestBindCurrent() && single.ConsumePendingBind() &&
+            single.Current.BoundId == "B" && single.Current.Revision == 2,
+            "explicit bind current changes model after close");
+
         // Native panel selection cannot silently bind/rebind on tab changes.
         var binding = new NativeModelBindingState();
         binding.Observe("100", "MAGS", new[] { "100", "200" });

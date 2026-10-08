@@ -10,7 +10,7 @@ const MODEL_READS = new Set([
 ]);
 
 // The control plane, never WebView, reads native model selection.
-// This scoped lease grants READ ONLY: native write routes remain HTTP 501.
+// Every model read checks current binding. Native write routes remain 501.
 export async function fetchNativeBindingStatus(baseUrl, {
   fetchImpl = fetch, idFactory = randomUUID, timeoutMs = 2500
 } = {}) {
@@ -64,19 +64,21 @@ export class SessionModelAuthority {
   async authorize(name, input = {}) {
     if (DIAGNOSTIC.has(name)) return { ...input };
     if (!MODEL_READS.has(name)) throw new Error("NATIVE_MUTATIONS_NOT_ENABLED");
-    if (!this.lease) throw new Error("MODEL_LEASE_REQUIRED");
-    const snapshot = currentBinding(await this.readStatus());
-    const lease = this.lease;
-    if (snapshot.host_instance_id !== lease.host_instance_id ||
-        snapshot.revision !== lease.revision ||
-        snapshot.bound_id !== lease.bound_id) {
-      this.lease = null;
-      throw new Error("MODEL_LEASE_STALE: bind explicitly again");
-    }
     if (input === null || typeof input !== "object" || Array.isArray(input))
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
+    // All admitted MCP sessions have read-only access to the ONE native
+    // bound model. No silent auto-binding here and no write privileges.
+    // Switching to another tab or closing the bound model fails closed.
+    let snapshot;
+    try {
+      snapshot = currentBinding(await this.readStatus());
+    } catch(error) {
+      this.lease = null;
+      throw error;
+    }
     if (input.document_id !== undefined && input.document_id !== snapshot.bound_id)
       throw new Error("DOCUMENT_ID_MISMATCH");
+    this.lease = { ...snapshot }; // status snapshot, not a grant/token
     return { ...input, document_id: snapshot.bound_id };
   }
   clear() { this.lease = null; }

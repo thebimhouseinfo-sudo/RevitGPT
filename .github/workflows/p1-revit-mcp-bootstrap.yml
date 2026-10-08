@@ -52,20 +52,10 @@ jobs:
         run: |
           node scripts/test-revit-upstream-lifecycle.mjs
 
-      - name: Test P2B session-bound read-only model authority
+      - name: Test P2E automatically bound model authority
         shell: pwsh
         run: |
           node scripts/test-model-authority.mjs
-
-      - name: Test one-time panel pairing and strict session ownership
-        shell: pwsh
-        run: |
-          node scripts/test-panel-pairing.mjs
-
-      - name: Test stale plugin catalogue legacy panel control aliases
-        shell: pwsh
-        run: |
-          node scripts/test-panel-tool-compat.mjs
 
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh

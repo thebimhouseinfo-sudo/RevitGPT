@@ -12,8 +12,8 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("IFrameworkElementCreator", provider)
         self.assertIn("data.FrameworkElement = null", provider)
         self.assertIn("data.FrameworkElementCreator = this", provider)
-        self.assertIn("new RevitGptPane(_requestBridgeRetry, _binding, _panelSession)", provider)
-        self.assertIn("public RevitGptPaneProvider(Action requestBridgeRetry, NativeModelBindingState binding,", provider)
+        self.assertIn("new RevitGptPane(_binding)", provider)
+        self.assertIn("public RevitGptPaneProvider(NativeModelBindingState binding)", provider)
         self.assertIn("RegisterDockablePane", host)
         self.assertIn("RevitGptPaneProvider.PaneId", host)
         self.assertNotIn(".Wait()", host)
@@ -25,21 +25,22 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn('"webview", "revit"', source)
         self.assertIn("CoreWebView2Environment.CreateAsync", source)
         self.assertIn("EnsureCoreWebView2Async", source)
-        self.assertIn("Native bridge preview (read only)", source)
-        self.assertIn('Content = "Refresh"', source)
-        self.assertIn("_requestBridgeRetry();", source)
-        self.assertIn('"Bind Current (preview)"', source)
-        self.assertIn('"Lease + Bind Current"', source)
-        self.assertIn('Content = "Pair"', source)
-        self.assertIn('NativePanelPairingClient.PairAsync', source)
-        self.assertIn('NativePanelPairingClient.LeaseAsync', source)
-        self.assertIn('_pendingBindRevision', source)
+        self.assertIn('Content = "Bind Current"', source)
+        self.assertIn('new ToggleButton', source)
+        self.assertIn('Content = "Dark"', source)
+        self.assertIn("CoreWebView2PreferredColorScheme", source)
+        self.assertIn("ZoomFactor = 0.8", source)
+        self.assertIn("Color.FromRgb(180, 83, 9)", source)
+        self.assertIn("Color.FromRgb(253, 224, 71)", source)
         self.assertIn("_binding.RequestBindCurrent()", source)
-        self.assertIn("_bindingTimer.Tick", source)
+        for forbidden in ('Content = "Pair"', 'Content = "Refresh"',
+                          'Text = "RevitGPT"', "NativePanelPairingClient",
+                          "NativePanelSession"):
+            self.assertNotIn(forbidden, source)
         self.assertNotIn("RevitApiRouter.Execute", source)
         self.assertNotIn("CoreWebView2.Reload()", source)
         for forbidden in ("ExecuteScriptAsync", "GetCookiesAsync",
-                          "document.querySelector"):
+                          "document.querySelector", "Lease + Bind Current"):
             self.assertNotIn(forbidden, source)
 
     def test_build_references(self):
