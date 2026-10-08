@@ -174,6 +174,15 @@ function Get-Port8765Owner {
             }
         }
         $pids = @($pids | Sort-Object -Unique)
+        # Independent listener check prevents a localized/changed netstat
+        # output format from silently treating a busy port as free.
+        $listenerPresent = @(
+            [System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners() |
+                Where-Object { $_.Port -eq 8765 }
+        ).Count -gt 0
+        if ($listenerPresent -and $pids.Count -eq 0) {
+            throw "Port 8765 is listening, but netstat owner parsing was inconclusive"
+        }
         $owners = @()
         foreach ($ownerPid in $pids) {
             $owner = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
@@ -235,8 +244,14 @@ try {
             throw "Port 8765 is already occupied; refusing manifest changes."
         }
         Write-Stage "Preflight: checking installed pyRevit bridge extension"
-        if (@(Get-PyRevitBridgeRecords).Count -eq 0) {
+        $installed = @(Get-PyRevitBridgeRecords)
+        if ($installed.Count -eq 0) {
             throw "pyRevit bridge extension was not found; refusing manifest changes."
+        }
+        if (@($installed | Where-Object {
+            $_.startup_source_match -and $_.bridge_source_match -and $_.startup_first_line -eq "#! python3"
+        }).Count -eq 0) {
+            throw "No installed pyRevit bridge matches the source CPython startup/bridge files; refusing manifest changes."
         }
         Write-Stage "Preflight complete. Disabling only verified native manifests"
         $moved = @()
@@ -278,7 +293,7 @@ try {
                     throw "Refusing to overwrite enabled manifest while restoring: $original"
                 }
                 Write-Stage ("Restoring native manifest: " + $original)
-            Move-Item -LiteralPath $disabled -Destination $original
+                Move-Item -LiteralPath $disabled -Destination $original
                 $restored += [pscustomobject]@{ source = $disabled; target = $original }
                 $actions += [pscustomobject]@{
                     action = "restore_native_manifest"
@@ -331,7 +346,9 @@ $evidence = @{
         [string]::IsNullOrWhiteSpace($errorText) -and
         $revitAfter.Count -eq 0 -and
         $enabledNativeCount -eq 0 -and
-        $pyrevit.Count -gt 0 -and
+        @($pyrevit | Where-Object {
+            $_.startup_source_match -and $_.bridge_source_match -and $_.startup_first_line -eq "#! python3"
+        }).Count -gt 0 -and
         $port.checked -and
         -not $port.listening
     )
