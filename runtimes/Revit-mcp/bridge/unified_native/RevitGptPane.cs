@@ -95,6 +95,7 @@ namespace RevitGPT.Native
             _bindingTimer.Tick += (sender, args) => RefreshBindingIndicator();
             Content = grid;
             Loaded += (sender, args) => {
+                NativePaneDiagnostics.Record("wpf_loaded");
                 RefreshBindingIndicator();
                 _bindingTimer.Start();
                 _ = InitializeBrowserAsync();
@@ -179,10 +180,12 @@ namespace RevitGPT.Native
                 _browser.ZoomFactor = 0.8;
                 ApplyTheme();
                 _browser.CoreWebView2.Navigate(ChatUrl);
+                NativePaneDiagnostics.Record("webview_ready");
                 ShowStatus(null);
             }
             catch (Exception error)
             {
+                NativePaneDiagnostics.Record("webview_failed", error: error);
                 ShowStatus("WebView2 unavailable (" + error.GetType().Name +
                     "). Use browser until repaired.");
             }

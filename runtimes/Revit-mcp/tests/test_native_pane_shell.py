@@ -20,7 +20,12 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("uiapp.GetDockablePane(RevitGptPaneProvider.PaneId)", host)
         self.assertIn("if (!pane.IsShown()) pane.Show();", host)
         self.assertIn("_initialPaneShowPending = false;", host)
-        self.assertIn("_initialPaneShowAttempts >= 3", host)
+        self.assertIn("NativePaneStartupPolicy.MaximumAttempts", host)
+        self.assertIn("if (!projectReady)", host)
+        self.assertIn("_paneStartup.ShouldAttempt(projectReady, now)", host)
+        self.assertIn('NativePaneDiagnostics.Record("waiting_for_project")', host)
+        self.assertIn('NativePaneDiagnostics.Record("show_failed"', host)
+        self.assertIn('NativePaneDiagnostics.Record("show_result"', host)
         # Reopening the pane on every Idling tick would override manual hide.
         self.assertEqual(host.count("pane.Show();"), 1)
         self.assertLess(host.index("TryShowInitialPane(uiapp);"),
@@ -33,6 +38,9 @@ class NativePaneShellTests(unittest.TestCase):
         source = (ROOT / "RevitGptPane.cs").read_text(encoding="utf-8")
         self.assertIn("https://chatgpt.com/", source)
         self.assertIn('"webview", "revit"', source)
+        self.assertIn('NativePaneDiagnostics.Record("wpf_loaded")', source)
+        self.assertIn('NativePaneDiagnostics.Record("webview_ready")', source)
+        self.assertIn('NativePaneDiagnostics.Record("webview_failed"', source)
         self.assertIn("CoreWebView2Environment.CreateAsync", source)
         self.assertIn("EnsureCoreWebView2Async", source)
         self.assertIn('Content = "Bind Current"', source)

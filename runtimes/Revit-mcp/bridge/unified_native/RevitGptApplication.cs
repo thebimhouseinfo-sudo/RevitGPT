@@ -24,11 +24,13 @@ namespace RevitGPT.Native
         // show once at startup; never force it back after user closes it.
         private bool _paneRegistered;
         private bool _initialPaneShowPending;
-        private int _initialPaneShowAttempts;
+        private readonly NativePaneStartupPolicy _paneStartup = new NativePaneStartupPolicy();
+        private bool _waitingForFirstProjectLogged;
 
         public Result OnStartup(UIControlledApplication app)
         {
             _application = app;
+            NativePaneDiagnostics.Record("startup");
             try
             {
                 // WPF pane lifetime never owns or blocks the native listener.
@@ -36,9 +38,11 @@ namespace RevitGPT.Native
                     new RevitGptPaneProvider(_binding));
                 _paneRegistered = true;
                 _initialPaneShowPending = true;
+                NativePaneDiagnostics.Record("registered");
             }
             catch (Exception error)
             {
+                NativePaneDiagnostics.Record("register_failed", error: error);
                 Debug.WriteLine("[RevitGPT] Pane unavailable: " + error);
             }
             app.Idling += OnFirstIdle;
@@ -107,33 +111,51 @@ namespace RevitGPT.Native
 
         private void TryShowInitialPane(UIApplication uiapp)
         {
-            if (!_paneRegistered || !_initialPaneShowPending) return;
-            // Called from a real Revit UI callback, not from OnStartup,
-            // WPF, WebView2, an HTTP listener, or a background thread.
-            ++_initialPaneShowAttempts;
+            if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;
+            // The Revit Home screen (zero-document state) cannot reliably
+            // display dockable panes. Waiting here does NOT consume attempts.
+            var active = uiapp.ActiveUIDocument?.Document;
+            bool projectReady = active != null && !active.IsFamilyDocument && !active.IsLinked;
+            if (!projectReady)
+            {
+                if (!_waitingForFirstProjectLogged)
+                {
+                    _waitingForFirstProjectLogged = true;
+                    NativePaneDiagnostics.Record("waiting_for_project");
+                }
+                return;
+            }
+            var now = DateTimeOffset.UtcNow;
+            if (!_paneStartup.ShouldAttempt(projectReady, now)) return;
+            _paneStartup.ReportAttempt(now);
             try
             {
                 var pane = uiapp.GetDockablePane(RevitGptPaneProvider.PaneId);
-                if (!pane.IsShown()) pane.Show();
-                // Stop retrying after success. A manual hide must STAY hidden.
-                if (pane.IsShown())
+                bool shownBefore = pane.IsShown();
+                NativePaneDiagnostics.Record("show_attempt",
+                    "attempt=" + _paneStartup.Attempts + "; before=" + shownBefore);
+                if (!shownBefore) pane.Show();
+                bool shownAfter = pane.IsShown();
+                NativePaneDiagnostics.Record("show_result",
+                    "attempt=" + _paneStartup.Attempts + "; after=" + shownAfter +
+                    "; already_tabbed_or_visible=" + shownBefore);
+                if (shownAfter)
                 {
                     _initialPaneShowPending = false;
-                    Debug.WriteLine("[RevitGPT] Dockable panel visible on startup.");
-                    return;
+                    _paneStartup.ReportShown();
+                    return; // Do not re-show after user manually closes the pane.
                 }
-                Debug.WriteLine("[RevitGPT] Dockable panel was not visible after Show.");
             }
             catch (Exception error)
             {
-                // A temporarily unavailable UI may recover on another Idling
-                // tick; permanent registration errors must not retry forever.
+                NativePaneDiagnostics.Record("show_failed",
+                    "attempt=" + _paneStartup.Attempts, error);
                 Debug.WriteLine("[RevitGPT] Startup pane Show failed: " + error);
             }
-            if (_initialPaneShowAttempts >= 3)
+            if (_paneStartup.Attempts >= NativePaneStartupPolicy.MaximumAttempts)
             {
                 _initialPaneShowPending = false;
-                Debug.WriteLine("[RevitGPT] Startup pane Show retries exhausted.");
+                NativePaneDiagnostics.Record("show_exhausted", "after project was opened");
             }
         }
 

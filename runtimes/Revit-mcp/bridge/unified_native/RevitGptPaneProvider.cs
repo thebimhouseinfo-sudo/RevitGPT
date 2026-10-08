@@ -24,6 +24,20 @@ namespace RevitGPT.Native
             data.VisibleByDefault = true;
         }
 
-        public FrameworkElement CreateFrameworkElement() => new RevitGptPane(_binding);
+        public FrameworkElement CreateFrameworkElement()
+        {
+            NativePaneDiagnostics.Record("element_create");
+            try
+            {
+                var pane = new RevitGptPane(_binding);
+                NativePaneDiagnostics.Record("element_created");
+                return pane;
+            }
+            catch (Exception error)
+            {
+                NativePaneDiagnostics.Record("element_create_failed", error: error);
+                throw;
+            }
+        }
     }
 }

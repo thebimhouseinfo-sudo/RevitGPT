@@ -129,6 +129,37 @@ internal static class NativeDispatchTests
         True(new NativeModelBindingState().Current.HostInstanceId != instance,
             "restarted host rotates instance identifier");
 
+        // Revit launches in Home with zero project documents. This does
+        // not consume show attempts; first project must still auto-display.
+        var paneStartup = new NativePaneStartupPolicy();
+        var paneStart = DateTimeOffset.Parse("2026-10-08T10:00:00Z");
+        for (int i = 0; i < 120; ++i)
+            True(!paneStartup.ShouldAttempt(false, paneStart.AddSeconds(i)),
+                "zero-document Home must not attempt a dockable Show");
+        True(paneStartup.Attempts == 0 && paneStartup.Pending,
+            "Home waiting preserves full startup show budget");
+        True(paneStartup.ShouldAttempt(true, paneStart.AddMinutes(3)),
+            "opening first RVT enables panel Show");
+        paneStartup.ReportAttempt(paneStart.AddMinutes(3));
+        True(!paneStartup.ShouldAttempt(true, paneStart.AddMinutes(3).AddSeconds(2)),
+            "avoid repeated Show every Idling callback");
+        True(paneStartup.ShouldAttempt(true, paneStart.AddMinutes(3).AddSeconds(3)),
+            "retry after 3 seconds if Revit layout is still initializing");
+        var paneTime = paneStart.AddMinutes(4);
+        while (paneStartup.ShouldAttempt(true, paneTime))
+        {
+            paneStartup.ReportAttempt(paneTime);
+            paneTime = paneTime.AddSeconds(3);
+        }
+        True(paneStartup.Attempts == NativePaneStartupPolicy.MaximumAttempts &&
+            !paneStartup.ShouldAttempt(true, paneTime.AddHours(1)),
+            "failed startup retries stop at a fixed maximum");
+        var paneSuccess = new NativePaneStartupPolicy();
+        paneSuccess.ReportAttempt(paneStart);
+        paneSuccess.ReportShown();
+        True(!paneSuccess.Pending && !paneSuccess.ShouldAttempt(true, paneStart.AddHours(1)),
+            "manual hide after successful startup remains respected");
+
         // Recovery after a stopped listener never spins at Idling frequency.
         var recovery = new NativeBridgeRecoveryPolicy();
         var t0 = DateTimeOffset.Parse("2026-10-08T00:00:00Z");
