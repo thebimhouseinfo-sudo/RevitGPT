@@ -6,6 +6,10 @@ on:
       - work/J-AFC4-p1-revit-mcp-bootstrap
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   bootstrap-check:
     runs-on: windows-latest
@@ -60,7 +64,22 @@ jobs:
       - name: Test bounded E-PY host preflight, rollback and red controls
         shell: pwsh
         run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/test-e-py-host-baseline.ps1
+          $out = Join-Path $env:RUNNER_TEMP "e-py-host-test.stdout.log"
+          $err = Join-Path $env:RUNNER_TEMP "e-py-host-test.stderr.log"
+          $args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-e-py-host-baseline.ps1"'
+          $proc = Start-Process -FilePath "powershell.exe" -ArgumentList $args -RedirectStandardOutput $out -RedirectStandardError $err -NoNewWindow -PassThru
+          $timedOut = $false
+          try {
+            if (-not $proc.WaitForExit(60000)) {
+              $timedOut = $true
+              try { $proc.Kill() } catch {}
+            }
+          } finally {
+            if (Test-Path -LiteralPath $out) { Get-Content -LiteralPath $out | ForEach-Object { Write-Host $_ } }
+            if (Test-Path -LiteralPath $err) { Get-Content -LiteralPath $err | ForEach-Object { Write-Host $_ } }
+          }
+          if ($timedOut) { throw "E-PY host test watchdog: test exceeded 60 seconds" }
+          if ($proc.ExitCode -ne 0) { throw "E-PY host regression test failed with exit $($proc.ExitCode)" }
 
       - name: Check static native Revit bridge package contract
         shell: pwsh
