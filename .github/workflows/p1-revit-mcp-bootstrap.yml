@@ -149,6 +149,11 @@ jobs:
         run: |
           python -m compileall -q runtimes/Revit-mcp
 
+      - name: Test legacy bridge installer fail-closed
+        shell: powershell
+        run: |
+          ./scripts/test-legacy-bridge-block.ps1
+
       - name: Test unified-native ExternalEvent dispatch concurrency
         shell: pwsh
         run: |

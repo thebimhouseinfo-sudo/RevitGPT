@@ -1,47 +1,10 @@
-$ErrorActionPreference = "Stop"
-
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$addinRoot = Join-Path $repoRoot "runtimes\Revit-mcp\bridge\standalone_addin"
-$source = Join-Path $addinRoot "StartBridgeCommand.cs"
-$project = Join-Path $addinRoot "RevitMCPBridge.csproj"
-$installer = Join-Path $repoRoot "scripts\install-revit-bridge-addin.ps1"
-$hostCheck = Join-Path $repoRoot "scripts\check-revit-bridge-host.ps1"
-
-foreach ($path in @($source,$project,$installer,$hostCheck)) {
-  if (-not (Test-Path $path)) { throw "Missing native bridge artifact: $path" }
-}
-
-$cs = Get-Content $source -Raw
-foreach ($pattern in @(
-  'class BridgeApplication : IExternalApplication',
-  'class StartBridgeCommand : IExternalCommand',
-  'ExternalEvent.Create',
-  'http://127.0.0.1:8765/',
-  'path == "/health"',
-  'path == "/document/active"',
-  'path == "/delete"'
-)) {
-  if ($cs -notmatch [regex]::Escape($pattern)) {
-    throw "Native bridge lost static source marker: $pattern"
-  }
-}
-
-$installerText = Get-Content $installer -Raw
-foreach ($pattern in @(
-  'Autodesk\Revit\Addins',
-  'RevitMCPBridge.addin',
-  'RevitMCPBridge.dll',
-  'cddac4f78278e647c16c2bb79c888dd7adf6f181'
-)) {
-  if ($installerText -notmatch [regex]::Escape($pattern)) {
-    throw "Native bridge installer static contract missing: $pattern"
-  }
-}
-
-$hostText = Get-Content $hostCheck -Raw
-if ($hostText -notmatch 'RevitMCPBridge\.BridgeApplication') {
-  throw "Bridge host check does not recognize the native Revit add-in."
-}
-
-Write-Host "[PASS] STATIC_CONTRACT: native Revit bridge source/package markers are present"
-Write-Host "[INFO] This check does NOT prove Revit runtime/threading behavior."
+$ErrorActionPreference="Stop"
+$root=Split-Path -Parent $PSScriptRoot
+$legacy=Get-Content (Join-Path $root "runtimes\Revit-mcp\bridge\standalone_addin\StartBridgeCommand.cs") -Raw
+if($legacy -notmatch '_pendingMutateAction' -or $legacy -notmatch 'Thread.Sleep'){ throw "Old unsafe source fingerprint drifted; re-review required" }
+$installer=Get-Content (Join-Path $root "scripts\install-revit-bridge-addin.ps1") -Raw
+$run=Get-Content (Join-Path $root "run.bat") -Raw
+if($installer -notmatch '(?m)^throw "LEGACY_UNSAFE_NATIVE_BRIDGE_BLOCKED:' -or $installer -match 'Copy-Item|Invoke-WebRequest|Set-Content'){throw "Old installer not fail closed"}
+if($run -notmatch '\[BLOCKED\] Legacy unsafe RevitMCPBridge' -or $run -notmatch '\[BLOCKED\] Legacy pyRevit bridge retired'){throw "Old run shortcuts not blocked"}
+if(-not (Test-Path (Join-Path $root "runtimes\Revit-mcp\bridge\unified_native\BridgeDispatchQueue.cs"))){throw "Native source missing"}
+Write-Host "[PASS] Unsafe legacy bridge activation is blocked; new native dispatch core tracked."

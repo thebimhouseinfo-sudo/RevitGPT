@@ -69,16 +69,12 @@ call "%~dp0doctor.bat"
 exit /b %ERRORLEVEL%
 
 :syncbridge
-call :preflight
-if errorlevel 1 exit /b 1
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\sync-revit-bridge.ps1"
-exit /b %ERRORLEVEL%
+echo [BLOCKED] Legacy pyRevit bridge retired. Native installer is not released.
+exit /b 3
 
 :installbridge
-call :preflight
-if errorlevel 1 exit /b 1
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\install-revit-bridge-addin.ps1"
-exit /b %ERRORLEVEL%
+echo [BLOCKED] Legacy unsafe RevitMCPBridge installer retired.
+exit /b 3
 
 :uninstall
 call :stop
