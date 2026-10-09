@@ -54,6 +54,18 @@ internal static class NativeDispatchTests
             single.Current.BoundId == "A" && single.Current.Revision == 1,
             "one active project is automatically bound");
         True(single.ReadDenial(null) == null, "single project may be read immediately");
+        single.ObserveUnavailable();
+        True(single.Current.Status == "BOUND_UNVERIFIED" &&
+            single.Current.BoundId == "A" && single.Current.Revision == 1,
+            "enumeration failure retains last confirmed binding without falsely closing it");
+        True(single.ReadDenial(null) == "DOCUMENTS_UNAVAILABLE" &&
+            single.ReadDenial("A") == "DOCUMENTS_UNAVAILABLE" &&
+            !single.RequestBindCurrent(),
+            "unavailable enumeration denies reads and new binding requests");
+        single.Observe("A", "Test A", new[] { "A" });
+        True(single.Current.Status == "BOUND_CURRENT" &&
+            single.ReadDenial(null) == null && single.Current.Revision == 1,
+            "successful enumeration restores same binding without new lease or revision");
         single.Observe("A", "Test A", new[] { "A", "B" });
         True(single.Current.BoundId == "A" && single.Current.Revision == 1,
             "opening B does not change the binding");
@@ -68,6 +80,11 @@ internal static class NativeDispatchTests
         single.Observe("A", "Reopened A", new[] { "A", "B" });
         True(single.Current.Status == "BOUND_CLOSED",
             "reopening same runtime id does not resurrect closed authority");
+        single.ObserveUnavailable();
+        single.Observe("A", "Reopened A", new[] { "A", "B" });
+        True(single.Current.Status == "BOUND_CLOSED" &&
+            single.ReadDenial("A") == "BOUND_MODEL_CLOSED",
+            "temporary enumeration failure cannot resurrect a genuinely closed binding");
         single.Observe("B", "Test B", new[] { "A", "B" });
         True(single.RequestBindCurrent() && single.ConsumePendingBind() &&
             single.Current.BoundId == "B" && single.Current.Revision == 2,
@@ -78,6 +95,11 @@ internal static class NativeDispatchTests
         binding.Observe("100", "MAGS", new[] { "100", "200" });
         True(binding.Current.Status == "NOT_BOUND", "opening a model never auto-binds");
         True(!binding.ConsumePendingBind(), "no click means no bind");
+        True(binding.RequestBindCurrent(), "click queues an explicit target");
+        binding.ObserveUnavailable();
+        binding.Observe("100", "MAGS", new[] { "100", "200" });
+        True(!binding.ConsumePendingBind() && binding.Current.Status == "NOT_BOUND",
+            "enumeration failure discards pending click rather than binding after recovery");
         True(binding.RequestBindCurrent(), "click queues an explicit target");
         binding.Observe("200", "Model B", new[] { "100", "200" });
         True(!binding.ConsumePendingBind() && binding.Current.Status == "NOT_BOUND",

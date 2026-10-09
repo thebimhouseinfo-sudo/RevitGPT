@@ -31,6 +31,8 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("new RevitGptPaneProvider(_binding)", source)
         self.assertIn("_retry.TryConsume()", source)
         self.assertIn("!d.IsLinked && !d.IsFamilyDocument", source)
+        self.assertIn("_binding.ObserveUnavailable();", source)
+        self.assertNotIn("_binding.Observe(null, null, new string[0]);", source)
         self.assertNotIn("NativePanelSession", source)
         # A healthy listener must be left in place, even if Refresh is clicked.
         # Check behavior/early return within the healthy branch, not a brittle

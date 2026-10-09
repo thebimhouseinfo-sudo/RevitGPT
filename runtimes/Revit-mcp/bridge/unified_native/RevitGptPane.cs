@@ -155,15 +155,19 @@ namespace RevitGPT.Native
             _modelName.Text = String.IsNullOrEmpty(snap.BoundTitle)
                 ? "No model bound"
                 : snap.Status == "BOUND_CLOSED" ? "Closed: " + snap.BoundTitle
+                    : snap.Status == "BOUND_UNVERIFIED" ? "Checking: " + snap.BoundTitle
                     : snap.BoundTitle;
             _modelName.ToolTip = snap.Status == "BOUND_OTHER_ACTIVE"
                 ? "Bound: " + snap.BoundTitle + " | Active: " + snap.ActiveTitle
                 : snap.Status == "BOUND_CLOSED"
                     ? "Bound model is closed. Use Bind Current to choose another project."
+                    : snap.Status == "BOUND_UNVERIFIED"
+                    ? "Revit document list temporarily unavailable. Reads are blocked until refreshed."
                     : _modelName.Text;
             Color background, foreground;
             switch (snap.Status)
             {
+                case "BOUND_UNVERIFIED":
                 case "BOUND_OTHER_ACTIVE":
                     background = Color.FromRgb(180, 83, 9);
                     foreground = Colors.White;

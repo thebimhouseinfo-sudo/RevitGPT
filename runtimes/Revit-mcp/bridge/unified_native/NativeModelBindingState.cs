@@ -24,6 +24,7 @@ namespace RevitGPT.Native
         private HashSet<string> _open = new HashSet<string>(StringComparer.Ordinal);
         private string _activeId, _activeTitle, _boundId, _boundTitle, _requestedId;
         private bool _boundLost;
+        private bool _observationUnavailable;
         private long _revision;
 
         public Snapshot Current
@@ -34,6 +35,7 @@ namespace RevitGPT.Native
                 {
                     string status = _boundId == null ? "NOT_BOUND" :
                         _boundLost ? "BOUND_CLOSED" :
+                        _observationUnavailable ? "BOUND_UNVERIFIED" :
                         _activeId == _boundId ? "BOUND_CURRENT" : "BOUND_OTHER_ACTIVE";
                     return new Snapshot
                     {
@@ -56,6 +58,7 @@ namespace RevitGPT.Native
             lock (_gate)
             {
                 _open = open;
+                _observationUnavailable = false;
                 _activeId = !String.IsNullOrWhiteSpace(activeId) && open.Contains(activeId)
                     ? activeId : null;
                 _activeTitle = _activeId == null ? "" : (activeTitle ?? "");
@@ -74,6 +77,20 @@ namespace RevitGPT.Native
             }
         }
 
+        // An enumeration exception is not evidence that the bound model closed.
+        // Preserve the last confirmed binding but deny reads and stale clicks
+        // until a complete, successful observation restores current state.
+        public void ObserveUnavailable()
+        {
+            lock (_gate)
+            {
+                _observationUnavailable = true;
+                _activeId = null;
+                _activeTitle = "";
+                _requestedId = null;
+            }
+        }
+
         // Returns a diagnostic only, never a capability grant. The router
         // performs this validation inside Revit's UI context on EVERY read.
         public string ReadDenial(string requestedId)
@@ -81,7 +98,9 @@ namespace RevitGPT.Native
             lock (_gate)
             {
                 if (_boundId == null) return "MODEL_NOT_BOUND";
-                if (_boundLost || !_open.Contains(_boundId)) return "BOUND_MODEL_CLOSED";
+                if (_boundLost) return "BOUND_MODEL_CLOSED";
+                if (_observationUnavailable) return "DOCUMENTS_UNAVAILABLE";
+                if (!_open.Contains(_boundId)) return "BOUND_MODEL_CLOSED";
                 if (_activeId != _boundId) return "ACTIVE_MODEL_MISMATCH";
                 if (!String.IsNullOrEmpty(requestedId) && requestedId != _boundId)
                     return "DOCUMENT_ID_MISMATCH";
@@ -126,6 +145,7 @@ namespace RevitGPT.Native
                 _boundTitle = null;
                 _requestedId = null;
                 _boundLost = false;
+                _observationUnavailable = false;
                 _open.Clear();
             }
         }

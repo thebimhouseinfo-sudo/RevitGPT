@@ -69,7 +69,7 @@ namespace RevitGPT.Native
             catch (Exception error)
             {
                 Debug.WriteLine("[RevitGPT] Binding observation failed: " + error);
-                _binding.Observe(null, null, new string[0]);
+                _binding.ObserveUnavailable();
             }
             var manualRetry = _retry.TryConsume();
             // A healthy listener must never be replaced by a panel click.
