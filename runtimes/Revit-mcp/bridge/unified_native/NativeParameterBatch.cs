@@ -22,7 +22,7 @@ namespace RevitGPT.Native
             JsonConvert.SerializeObject(new { error = new { code, message } });
         private static string Data(object value) => JsonConvert.SerializeObject(new { data = value });
 
-        private static Parameter Resolve(Element owner, string selector)
+        private static Parameter Resolve(Element owner, string selector, bool requireWritable = true)
         {
             if (String.IsNullOrWhiteSpace(selector) || selector.Length > 128)
                 throw new ArgumentException("Invalid parameter selector.");
@@ -48,8 +48,8 @@ namespace RevitGPT.Native
             if (list.Count != 1)
                 throw new ArgumentException(list.Count == 0 ?
                     "Instance parameter missing." : "Ambiguous parameter name.");
-            if (list[0].IsReadOnly)
-                throw new InvalidOperationException("Parameter is read-only.");
+            if (requireWritable && list[0].IsReadOnly)
+                throw new InvalidOperationException("Target parameter is read-only.");
             return list[0];
         }
 
@@ -136,7 +136,7 @@ namespace RevitGPT.Native
                         if (map == null) throw new ArgumentException("Mapping must be object.");
                         string from = map.Value<string>("source");
                         string to = map.Value<string>("target");
-                        Parameter sourceParameter = Resolve(source, from);
+                        Parameter sourceParameter = Resolve(source, from, requireWritable: false);
                         Parameter targetParameter = Resolve(target, to);
                         if (!sourceParameter.HasValue ||
                             sourceParameter.StorageType != targetParameter.StorageType ||
