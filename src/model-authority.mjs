@@ -4,11 +4,14 @@ const DIAGNOSTIC = new Set([
   "revit_get_runtime_info", "revit_get_active_document", "revit_list_documents"
 ]);
 const MODEL_READS = new Set([
+  "revit_get_selection",
   "revit_list_views", "revit_list_levels", "revit_list_elements",
   "revit_count_elements", "revit_group_elements",
   "revit_get_element", "revit_list_families", "revit_list_family_types",
   "revit_list_system_types", "revit_get_connectors", "revit_list_annotations"
 ]);
+
+const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements"]);
 
 // The control plane, never WebView, reads native model selection.
 // Every model read checks current binding. Native write routes remain 501.
@@ -64,7 +67,7 @@ export class SessionModelAuthority {
   }
   async authorize(name, input = {}) {
     if (DIAGNOSTIC.has(name)) return { ...input };
-    if (!MODEL_READS.has(name)) throw new Error("NATIVE_MUTATIONS_NOT_ENABLED");
+    if (!MODEL_READS.has(name) && !UI_ACTIONS.has(name)) throw new Error("NATIVE_MUTATIONS_NOT_ENABLED");
     if (input === null || typeof input !== "object" || Array.isArray(input))
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
     // All admitted MCP sessions have read-only access to the ONE native
