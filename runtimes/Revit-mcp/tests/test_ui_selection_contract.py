@@ -1,0 +1,50 @@
+"""Offline UI-action contract: no live selection or document changes."""
+import unittest
+from unittest.mock import patch
+from pathlib import Path
+from connection import bridge
+
+BASE = Path(__file__).resolve().parents[1]
+
+
+class UiSelectionContractTests(unittest.TestCase):
+    @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": ["42"], "active_view_id": "3"}})
+    def test_read_selection(self, send):
+        self.assertEqual(bridge.get_selection()["element_ids"], ["42"])
+        send.assert_called_once_with("/ui/selection", payload={}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": [], "active_view_id": "3"}})
+    def test_clear_selection(self, send):
+        self.assertEqual(bridge.set_selection([])["element_ids"], [])
+        send.assert_called_once_with("/ui/selection/set", payload={"element_ids": []}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"shown": 1}})
+    def test_show(self, send):
+        self.assertEqual(bridge.show_elements(["42"])["shown"], 1)
+        send.assert_called_once_with("/ui/show", payload={"element_ids": ["42"]}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_targets_rejected_before_transport(self, send):
+        for ids in (["42", "42"], [""], ["-1"], [0], ["0"], ["12"] * 501, "42"):
+            with self.subTest(ids=ids):
+                with self.assertRaises(ValueError):
+                    bridge.set_selection(ids)
+                with self.assertRaises(ValueError):
+                    bridge.show_elements(ids)
+        with self.assertRaises(ValueError):
+            bridge.show_elements([])
+        send.assert_not_called()
+
+    def test_native_exact_binding_and_ui_guard(self):
+        code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
+        self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)
+        self.assertIn("uidoc.Selection.SetElementIds(ids)", code)
+        self.assertIn("uidoc.ShowElements(ids)", code)
+        self.assertIn("Object.ReferenceEquals(uidoc.Document, doc)", code)
+        self.assertIn("activeView.Id", code)
+        self.assertIn("input.Count > 500", code)
+        self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
+
+
+if __name__ == "__main__":
+    unittest.main()
