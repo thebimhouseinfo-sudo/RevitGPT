@@ -42,7 +42,7 @@ const writeIntent=await callReadOnlyTool({
   authority:session(),ensureReady,invoke
 });
 assert.deepEqual(writeIntent.args,{element_ids:["42"],document_id:"M"},
-  "Node forwards bound write INTENT but never grants permission to commit");
+  "Node forwards writes only for the bound and current model");
 await fail(()=>callReadOnlyTool({name:"revit_create_duct",authority:session(),ensureReady,invoke}),
   "REVIT_MCP_TOOL_NOT_DISCOVERED");
 await fail(()=>callReadOnlyTool({name:"revit_unknown_write",authority:session(),ensureReady,invoke}),
@@ -91,4 +91,4 @@ const legacy=source.replace("await callReadOnlyTool({",
   'if (!admitted || !revitUpstream.status().connected) throw new Error("REVITGPT_ADMISSION_REQUIRED"); await callReadOnlyTool({');
 assert.notEqual(legacy,source);
 assert.ok(legacy.includes("REVITGPT_ADMISSION_REQUIRED"),"negative control identifies regression");
-console.log("[PASS] Fresh MCP sessions can read native-bound model without lease/admission; cold explicit read activates once; mismatches/unknown tools/closed/bridge-off fail closed; Native alone approves write.");
+console.log("[PASS] Fresh MCP sessions can call read and write tools on the bound model without a lease; mismatches/unknown tools/closed/bridge-off fail closed.");
