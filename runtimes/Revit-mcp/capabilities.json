@@ -1349,6 +1349,30 @@
           }
         }
       }
+    },
+    {
+      "id": "revit_trace_mep_system",
+      "description": "Bounded Revit MEP connectivity trace.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "max_nodes": {
+            "type": "integer"
+          },
+          "max_depth": {
+            "type": "integer"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
     }
   ]
 }
