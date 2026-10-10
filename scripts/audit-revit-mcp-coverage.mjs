@@ -24,6 +24,7 @@ export const routeMap = Object.freeze({
   revit_query_elements: ["POST /elements/query"],
   revit_count_elements: ["POST /elements/aggregate"],
   revit_group_elements: ["POST /elements/aggregate"],
+  revit_get_active_view: ["POST /ui/view/active"],
   revit_get_selection: ["POST /ui/selection"],
   revit_set_selection: ["POST /ui/selection/set"],
   revit_show_elements: ["POST /ui/show"],
