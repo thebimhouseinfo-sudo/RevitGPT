@@ -338,10 +338,7 @@ namespace RevitGPT.Native
             if (instance != null) manager = instance.MEPModel?.ConnectorManager;
             var curve = owner as MEPCurve;
             if (curve != null) manager = curve.ConnectorManager;
-            if (manager == null) return Data(new {
-                owner_element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
-                supported = false, connectors = new object[0], complete = true
-            });
+            if (manager == null) return Data(new object[0]);
 
             var connectors = new List<object>();
             foreach (Connector connector in manager.Connectors)
@@ -373,10 +370,7 @@ namespace RevitGPT.Native
                     references
                 });
             }
-            return Data(new {
-                owner_element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
-                supported = true, connectors, complete = true
-            });
+            return Data(connectors);
         }
 
         private static string Annotations(Document doc, JObject payload)
