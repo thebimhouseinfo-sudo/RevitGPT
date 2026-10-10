@@ -599,6 +599,30 @@ def delete_elements(
     return result.get("data", result)
 
 
+def list_sheets(document_id: str | None = None) -> list[dict]:
+    payload = {"document_id": document_id} if document_id else {}
+    return _send_request("/sheets", payload=payload, method="POST")["data"]
+
+
+def list_sheet_viewports(sheet_id: str, document_id: str | None = None) -> list[dict]:
+    payload = {"sheet_id": sheet_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/sheet/viewports", payload=payload, method="POST")["data"]
+
+
+def write_sheet(action: str, properties: dict, document_id: str | None = None) -> dict:
+    if action not in ("create_sheet", "place_viewport", "move_viewport", "remove_viewport"):
+        raise ValueError("Unknown sheet/viewport operation")
+    if not isinstance(properties, dict) or len(properties) > 12:
+        raise ValueError("Invalid sheet properties")
+    payload = {"action": action, **properties}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/sheet/write", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def create_architecture(action: str, properties: dict,
                         document_id: str | None = None) -> dict:
     if action not in ("wall", "level", "grid", "model_line"):
