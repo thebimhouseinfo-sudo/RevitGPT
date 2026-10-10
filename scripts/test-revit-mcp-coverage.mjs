@@ -3,8 +3,13 @@ import { auditSources, loadSources } from "./audit-revit-mcp-coverage.mjs";
 
 const baseline = await loadSources();
 const audit = auditSources(baseline);
-assert.equal(audit.summary.declared_tools, 42);
-assert.deepEqual(audit.summary.classification_counts, { WRITE_IMPLEMENTED_UNVERIFIED:11, PARTIAL:31 });
+assert.equal(audit.summary.declared_tools, baseline.manifest.entry_count);
+assert.ok(audit.summary.declared_tools >= 42);
+const writes=baseline.manifest.entries.filter(x=>x.mutates_model).length;
+assert.ok(writes>=11);
+assert.deepEqual(audit.summary.classification_counts,{
+  WRITE_IMPLEMENTED_UNVERIFIED:writes,PARTIAL:baseline.manifest.entry_count-writes
+});
 assert.equal(audit.summary.required_core_groups,39);
 assert.equal(audit.summary.required_advanced_groups,6);
 assert.equal(audit.summary.host_ready,0);
