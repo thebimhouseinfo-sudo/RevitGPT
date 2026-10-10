@@ -9,9 +9,10 @@ def register(mcp) -> None:
         return get_selection(document_id=document_id)
 
     @mcp.tool()
-    def revit_set_selection(element_ids: list[str], document_id: str = None) -> dict:
-        """Replace selected element IDs (empty list clears). UI only; no model edits."""
-        return set_selection(element_ids, document_id=document_id)
+    def revit_set_selection(element_ids: list[str], document_id: str = None,
+                            mode: str = "replace") -> dict:
+        """Replace/add/remove/clear selected IDs in bound Revit UI, no RVT edits."""
+        return set_selection(element_ids, document_id=document_id, mode=mode)
 
     @mcp.tool()
     def revit_show_elements(element_ids: list[str], document_id: str = None) -> dict:
