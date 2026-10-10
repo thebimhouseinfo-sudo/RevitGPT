@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 49,
+  "entry_count": 50,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -309,6 +309,30 @@
         "elements"
       ],
       "source_tool": "revit_delete_elements",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_format_view",
+      "name": "revit_format_view",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "format view",
+      "summary": "Persistent scale/detail/crop/template/visibility/graphics formatting; Native approved.",
+      "when_to_use": "Apply native Revit view formatting changes.",
+      "tags": [
+        "transform",
+        "copy",
+        "rotate",
+        "type"
+      ],
+      "source_tool": "revit_format_view",
       "execution": "revitgpt_call",
       "mode": "write_approval_required",
       "risk": "blocked",
