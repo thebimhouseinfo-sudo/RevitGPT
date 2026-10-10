@@ -33,8 +33,10 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
     source = Path(path)
     if not source.is_absolute() or source.suffix.lower() != ".dyn":
         raise DynamoPreflightError("Only absolute .dyn paths are accepted")
-    if source.is_symlink():
-        raise DynamoPreflightError("Symlinks are not allowed")
+    # Reject reparse traversal even if it resolves back inside staging.
+    for component in (source, *source.parents):
+        if component.is_symlink() or getattr(component, "is_junction", lambda: False)():
+            raise DynamoPreflightError("Symlink/junction traversal is not allowed")
     source = source.resolve(strict=True)
     if not source.is_relative_to(managed) or not source.is_file():
         raise DynamoPreflightError("File outside the managed staging root")
