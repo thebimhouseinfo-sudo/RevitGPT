@@ -72,6 +72,7 @@ namespace RevitGPT.Native
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
                 if (path == "/ui/view/activate") return ActivateView(app, doc, payload);
+                if (path == "/ui/visibility/temporary") return TemporaryVisibility(app, doc, payload);
                 if (path == "/view/properties") return GetViewProperties(doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
@@ -206,6 +207,48 @@ namespace RevitGPT.Native
             uidoc.ShowElements(ids);
             return Data(new { shown = ids.Count, active_view_id =
                 uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture) });
+        }
+
+        // Temporary visibility changes are Revit view UI state. They still
+        // require a Revit Transaction and must never be marketed as READ.
+        private static string TemporaryVisibility(UIApplication app, Document doc, JObject payload)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound document must be active for temporary visibility.");
+            var view = uidoc.ActiveView;
+            string mode = Token(payload, "mode");
+            if (mode != "hide" && mode != "isolate" && mode != "reset")
+                return Error(400, "mode must be hide, isolate or reset.");
+            var ids = UiElementIds(doc, view, payload);
+            if (mode == "reset" && ids.Count != 0)
+                return Error(400, "reset requires an empty element_ids list.");
+            if (mode != "reset" && ids.Count == 0)
+                return Error(400, "hide/isolate require element_ids.");
+            using (var t = new Transaction(doc, "RevitGPT Temporary Visibility"))
+            {
+                t.Start();
+                try
+                {
+                    if (mode == "hide") view.HideElementsTemporary(ids);
+                    if (mode == "isolate") view.IsolateElementsTemporary(ids);
+                    if (mode == "reset" &&
+                        view.IsTemporaryHideIsolateActive())
+                        view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate);
+                    t.Commit();
+                }
+                catch
+                {
+                    if (t.GetStatus() == TransactionStatus.Started) t.RollBack();
+                    throw;
+                }
+            }
+            return Data(new {
+                mode,
+                count = ids.Count,
+                view_id = view.Id.Value.ToString(CultureInfo.InvariantCulture),
+                temporary_hide_isolate_active = view.IsTemporaryHideIsolateActive()
+            });
         }
 
         private static string ActivateView(UIApplication app, Document doc, JObject payload)
