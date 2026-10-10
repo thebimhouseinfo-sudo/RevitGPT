@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 46,
+  "entry_count": 49,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -775,6 +775,48 @@
       "schema_source": "live_mcp_tools_list"
     },
     {
+      "id": "mcp.revit_list_sheet_viewports",
+      "name": "revit_list_sheet_viewports",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.view",
+      "title": "list sheet viewports",
+      "summary": "Read exact sheet and viewport inventory.",
+      "when_to_use": "Work with Revit sheets and viewports.",
+      "tags": [
+        "views"
+      ],
+      "source_tool": "revit_list_sheet_viewports",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_list_sheets",
+      "name": "revit_list_sheets",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.view",
+      "title": "list sheets",
+      "summary": "Read exact sheet and viewport inventory.",
+      "when_to_use": "Work with Revit sheets and viewports.",
+      "tags": [
+        "views"
+      ],
+      "source_tool": "revit_list_sheets",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
       "id": "mcp.revit_list_system_types",
       "name": "revit_list_system_types",
       "kind": "tool",
@@ -815,6 +857,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_manage_sheet",
+      "name": "revit_manage_sheet",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "manage sheet",
+      "summary": "Guarded sheet/viewport create/move/remove.",
+      "when_to_use": "Work with Revit sheets and viewports.",
+      "tags": [
+        "transform",
+        "copy",
+        "rotate",
+        "type"
+      ],
+      "source_tool": "revit_manage_sheet",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
