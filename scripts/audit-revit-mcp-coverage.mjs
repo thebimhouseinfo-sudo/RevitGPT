@@ -37,6 +37,7 @@ export const routeMap = Object.freeze({
   revit_list_system_types: ["POST /system/types"],
   revit_get_connectors: ["POST /element/connectors"],
   revit_list_mep_systems: ["POST /mep/systems"],
+  revit_trace_mep_system: ["POST /mep/trace"],
   revit_quantity_takeoff: ["POST /mep/quantities"],
   revit_summarize_equipment: ["POST /mep/quantities"],
   revit_query_spatial_and_warnings: ["POST /model/spatial-warnings"],
