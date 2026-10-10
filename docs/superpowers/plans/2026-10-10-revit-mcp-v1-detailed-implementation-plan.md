@@ -10,6 +10,21 @@ Parent: docs/superpowers/plans/2026-10-10-revit-mcp-v1-implementation-only.md.
 Superseded historical source: docs/superpowers/plans/2026-10-10-full-bim-mcp-v1-implementation-plan.md.
 This document adds executable tasks, dependencies, test design, file ownership, acceptance gates and release rules; it does not authorize runtime writes, installed-binary changes or production model mutations.
 
+## 0. Delivery policy — ONE consolidated Human Acceptance Test (approved 2026-10-10)
+
+User decision: Implement the entire agreed V1 Revit MCP tool surface on the ONE development branch, then request a SINGLE consolidated Human Acceptance Test (HAT) on disposable Revit 2024 fixtures. No human test after individual tools, batches or checkpoints.
+
+- **Developer/CI work continues at every batch:** unit tests, mocks with explicit limits, negative controls, native .NET build, static schema/route parity, security analysis, model-safe automated simulation and independent code/test reviews. A failing automation gate must be repaired before dependent development proceeds. This is NOT a ban on automated testing.
+- **NO intermittent human-host test requests:** no requests to close Revit, manually reinstall the add-in, switch project, click the panel or validate one tool after each code batch. No mutation/experimental run on the currently bound production RVT.
+- **ONE release candidate:** build and freeze all required 39 CORE and 6 ADVANCED* groups, all R/U/W/X/L admission paths and E01–E09 workflows first. Track each capability as IMPLEMENTED_OFFLINE / VERIFIED_AUTOMATED / HOST_TEST_PENDING; do not set READY merely because offline CI passed.
+- **HAT prep:** run static, integration, simulated-native, security and full regression suites to PASS; compile a new immutable Native add-in version; prepare one install/rollback PowerShell command set, isolated R0–R7 test models including .dyn safe graph, frozen HAT script, expected results and capture templates. Independent Reviewer verifies the package before HAT.
+- **Single Human Test session:** only after RC freeze ask human to close Revit once, install candidate once, and run E01–E09 end-to-end on approved disposable models. Collect all readback, UI screenshot, mutation rollback, no-run Dynamo, latency and recovery evidence in one campaign. If failures surface, repair in branch and do one consolidated RC regression/retest campaign instead of piecemeal tool-by-tool requests.
+- **Security never bypassed for convenience:** Native must enforce model binding, one-time per-operation write authorization, Transactions, delete dependency preview and fail closed; .dyn load must not execute. Dry-run and approval are still required within workflows when applicable.
+- **New release gate:** before HAT status is RC_READY_FOR_HUMAN (NOT HOST_TESTED/READY). After complete HAT + Reviewer verification tools may transition READY and main merge can be proposed separately. An offline CI PASS alone never authorizes mutation or release.
+- **Batch gates:** progress based on automated evidence and Reviewer signoff; references below to 'host proof required to advance' are superseded for sequencing only. Host evidence remains mandatory for FINAL release and occurs at the single HAT. Do not hide pending host evidence or claim a check was already performed.
+
+This delivery policy supersedes earlier instructions in this document that schedule a host test or Human approval after each tool/checkpoint. It does not weaken functional scope, fail-closed behavior, or HAT release criteria.
+
 ## 1. Goal, scope and delivery contract
 
 Deliver a practical, production-oriented Revit API tool subsystem consumed by RevitGPT Brain. V1 must reliably answer placed-element queries, parameters, MEP topology, quantity summaries and everyday BIM information; safely perform selected changes on approved work/disposable RVT; and expose honest capability metadata and evidence.
@@ -241,7 +256,7 @@ B02 — Live read-only baseline and boot regression:
 Files: new docs/evidence/revit-mcp-v1/MCP-0-host-report.md; existing bridge/native tests.
 Acceptance: meaningful host evidence OR mark HOST_TEST_BLOCKED with the precise unmet condition; never misreport host pass.
 
-MCP-0 GATE: Reviewer independently inspects source-to-native audit generator, target CORE/ADVANCED* coverage validation AND tests; 23/23 current tools truthfully classified and all mandatory planned capabilities mapped; existing P2C/P2E/binding/install regressions pass offline; live-host gaps explicitly tracked. No write permissions change.
+MCP-0 DEV GATE: Reviewer inspects audit generator, CORE/ADVANCED* coverage validation and tests; declared tools truthfully classified and target mapped, offline regressions pass; host observations are tracked as HOST_TEST_PENDING until one final HAT. No write permission change.
 
 ### MCP-1 — Model reads, parameters, fast aggregate (B03–B06)
 
@@ -274,7 +289,7 @@ B06 — Links, relationship and geometry read summaries:
 Suggested names: revit_get_geometry_summary, revit_get_element_relationships and read-only linked-model query.
 Acceptance: R0/R2 unit, origin and links reconcile; cross-document refusal and unsupported values are testable.
 
-MCP-1 GATE: Stable count/parameter/aggregate AND B06S selection/UI_ACTION host evidence, high-volume regression, type-vs-instance proof and snapshot/units contract. Reviewer validates both implementation and test quality before READY transitions.
+MCP-1 DEV GATE: automated count/parameter/aggregate/selection/UI-action tests and negative controls PASS; real host verification is batched into final HAT, so status remains HOST_TEST_PENDING. Reviewer validates both implementation and test quality before READY transitions.
 
 ### MCP-2 — Deterministic MEP reads (B07–B09)
 
@@ -465,8 +480,8 @@ Necessary V1 outcomes:
 - E01–E09 live Revit 2024 workflows PASS with before/after proof, negative controls, trace and screenshots where required; correlated performance/recovery evidence and working installed UI/binding show no regression;
 - independent Tester and Reviewer verification including live Revit readback; release rollback ready.
 
-HOLD before enabling first mutation: B10 review and host security proof.
-HOLD before declaring MCP-1 or MCP-2 READY: real host fixtures, not mocked output.
+HOLD before enabling mutation in a production or user model: B10 security approval AND the final consolidated HAT; development fixtures can exercise safely isolated automated simulations under reviewed harness only.
+HOLD before declaring MCP-1 or MCP-2 READY: the consolidated final HAT must prove the real-host fixtures; interim development uses IMPLEMENTED_OFFLINE/VERIFIED_AUTOMATED/HOST_TEST_PENDING.
 HOLD before merging main: MCP-5 full release gate + user release approval.
 HOLD on Revit disconnected: code/test may proceed offline, host-tested status remains blocked.
 
@@ -476,7 +491,7 @@ Start B00/B01 under MCP-0, in that order:
 1. Pin current source and test inventory, create tool coverage schema and test-classified fixture catalog.
 2. Build two matrices: truthful CURRENT 23-tool source-to-native state, and full TARGET CORE + six ADVANCED* rows in §4A; missing tools stay PLANNED/BLOCKED until host evidence.
 3. Fix inaccurate existing tool descriptions; write negative controls distinguishing fake-bridge responses and native implementation.
-4. Run full offline regression; request real Revit 2024 host access only for B02, with no write operations.
+4. Run full offline regression and record B02 as HOST_TEST_PENDING; defer all Human/Revit host interaction to the single final HAT campaign.
 5. Review the current revision-2 plan against all nine CR findings before implementation; then freeze the CORE/A* tool contracts, U/W/X/L enforcement and R5/R6/R7 fixtures in MCP-0. Record Reviewer verdict on MCP-0 evidence before MCP-1 feature work.
 
 This plan is a planning document only. No source runtime functionality, installation, binding or production RVT is modified by its creation.
