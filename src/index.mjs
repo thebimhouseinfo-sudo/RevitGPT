@@ -104,6 +104,8 @@ function createServer(sessionKey) {
         "Each model operation, including writes, verifies native binding and requires the bound model to be active.",
         "P2E removed revitgpt_pair_panel and revitgpt_lease_bound_model. These old commands MUST NOT be used, even if an old connector description mentions them.",
         "To count Levels use revitgpt_call with name='revit_list_levels' and arguments={}. No manual pairing or lease.",
+        "For the current Revit tab/view, call revitgpt_call(name='revit_get_active_view', arguments={}) first; do not infer current view from view names, old IDs or the last duplicated view.",
+        "For temporary hide/isolate in the active view, use revit_temporary_visibility with category='duct' (includes fittings/accessories) or element_ids and optionally the freshly read view_id; reset restores temporary visibility.",
         "CadGPT-style fake CLI commands: rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Route command text through revitgpt_command or revitgpt_call with name='rg/...'. CLI is discovery ONLY.",
         "Never assume active tab alone is model authority; writes require exact bound/current model identity."
       ].join("\n")
