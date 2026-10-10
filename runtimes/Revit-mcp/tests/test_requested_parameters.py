@@ -84,6 +84,25 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("complete = true", code)
         self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
 
+    @patch.object(bridge, "_send_request", return_value={"data": [{"id": "400", "name": "SA-1", "kind": "duct", "member_count": 8}]})
+    def test_actual_system_instances_transport(self, send):
+        systems = bridge.get_mep_systems(kind="duct")
+        self.assertEqual(systems[0]["member_count"], 8)
+        send.assert_called_once_with("/mep/systems", payload={"kind": "duct"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_system_kind_never_sends(self, send):
+        with self.assertRaises(ValueError):
+            bridge.get_mep_systems(kind="electrical")
+        send.assert_not_called()
+
+    def test_native_system_instances_not_type_inventory(self):
+        code = NATIVE.read_text(encoding="utf-8")
+        self.assertIn("private static string MepSystems(Document doc, JObject payload)", code)
+        self.assertIn("OfClass(typeof(MechanicalSystem))", code)
+        self.assertIn("OfClass(typeof(PipingSystem))", code)
+        self.assertIn("member_count = sys.Elements.Size", code)
+
     def test_connector_handler_still_requires_host_qa(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("private static string Connectors(Document doc, JObject payload)", code)
