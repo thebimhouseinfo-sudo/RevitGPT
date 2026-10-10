@@ -147,6 +147,7 @@ namespace RevitGPT.Native
                     return Data(types);
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
+                if (path == "/annotation/get") return GetAnnotation(doc, payload);
                 if (path == "/annotation/get") return ReadAnnotation(doc, payload);
                 if (path == "/annotation/update") return NativeAnnotationEdit.Execute(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
@@ -1145,6 +1146,32 @@ namespace RevitGPT.Native
                 },
                 dimension_value_internal_feet = dimension == null ? (double?)null : dimension.Value,
                 dimension_value_display = dimension?.ValueString
+            });
+        }
+
+        private static string GetAnnotation(Document doc, JObject payload)
+        {
+            long? id = LongNumber(payload, "element_id");
+            if (!id.HasValue || id.Value <= 0) return Error(400, "element_id required.");
+            var element = doc.GetElement(new ElementId(id.Value));
+            if (element == null) return Error(404, "Annotation not found.");
+            var note = element as TextNote;
+            var tag = element as IndependentTag;
+            var dimension = element as Dimension;
+            if (note == null && tag == null && dimension == null)
+                return Error(422, "Unsupported annotation type.");
+            return Data(new {
+                element_id = element.Id.Value.ToString(CultureInfo.InvariantCulture),
+                kind = note != null ? "text" : tag != null ? "tag" : "dimension",
+                view_id = element.OwnerViewId.Value.ToString(CultureInfo.InvariantCulture),
+                type_id = element.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
+                text = note?.Text, has_leader = tag == null ? (bool?)null : tag.HasLeader,
+                tag_head = tag == null ? null : new {
+                    x = tag.TagHeadPosition.X, y = tag.TagHeadPosition.Y,
+                    z = tag.TagHeadPosition.Z, unit = "revit_internal_feet"
+                },
+                dimension_value_internal_feet = dimension == null ? (double?)null : dimension.Value,
+                pinned = element.Pinned, complete = true
             });
         }
 
