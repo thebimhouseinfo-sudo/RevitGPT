@@ -84,6 +84,12 @@ class RouteParityTests(unittest.TestCase):
         self.assertIn('if (requireWritable && list[0].IsReadOnly)', batch)
         self.assertNotIn('Parameter sourceParameter = Resolve(source, from);', batch)
 
+    def test_create_view_rejects_ambiguous_family_type(self):
+        view_create = (BASE / "bridge" / "unified_native" / "NativeViewCreate.cs").read_text(encoding="utf-8")
+        self.assertIn('view_family_type_id required unless exactly one suitable ViewFamilyType exists.', view_create)
+        self.assertIn('.Where(x => x.ViewFamily == family).Take(2).ToList()', view_create)
+        self.assertNotIn('.FirstOrDefault(x => x.ViewFamily == family)', view_create)
+
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn('"POST /annotation/detail_line"', code)
