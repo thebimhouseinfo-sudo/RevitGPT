@@ -82,17 +82,23 @@ class HostPreviewTests(unittest.TestCase):
         self.assertNotIn("Document", listener)
         self.assertNotIn("ExternalEvent.Create", listener)
 
-    def test_writes_fail_closed_until_live_mutation_fixture(self):
+    def test_writes_require_native_approval_and_fixture_boundary(self):
         source = ROUTER.read_text(encoding="utf-8")
+        authority = (BASE / "bridge" / "unified_native" / "NativeWriteAuthority.cs").read_text(encoding="utf-8")
+        pane = (BASE / "bridge" / "unified_native" / "RevitGptPane.cs").read_text(encoding="utf-8")
         self.assertIn("if (BridgeHttpProtocol.IsWrite(path))", source)
-        self.assertIn("return Error(501,", source)
+        self.assertIn("writeAuthority.DenialOrConsume(", source)
+        self.assertIn("ApproveFromNativePane(", authority)
+        self.assertIn("IsDisposableFixture(doc)", authority)
+        self.assertIn("LocalApplicationData", authority)
+        self.assertIn("_pending = null; // consume BEFORE Revit API execution", authority)
+        self.assertIn("_writeAuthority.ApproveFromNativePane(_binding.Current)", pane)
+        self.assertNotIn("Native write route not yet validated", source)
         self.assertIn("Int64.Parse", source)
         self.assertIn("NativeDocumentContract.Create(", source)
-        self.assertIn(".Value", source)
         self.assertNotIn("IntegerValue", source)
-        for dangerous in ("new Transaction(", "Transaction.Start(", ".Delete(",
-                          "ElementTransformUtils.MoveElement", "Duct.Create(", "Pipe.Create("):
-            self.assertNotIn(dangerous, source)
+        mutant = source.replace("writeAuthority.DenialOrConsume(", "UnsafeWrite(")
+        self.assertNotIn("writeAuthority.DenialOrConsume(", mutant)
 
 
 if __name__ == "__main__":
