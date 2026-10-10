@@ -144,6 +144,8 @@ namespace RevitGPT.Native
                 if (path == "/model/spatial-warnings") return SpatialWarnings(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 if (path == "/parameter/set") return SetParameter(doc, payload);
+                if (path == "/parameter/batch") return NativeParameterBatch.Execute(doc, payload, false);
+                if (path == "/parameter/copy") return NativeParameterBatch.Execute(doc, payload, true);
                 if (path == "/move") return MoveElement(doc, payload);
                 if (path == "/delete") return DeleteElements(doc, payload);
                 if (path == "/transform") return NativeTransforms.Execute(doc, payload);
