@@ -572,6 +572,27 @@ def delete_elements(
     return result.get("data", result)
 
 
+def create_architecture(action: str, properties: dict,
+                        document_id: str | None = None) -> dict:
+    if action not in ("wall", "level", "grid", "model_line"):
+        raise ValueError("action must be wall, level, grid or model_line")
+    if not isinstance(properties, dict) or not 1 <= len(properties) <= 24:
+        raise ValueError("bounded architectural properties required")
+    allowed = {
+        "wall": {"level_id", "type_id", "height", "start_x", "start_y", "start_z", "end_x", "end_y", "end_z"},
+        "level": {"name", "elevation"},
+        "grid": {"start_x", "start_y", "start_z", "end_x", "end_y", "end_z"},
+        "model_line": {"start_x", "start_y", "start_z", "end_x", "end_y", "end_z", "normal_x", "normal_y", "normal_z"}
+    }
+    if any(key not in allowed[action] for key in properties):
+        raise ValueError("unknown architectural property")
+    payload = {"action": action, **properties}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/architecture/create", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def transform_elements(action: str, element_ids: list[str], *,
                        dx: float = 0, dy: float = 0, dz: float = 0,
                        axis_start: dict | None = None, axis_end: dict | None = None,
