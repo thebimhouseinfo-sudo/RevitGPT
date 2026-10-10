@@ -12,9 +12,15 @@ const MODEL_READS = new Set([
 ]);
 
 const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements", "revit_activate_view", "revit_temporary_visibility", "revit_select_related"]);
+const MODEL_WRITES = new Set([
+  "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
+  "revit_set_parameter", "revit_delete_elements", "revit_move_element",
+  "revit_create_text_note", "revit_create_tag", "revit_create_dimension",
+  "revit_create_spot_elevation", "revit_create_detail_line"
+]);
 
 // The control plane, never WebView, reads native model selection.
-// Every model read checks current binding. Native write routes remain 501.
+// Every model operation checks binding. Native remains the sole issuer of one-shot write grants.
 export async function fetchNativeBindingStatus(baseUrl, {
   fetchImpl = fetch, idFactory = randomUUID, timeoutMs = 2500
 } = {}) {
@@ -67,11 +73,12 @@ export class SessionModelAuthority {
   }
   async authorize(name, input = {}) {
     if (DIAGNOSTIC.has(name)) return { ...input };
-    if (!MODEL_READS.has(name) && !UI_ACTIONS.has(name)) throw new Error("NATIVE_MUTATIONS_NOT_ENABLED");
+    if (!MODEL_READS.has(name) && !UI_ACTIONS.has(name) && !MODEL_WRITES.has(name))
+      throw new Error("MODEL_TOOL_NOT_ALLOWED");
     if (input === null || typeof input !== "object" || Array.isArray(input))
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
-    // All admitted MCP sessions have read-only access to the ONE native
-    // bound model. No silent auto-binding here and no write privileges.
+    // Every session is restricted to the ONE bound model. The Node layer may
+    // forward write INTENT, but CANNOT approve or authorize native writes.
     // Switching to another tab or closing the bound model fails closed.
     let snapshot;
     try {
