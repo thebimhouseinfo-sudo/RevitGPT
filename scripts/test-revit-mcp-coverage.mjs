@@ -4,7 +4,7 @@ import { auditSources, loadSources } from "./audit-revit-mcp-coverage.mjs";
 const baseline = await loadSources();
 const audit = auditSources(baseline);
 assert.equal(audit.summary.declared_tools, 42);
-assert.deepEqual(audit.summary.classification_counts, { BLOCKED:11, PARTIAL:31 });
+assert.deepEqual(audit.summary.classification_counts, { WRITE_IMPLEMENTED_UNVERIFIED:11, PARTIAL:31 });
 assert.equal(audit.summary.required_core_groups,39);
 assert.equal(audit.summary.required_advanced_groups,6);
 assert.equal(audit.summary.host_ready,0);
@@ -17,7 +17,8 @@ assert.throws(()=>auditSources(mutation({capabilities:{...baseline.capabilities,
 assert.throws(()=>auditSources(mutation({routesSource:baseline.routesSource.replace(
   '"POST \/element\/connectors"', '"POST \/element\/connector-removed"')})), /missing native route contract/);
 assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.replace(
-  "Native write route not yet validated;", "Write enabled somehow;")})), /native write guard removed/);
+  "writeAuthority.DenialOrConsume(", "UNSAFE_WRITE_BYPASS(")})),
+  /native one-time fixture write grant missing/);
 const connectorControl = baseline.nativeSource.replaceAll(
   "foreach (Connector connector in manager.Connectors)", "/* connector collector disabled */");
 assert.notEqual(connectorControl, baseline.nativeSource, "negative control did not change connector reader");
