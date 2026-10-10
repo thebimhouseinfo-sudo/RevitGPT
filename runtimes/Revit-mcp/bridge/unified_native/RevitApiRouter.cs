@@ -180,7 +180,19 @@ namespace RevitGPT.Native
             if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
                 return Error(409, "Bound Revit document must be active for selection.");
             var ids = UiElementIds(doc, uidoc.ActiveView, payload);
-            uidoc.Selection.SetElementIds(ids);
+            string mode = Token(payload, "mode") ?? "replace";
+            if (mode != "replace" && mode != "add" && mode != "remove" && mode != "clear")
+                return Error(400, "mode must be replace, add, remove or clear.");
+            if (mode == "clear" && ids.Count != 0)
+                return Error(400, "clear selection requires empty element_ids.");
+            var selected = new HashSet<ElementId>(uidoc.Selection.GetElementIds());
+            if (mode == "replace") selected = new HashSet<ElementId>(ids);
+            if (mode == "add") selected.UnionWith(ids);
+            if (mode == "remove") selected.ExceptWith(ids);
+            if (mode == "clear") selected.Clear();
+            if (selected.Count > 500)
+                return Error(413, "Resulting selection exceeds 500 IDs.");
+            uidoc.Selection.SetElementIds(selected.ToList());
             return Selection(app, doc);
         }
 
