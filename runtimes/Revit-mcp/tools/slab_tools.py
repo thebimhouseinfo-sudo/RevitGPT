@@ -1,4 +1,4 @@
-"""Simple native floor and ceiling creation with exact one-time approval."""
+"""Simple native floor and ceiling creation on the bound Revit model."""
 from connection.bridge import create_slab
 
 
