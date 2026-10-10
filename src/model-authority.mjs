@@ -13,7 +13,7 @@ const MODEL_READS = new Set([
 
 const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements", "revit_activate_view", "revit_temporary_visibility", "revit_select_related"]);
 const MODEL_WRITES = new Set([
-  "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
+  "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
   "revit_set_parameter", "revit_delete_elements", "revit_move_element",
   "revit_create_text_note", "revit_create_tag", "revit_create_dimension",
   "revit_create_spot_elevation", "revit_create_detail_line"
