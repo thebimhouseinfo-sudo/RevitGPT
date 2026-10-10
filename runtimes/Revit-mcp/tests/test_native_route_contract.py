@@ -69,6 +69,14 @@ class RouteParityTests(unittest.TestCase):
         self.assertIn('connectors = connectorEnvelope["data"]', router)
         self.assertNotIn('Connector readback has not passed host verification.', router)
 
+    def test_native_write_type_and_level_disambiguation(self):
+        writes = (BASE / "bridge" / "unified_native" / "NativeWriteOperations.cs").read_text(encoding="utf-8")
+        self.assertIn('Type selection is ambiguous; provide an exact unique type name.', writes)
+        self.assertIn('level_id required unless the model has exactly one level.', writes)
+        self.assertNotIn('OrderBy(x => x.Id.Value).FirstOrDefault()', writes)
+        self.assertNotIn('OrderBy(x => x.Elevation).FirstOrDefault()', writes)
+        self.assertIn('matches.SingleOrDefault()', writes)
+
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn('"POST /annotation/detail_line"', code)
