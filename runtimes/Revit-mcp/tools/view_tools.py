@@ -1,6 +1,7 @@
 """View and level MCP tools."""
 
 from services.view_service import list_levels, list_views
+from connection.bridge import get_view_properties
 
 
 def register(mcp) -> None:
@@ -25,3 +26,7 @@ def register(mcp) -> None:
         Returns a list of levels with their ID, name, and elevation.
         """
         return list_levels(document_id)
+    @mcp.tool()
+    def revit_get_view_properties(view_id: str, document_id: str = None) -> dict:
+        """Read view presentation properties, scale, template, detail, crop and display style."""
+        return get_view_properties(view_id, document_id=document_id)
