@@ -1544,6 +1544,24 @@
           "action"
         ]
       }
+    },
+    {
+      "id": "revit_load_dyn_file",
+      "description": "Load staged Dynamo graph in forced manual non-executing mode; host QA pending.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
     }
   ]
 }
