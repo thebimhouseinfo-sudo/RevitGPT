@@ -136,6 +136,7 @@ namespace RevitGPT.Native
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 if (path == "/parameter/set") return SetParameter(doc, payload);
                 if (path == "/move") return MoveElement(doc, payload);
+                if (path == "/delete") return DeleteElements(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
             catch (JsonException) { return Error(400, "Invalid JSON payload."); }
@@ -706,6 +707,89 @@ namespace RevitGPT.Native
         // The unconditional write guard above remains in force meanwhile.
         // WRITE-DEV: transaction-backed movement. Activation must wait for
         // the same Native operation-specific authorization as other writes.
+        // WRITE-DEV: deletion previews actual cascading dependencies by
+        // rolling back a trial transaction. Commit requires the precise
+        // affected-ID list acknowledged by the caller, and a separate Native grant.
+        private static string DeleteElements(Document doc, JObject payload)
+        {
+            var list = payload["element_ids"] as JArray;
+            if (list == null || list.Count == 0 || list.Count > 50)
+                return Error(400, "element_ids must contain 1 to 50 IDs.");
+            var requested = new List<ElementId>();
+            var seen = new HashSet<long>();
+            foreach (JToken item in list)
+            {
+                long id;
+                if (item.Type != JTokenType.String ||
+                    !Int64.TryParse(item.Value<string>(), NumberStyles.None,
+                        CultureInfo.InvariantCulture, out id) || id <= 0 || !seen.Add(id))
+                    return Error(400, "Invalid or duplicate deletion target.");
+                Element element = doc.GetElement(new ElementId(id));
+                if (element == null) return Error(404, "Deletion target missing: " + id);
+                requested.Add(element.Id);
+            }
+            bool commitRequested = payload.Value<bool?>("confirm") == true;
+            List<string> acknowledged = null;
+            if (commitRequested)
+            {
+                var proof = payload["acknowledged_affected_ids"] as JArray;
+                if (proof == null || proof.Count == 0 || proof.Count > 2000)
+                    return Error(400, "Confirm requires exact acknowledged_affected_ids.");
+                acknowledged = new List<string>();
+                var seenAffected = new HashSet<string>(StringComparer.Ordinal);
+                foreach (JToken item in proof)
+                {
+                    long parsed;
+                    if (item.Type != JTokenType.String ||
+                        !Int64.TryParse(item.Value<string>(), NumberStyles.None,
+                            CultureInfo.InvariantCulture, out parsed) ||
+                        parsed <= 0 || !seenAffected.Add(parsed.ToString(CultureInfo.InvariantCulture)))
+                        return Error(400, "Invalid or duplicate acknowledged dependency ID.");
+                    acknowledged.Add(parsed.ToString(CultureInfo.InvariantCulture));
+                }
+                acknowledged.Sort(StringComparer.Ordinal);
+            }
+            List<string> affected = null;
+            using (var tx = new Transaction(doc, commitRequested ?
+                "RevitGPT Confirmed Delete" : "RevitGPT Delete Dependency Preview"))
+            {
+                tx.Start();
+                try
+                {
+                    var impacted = doc.Delete(requested);
+                    if (impacted.Count > 2000)
+                        throw new InvalidOperationException("Cascade exceeds 2,000 elements.");
+                    affected = impacted.Select(id => id.Value.ToString(CultureInfo.InvariantCulture))
+                        .OrderBy(id => id, StringComparer.Ordinal).ToList();
+                    if (affected.Count == 0)
+                        throw new InvalidOperationException("No elements deleted.");
+                    if (commitRequested && !affected.SequenceEqual(acknowledged))
+                    {
+                        tx.RollBack();
+                        return Error(409, "Dependent-element set differs from acknowledged preview; no deletion committed.");
+                    }
+                    if (commitRequested)
+                    {
+                        if (tx.Commit() != TransactionStatus.Committed)
+                            return Error(500, "Delete transaction not committed.");
+                    }
+                    else tx.RollBack();
+                }
+                catch
+                {
+                    if (tx.GetStatus() == TransactionStatus.Started) tx.RollBack();
+                    throw;
+                }
+            }
+            return Data(new {
+                requested_ids = requested.Select(id => id.Value.ToString(CultureInfo.InvariantCulture)).ToList(),
+                affected_ids = affected,
+                dependency_count = affected.Count - requested.Count,
+                transaction = commitRequested ? "committed" : "rolled_back",
+                requires_exact_acknowledgement = !commitRequested
+            });
+        }
+
         private static string MoveElement(Document doc, JObject payload)
         {
             long? rawId = LongNumber(payload, "element_id");
