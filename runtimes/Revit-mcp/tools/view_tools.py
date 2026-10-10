@@ -1,10 +1,25 @@
 """View and level MCP tools."""
 
 from services.view_service import list_levels, list_views
-from connection.bridge import get_view_properties
+from connection.bridge import get_view_properties, list_view_filters, manage_view_filters
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_list_view_filters(view_id: str, document_id: str = None) -> dict:
+        """List existing view parameter filters with attached/visibility status."""
+        return list_view_filters(view_id, document_id)
+
+    @mcp.tool()
+    def revit_manage_view_filters(view_id: str, filter_id: str, action: str,
+                                  visible: bool = None, document_id: str = None) -> dict:
+        """Attach/remove/show/hide an existing Revit ParameterFilterElement.
+
+        Creating/editing rule definitions is NOT supported by this handler.
+        Requires exact Native approval on a disposable test RVT.
+        """
+        return manage_view_filters(view_id, filter_id, action, visible, document_id)
+
     @mcp.tool()
     def revit_list_views(document_id: str = None) -> list[dict]:
         """List views in the active or specified Revit document.
