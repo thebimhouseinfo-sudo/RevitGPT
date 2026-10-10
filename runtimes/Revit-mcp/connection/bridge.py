@@ -669,10 +669,24 @@ def create_dimension(
     references: list[dict],
     dimension_type: str | None = None,
     document_id: str | None = None,
+    line_start: dict | None = None,
+    line_end: dict | None = None,
 ) -> dict:
+    if not isinstance(references, list) or not 2 <= len(references) <= 16 or any(
+        not isinstance(r, dict) or not isinstance(r.get("stable_reference"), str)
+        or not r["stable_reference"] for r in references
+    ):
+        raise ValueError("dimension requires 2..16 exact stable geometry references")
+    if not isinstance(line_start, dict) or not isinstance(line_end, dict) or any(
+        key not in obj or type(obj[key]) not in (int, float)
+        for obj in (line_start, line_end) for key in ("x", "y", "z")
+    ):
+        raise ValueError("dimension requires exact start/end XYZ")
     payload: dict[str, Any] = {
         "view_id": view_id,
         "references": references,
+        **{"line_start_" + k: line_start[k] for k in ("x", "y", "z")},
+        **{"line_end_" + k: line_end[k] for k in ("x", "y", "z")},
     }
     if dimension_type:
         payload["dimension_type"] = dimension_type
@@ -696,8 +710,12 @@ def create_spot_elevation(
     end_z: float,
     spot_type: str | None = None,
     document_id: str | None = None,
+    stable_reference: str | None = None,
 ) -> dict:
+    if not isinstance(stable_reference, str) or not stable_reference.strip():
+        raise ValueError("spot elevation requires a stable geometry reference")
     payload: dict[str, Any] = {
+        "stable_reference": stable_reference,
         "view_id": view_id,
         "element_id": element_id,
         "point_x": point_x,
