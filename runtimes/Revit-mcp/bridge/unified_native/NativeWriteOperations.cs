@@ -11,9 +11,8 @@ using Newtonsoft.Json.Linq;
 
 namespace RevitGPT.Native
 {
-    // V1 WRITE DEVELOPMENT handlers. The Native router's blanket 501 remains
-    // until an operation-scoped grant is implemented and verified. Compilation
-    // of these handlers must not be interpreted as authorizing live writes.
+    // Native write handlers are reached only after one-shot pane approval and
+    // disposable-fixture validation in RevitApiRouter. Source is not host proof.
     internal static class NativeWriteOperations
     {
         private static string Data(object obj) => JsonConvert.SerializeObject(new { data = obj });
@@ -50,10 +49,13 @@ namespace RevitGPT.Native
         private static T FindType<T>(Document doc, string requested) where T : Element
         {
             var choices = new FilteredElementCollector(doc).OfClass(typeof(T)).Cast<T>();
-            if (String.IsNullOrWhiteSpace(requested))
-                return choices.OrderBy(x => x.Id.Value).FirstOrDefault();
-            return choices.FirstOrDefault(x => String.Equals(x.Name, requested,
-                StringComparison.OrdinalIgnoreCase));
+            var matches = String.IsNullOrWhiteSpace(requested)
+                ? choices.Take(2).ToList()
+                : choices.Where(x => String.Equals(x.Name, requested,
+                    StringComparison.OrdinalIgnoreCase)).Take(2).ToList();
+            if (matches.Count > 1)
+                throw new ArgumentException("Type selection is ambiguous; provide an exact unique type name.");
+            return matches.SingleOrDefault();
         }
         private static Level ResolveLevel(Document doc, JObject payload)
         {
@@ -67,10 +69,11 @@ namespace RevitGPT.Native
                 if (byId == null) throw new ArgumentException("Level not found.");
                 return byId;
             }
-            var level = new FilteredElementCollector(doc).OfClass(typeof(Level))
-                .Cast<Level>().OrderBy(x => x.Elevation).FirstOrDefault();
-            if (level == null) throw new ArgumentException("No project levels found.");
-            return level;
+            var levels = new FilteredElementCollector(doc).OfClass(typeof(Level))
+                .Cast<Level>().Take(2).ToList();
+            if (levels.Count != 1)
+                throw new ArgumentException("level_id required unless the model has exactly one level.");
+            return levels[0];
         }
         private static string WithTransaction(Document doc, string name, Func<object> work)
         {
