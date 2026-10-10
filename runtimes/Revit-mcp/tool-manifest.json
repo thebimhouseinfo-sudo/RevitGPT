@@ -1,8 +1,32 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 23,
+  "entry_count": 25,
   "entries": [
+    {
+      "id": "mcp.revit_count_elements",
+      "name": "revit_count_elements",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "count elements",
+      "summary": "Count placed elements via native aggregate; no 5,000-list cap.",
+      "when_to_use": "Get exact placed-instance count without enumerating all instances.",
+      "tags": [
+        "elements",
+        "count",
+        "placed",
+        "aggregate"
+      ],
+      "source_tool": "revit_count_elements",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
     {
       "id": "mcp.revit_create_detail_line",
       "name": "revit_create_detail_line",
@@ -285,6 +309,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_group_elements",
+      "name": "revit_group_elements",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "group elements",
+      "summary": "Count placed elements grouped by category, family, type or level via native aggregate.",
+      "when_to_use": "Summarize placed elements by category, family, type or level.",
+      "tags": [
+        "elements",
+        "count",
+        "placed",
+        "aggregate"
+      ],
+      "source_tool": "revit_group_elements",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {
