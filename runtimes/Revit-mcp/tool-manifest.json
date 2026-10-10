@@ -1,8 +1,31 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 28,
+  "entry_count": 29,
   "entries": [
+    {
+      "id": "mcp.revit_activate_view",
+      "name": "revit_activate_view",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "activate view",
+      "summary": "Activate a supported Revit view in the already bound model; no automatic model rebind.",
+      "when_to_use": "Navigate to an existing view ID in the bound Revit model.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_activate_view",
+      "execution": "revitgpt_call",
+      "mode": "ui_action",
+      "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
     {
       "id": "mcp.revit_count_elements",
       "name": "revit_count_elements",
