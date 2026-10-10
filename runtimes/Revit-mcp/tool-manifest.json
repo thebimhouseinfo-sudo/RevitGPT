@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 63,
+  "entry_count": 64,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -433,6 +433,29 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_active_view",
+      "name": "revit_get_active_view",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.view",
+      "title": "get active view",
+      "summary": "Read the live current Revit tab/view of the bound model with its ID, name and temporary hide/isolate state.",
+      "when_to_use": "Before current-view selection, hide/isolate, tag, graphics or view operations; never reuse the last duplicated view ID.",
+      "tags": [
+        "ui",
+        "views",
+        "active"
+      ],
+      "source_tool": "revit_get_active_view",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {
