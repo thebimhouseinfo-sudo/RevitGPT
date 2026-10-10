@@ -340,8 +340,10 @@ Draft only. Promote after validation and real Revit test.
     const p=entry.path || (entry.library_id&&entry.relative_path?path.resolve(jobLibrariesRoot(),entry.library_id,entry.relative_path):null);
     if(!p||!inside(jobLibrariesRoot(),p))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
     const stat=await fs.lstat(p);if(!stat.isFile()||stat.isSymbolicLink())throw new Error("CUSTOM_JOB_INVALID_FILE");
-    const real=await fs.realpath(p);
-    if(!inside(jobLibrariesRoot(),real))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
+    // Windows temp/AppData paths may contain junctions, 8.3 aliases or case
+    // normalization. Compare two canonical paths, not realpath versus raw.
+    const [rootReal,real]=await Promise.all([fs.realpath(jobLibrariesRoot()),fs.realpath(p)]);
+    if(!inside(rootReal,real))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
     const source=await fs.readFile(real,"utf8"); return textResult({entry,source,sha256:sha256(source)});
   }));
 
