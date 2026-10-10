@@ -148,6 +148,7 @@ namespace RevitGPT.Native
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
+                if (path == "/mep/trace") return TraceMep(doc, payload);
                 if (path == "/mep/quantities") return MepQuantities(doc, payload);
                 if (path == "/model/spatial-warnings") return SpatialWarnings(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
@@ -991,6 +992,82 @@ namespace RevitGPT.Native
                         member_count = sys.Elements.Size });
                 }
             return Data(systems);
+        }
+
+        private static ConnectorManager ConnectorManagerFor(Element owner)
+        {
+            var family = owner as FamilyInstance;
+            if (family != null) return family.MEPModel?.ConnectorManager;
+            var curve = owner as MEPCurve;
+            if (curve != null) return curve.ConnectorManager;
+            return null;
+        }
+        private static string TraceMep(Document doc, JObject payload)
+        {
+            long? startId = LongNumber(payload, "element_id");
+            if (!startId.HasValue || startId.Value <= 0)
+                return Error(400, "Starting element_id required.");
+            Element first = doc.GetElement(new ElementId(startId.Value));
+            if (first == null) return Error(404, "Starting MEP element missing.");
+            if (ConnectorManagerFor(first) == null)
+                return Error(400, "Element has no MEP connector manager.");
+            int maxNodes = payload.Value<int?>("max_nodes") ?? 100;
+            int maxDepth = payload.Value<int?>("max_depth") ?? 6;
+            if (maxNodes < 1 || maxNodes > 250 || maxDepth < 0 || maxDepth > 12)
+                return Error(400, "max_nodes 1..250, max_depth 0..12 required.");
+            var queue = new Queue<Tuple<ElementId, int>>();
+            var visited = new HashSet<long>();
+            var nodes = new List<object>();
+            var edges = new HashSet<string>(StringComparer.Ordinal);
+            bool truncated = false;
+            queue.Enqueue(Tuple.Create(first.Id, 0));
+            while (queue.Count != 0)
+            {
+                var current = queue.Dequeue();
+                if (!visited.Add(current.Item1.Value)) continue;
+                if (visited.Count > maxNodes)
+                {
+                    truncated = true;
+                    break;
+                }
+                Element owner = doc.GetElement(current.Item1);
+                if (owner == null) continue;
+                nodes.Add(new {
+                    id = owner.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    category = owner.Category?.Name ?? "",
+                    name = owner.Name, depth = current.Item2
+                });
+                var manager = ConnectorManagerFor(owner);
+                if (manager == null) continue;
+                foreach (Connector connector in manager.Connectors)
+                foreach (Connector reference in connector.AllRefs)
+                {
+                    Element other = reference.Owner;
+                    if (other == null || other.Id == owner.Id || other.Document != doc)
+                        continue;
+                    long a = Math.Min(owner.Id.Value, other.Id.Value);
+                    long b = Math.Max(owner.Id.Value, other.Id.Value);
+                    edges.Add(a.ToString(CultureInfo.InvariantCulture) + ":" +
+                        b.ToString(CultureInfo.InvariantCulture));
+                    if (current.Item2 >= maxDepth)
+                    {
+                        truncated = true;
+                        continue;
+                    }
+                    if (!visited.Contains(other.Id.Value))
+                        queue.Enqueue(Tuple.Create(other.Id, current.Item2 + 1));
+                    if (queue.Count > 5000)
+                        return Error(413, "MEP connector graph expansion exceeded limit.");
+                }
+            }
+            return Data(new {
+                root_id = startId.Value.ToString(CultureInfo.InvariantCulture),
+                nodes,
+                edges = edges.OrderBy(x => x, StringComparer.Ordinal).ToList(),
+                cycle_safe = true,
+                complete = !truncated && queue.Count == 0,
+                truncated
+            });
         }
 
         private static string Connectors(Document doc, JObject payload)
