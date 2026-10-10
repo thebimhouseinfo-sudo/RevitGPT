@@ -9,6 +9,6 @@ def register(mcp) -> None:
         """Set properties/crop/template/visibility/graphics of an existing view.
 
         This is a persistent RVT WRITE, not a UI action. The only editable
-        model in development is a disposable fixture requiring pane approval.
+        model is the currently bound Revit document.
         """
         return format_view(view_id, action, properties, document_id)
