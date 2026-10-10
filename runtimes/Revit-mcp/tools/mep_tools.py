@@ -119,11 +119,11 @@ def register(mcp) -> None:
             end_x: End X coordinate in feet.
             end_y: End Y coordinate in feet.
             end_z: End Z coordinate in feet.
-            width: Duct width in feet (default 0.3m ~ 1ft).
-            height: Duct height in feet (default 0.15m ~ 0.5ft).
-            duct_type: Duct type name (e.g., "Default Duct"). Uses project default if not provided.
+            width: Duct width in Revit internal feet (default 0.3 ft, about 91 mm).
+            height: Duct height in Revit internal feet (default 0.15 ft, about 46 mm).
+            duct_type: Duct type name (e.g., "Default Duct"). May omit only if there is exactly one matching type; otherwise requires explicit selection.
             system_type: System type name (e.g., "Supply Air"). Uses project default if not provided.
-            level_id: Optional level ID.
+            level_id: Level ID; required when the model has multiple levels.
             document_id: Optional document ID. Uses active document if not provided.
 
         Returns the created duct element with its ID and properties.
@@ -169,7 +169,7 @@ def register(mcp) -> None:
             end_x: End X coordinate in feet.
             end_y: End Y coordinate in feet.
             end_z: End Z coordinate in feet.
-            diameter: Pipe diameter in feet (default 0.05m ~ 0.164ft).
+            diameter: Pipe diameter in Revit internal feet (default 0.05 ft, about 15 mm).
             pipe_type: Pipe type name (e.g., "Default Pipe"). Uses project default if not provided.
             system_type: System type name (e.g., "Domestic Cold Water"). Uses project default if not provided.
             level_id: Optional level ID.
