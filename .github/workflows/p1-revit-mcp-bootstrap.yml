@@ -72,6 +72,12 @@ jobs:
         run: |
           node scripts/test-capability-registry.mjs
 
+      - name: Audit Revit MCP source coverage and mandatory V1 capability matrix
+        shell: pwsh
+        run: |
+          node scripts/audit-revit-mcp-coverage.mjs
+          node scripts/test-revit-mcp-coverage.mjs
+
       - name: Test RevitGPT fake CLI read-only routing and negative controls
         shell: pwsh
         run: |
