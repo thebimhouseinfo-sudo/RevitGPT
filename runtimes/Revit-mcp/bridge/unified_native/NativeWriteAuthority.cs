@@ -23,6 +23,7 @@ namespace RevitGPT.Native
             public string DocumentTitle;
             public string Route;
             public string Digest;
+            public string Preview;
             public DateTimeOffset ExpiresUtc;
             public bool Approved;
         }
@@ -77,6 +78,25 @@ namespace RevitGPT.Native
             }
         }
 
+        private static string PreviewPayload(JObject payload)
+        {
+            var keys = new[] { "action", "element_id", "element_ids", "parameter",
+                "family", "type", "view_id", "x", "y", "z", "dx", "dy", "dz",
+                "new_type_id", "confirm", "text", "value" };
+            var fields = keys.Where(key => payload[key] != null)
+                .Select(key => {
+                    JToken token = payload[key];
+                    string display = token is JArray array
+                        ? array.Count.ToString(CultureInfo.InvariantCulture) + " item(s)"
+                        : token.ToString(Formatting.None);
+                    display = display.Replace("\r", " ").Replace("\n", " ");
+                    if (display.Length > 60) display = display.Substring(0, 60) + "...";
+                    return key + "=" + display;
+                });
+            string combined = String.Join("; ", fields);
+            return combined.Length > 240 ? combined.Substring(0, 240) + "..." : combined;
+        }
+
         public string PendingDescription
         {
             get
@@ -89,7 +109,7 @@ namespace RevitGPT.Native
                         return null;
                     }
                     return _pending.Route + " | " + _pending.DocumentTitle +
-                        " | " + _pending.Digest.Substring(0, 12);
+                        " | " + _pending.Preview + " | " + _pending.Digest.Substring(0, 12);
                 }
             }
         }
@@ -149,6 +169,7 @@ namespace RevitGPT.Native
                     DocumentTitle = doc.Title,
                     Route = route,
                     Digest = digest,
+                    Preview = PreviewPayload(payload),
                     Approved = false,
                     ExpiresUtc = DateTimeOffset.UtcNow + _ttl
                 };
