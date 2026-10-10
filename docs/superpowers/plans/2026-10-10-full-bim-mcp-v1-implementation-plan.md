@@ -1,3 +1,19 @@
+# SUPERSEDED — historical combined plan
+
+**Do not implement this combined plan as written.** The HUMAN corrected
+architecture on 2026-10-10: RevitGPT is the brain; source Knowledge is
+separate, grouped by revit/, dynamo/, hvac/; Revit MCP is a tool subsystem.
+
+Canonical architecture:
+docs/architecture/REVITGPT_BRAIN_MCP_KNOWLEDGE.md
+
+Revised Revit MCP-only plan:
+docs/superpowers/plans/2026-10-10-revit-mcp-v1-implementation-only.md
+
+---
+
+## Historical draft (retained only for traceability)
+
 # RevitGPT — Full BIM MCP Production Implementation Plan (V1)
 
 Status: IMPLEMENTATION PLAN ONLY. No runtime implementation or write permission change in this commit.
