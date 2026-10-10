@@ -178,9 +178,14 @@ function Probe-ControlPlane([string]$TunnelId,[string]$ApiKey){
 Install-Tunnel
 if($VerifyClient){
   $target=$TunnelVersion.TrimStart("v")
-  $versionLine=& $TunnelExe --version 2>$null | Select-Object -First 1
+  # Consume native process output completely before selecting its first line.
+  # Piping a native CLI directly to Select-Object -First 1 can close stdout
+  # early and cause an intermittent non-zero exit despite valid --version.
+  $versionOutput=@(& $TunnelExe --version 2>$null)
+  $versionExitCode=$LASTEXITCODE
+  $versionLine=$versionOutput | Select-Object -First 1
   . (Join-Path $ScriptDir "scripts\tunnel-version-contract.ps1")
-  if($LASTEXITCODE -ne 0 -or -not (Test-TunnelVersionContract -VersionText ([string]$versionLine) -RequiredVersion $target)){
+  if($versionExitCode -ne 0 -or -not (Test-TunnelVersionContract -VersionText ([string]$versionLine) -RequiredVersion $target)){
     throw "tunnel-client version verification failed. Expected $target, got '$versionLine'"
   }
   Write-Host "[PASS] tunnel-client $target verified."
