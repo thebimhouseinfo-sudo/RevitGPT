@@ -349,8 +349,9 @@ def create_or_duplicate_view(action: str, name: str | None = None,
                              level_id: str | None = None,
                              source_view_id: str | None = None,
                              view_family_type_id: str | None = None,
-                             document_id: str | None = None) -> dict:
-    if action not in ("floor_plan", "ceiling_plan", "isometric_3d", "duplicate"):
+                             document_id: str | None = None,
+                             section_box: dict | None = None) -> dict:
+    if action not in ("floor_plan", "ceiling_plan", "isometric_3d", "section", "duplicate"):
         raise ValueError("Unsupported view creation action")
     values = {"level_id": level_id, "source_view_id": source_view_id,
               "view_family_type_id": view_family_type_id}
@@ -366,6 +367,17 @@ def create_or_duplicate_view(action: str, name: str | None = None,
         raise ValueError("Invalid view name")
     payload = {"action": action}
     payload.update({key: value for key, value in values.items() if value is not None})
+    if action == "section":
+        if not isinstance(section_box, dict) or set(section_box) != {
+            "origin", "basis_x", "basis_y", "basis_z", "min", "max"
+        } or any(not isinstance(section_box[key], dict) or
+                 set(section_box[key]) != {"x", "y", "z"} or
+                 any(type(v) not in (float, int) for v in section_box[key].values())
+                 for key in section_box):
+            raise ValueError("section requires six exact XYZ vectors")
+        payload["section_box"] = section_box
+    elif section_box is not None:
+        raise ValueError("section_box only accepted for section")
     if name is not None:
         payload["name"] = name
     if document_id:
