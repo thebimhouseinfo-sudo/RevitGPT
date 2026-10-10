@@ -332,17 +332,62 @@ namespace RevitGPT.Native
         private static string TemporaryVisibility(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !SameActiveDocument(uidoc, doc))
-                return Error(409, "Bound document must be active for temporary visibility.");
+            if (!SameActiveDocument(uidoc, doc))
+                return Error(409, "Bound Revit document must be active for temporary visibility.");
             var view = uidoc.ActiveView;
+            if (view == null) return Error(404, "No active Revit view.");
+            long? expectedViewId = LongNumber(payload, "view_id");
+            if (expectedViewId.HasValue && expectedViewId.Value != view.Id.Value)
+                return Error(409, "ACTIVE_VIEW_MISMATCH: The current view changed. Refresh revit_get_active_view and retry.");
             string mode = Token(payload, "mode");
             if (mode != "hide" && mode != "isolate" && mode != "reset")
                 return Error(400, "mode must be hide, isolate or reset.");
             var ids = UiElementIds(doc, view, payload);
-            if (mode == "reset" && ids.Count != 0)
-                return Error(400, "reset requires an empty element_ids list.");
+            string category = Token(payload, "category");
+            if (category != null)
+            {
+                if (mode == "reset" || ids.Count != 0 || category.Length > 128 ||
+                    String.IsNullOrWhiteSpace(category))
+                    return Error(400, "category requires hide/isolate and no element_ids.");
+                // Resolve only elements actually visible in the active UI view.
+                // 'duct' includes fittings and accessories; caller need not
+                // guess IDs from a previously duplicated or inactive view.
+                var ductCategories = new HashSet<long> {
+                    (long)BuiltInCategory.OST_DuctCurves,
+                    (long)BuiltInCategory.OST_DuctFitting,
+                    (long)BuiltInCategory.OST_DuctAccessory,
+                    (long)BuiltInCategory.OST_FlexDuctCurves
+                };
+                var pipeCategories = new HashSet<long> {
+                    (long)BuiltInCategory.OST_PipeCurves,
+                    (long)BuiltInCategory.OST_PipeFitting,
+                    (long)BuiltInCategory.OST_PipeAccessory,
+                    (long)BuiltInCategory.OST_FlexPipeCurves
+                };
+                var isDuct = EqualsIgnoreCase(category, "duct") ||
+                    EqualsIgnoreCase(category, "ducts");
+                var isPipe = EqualsIgnoreCase(category, "pipe") ||
+                    EqualsIgnoreCase(category, "pipes");
+                var found = new List<ElementId>();
+                foreach (Element element in new FilteredElementCollector(doc, view.Id)
+                    .WhereElementIsNotElementType())
+                {
+                    if (element.Category == null) continue;
+                    long cid = element.Category.Id.Value;
+                    if (isDuct ? !ductCategories.Contains(cid) :
+                        isPipe ? !pipeCategories.Contains(cid) :
+                        !EqualsIgnoreCase(element.Category.Name, category))
+                        continue;
+                    if (found.Count >= 1000)
+                        return Error(413, "More than 1000 matching elements in current view; narrow the category.");
+                    found.Add(element.Id);
+                }
+                ids = found;
+            }
+            if (mode == "reset" && (ids.Count != 0 || category != null))
+                return Error(400, "reset requires no targets.");
             if (mode != "reset" && ids.Count == 0)
-                return Error(400, "hide/isolate require element_ids.");
+                return Error(404, "No matching elements in the active view.");
             using (var t = new Transaction(doc, "RevitGPT Temporary Visibility"))
             {
                 t.Start();
@@ -350,10 +395,10 @@ namespace RevitGPT.Native
                 {
                     if (mode == "hide") view.HideElementsTemporary(ids);
                     if (mode == "isolate") view.IsolateElementsTemporary(ids);
-                    if (mode == "reset" &&
-                        view.IsTemporaryHideIsolateActive())
+                    if (mode == "reset" && view.IsTemporaryHideIsolateActive())
                         view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate);
-                    t.Commit();
+                    if (t.Commit() != TransactionStatus.Committed)
+                        return Error(500, "Temporary visibility transaction did not commit.");
                 }
                 catch
                 {
@@ -363,9 +408,12 @@ namespace RevitGPT.Native
             }
             return Data(new {
                 mode,
+                category,
                 count = ids.Count,
                 view_id = view.Id.Value.ToString(CultureInfo.InvariantCulture),
-                temporary_hide_isolate_active = view.IsTemporaryHideIsolateActive()
+                view_name = view.Name,
+                temporary_hide_isolate_active = view.IsTemporaryHideIsolateActive(),
+                complete = true
             });
         }
 
