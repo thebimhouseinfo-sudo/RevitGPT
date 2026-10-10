@@ -114,8 +114,12 @@ def set_element_parameter(
 def delete(
     element_ids: list[str],
     document_id: str | None = None,
+    confirm: bool = False,
+    acknowledged_affected_ids: list[str] | None = None,
 ) -> dict:
-    return delete_elements(element_ids=element_ids, document_id=document_id)
+    return delete_elements(element_ids=element_ids, document_id=document_id,
+                           confirm=confirm,
+                           acknowledged_affected_ids=acknowledged_affected_ids)
 
 
 def move(
