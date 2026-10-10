@@ -42,6 +42,23 @@ class RouteParityTests(unittest.TestCase):
         actual = set(re.findall(r'"(GET|POST) (/[^"]+)"', code))
         self.assertEqual(expected, actual)
 
+    def test_annotation_native_handlers_are_reachable(self):
+        router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
+        operations = (BASE / "bridge" / "unified_native" / "NativeWriteOperations.cs").read_text(encoding="utf-8")
+        policy = (BASE / "bridge" / "unified_native" / "BridgeHttpProtocol.cs").read_text(encoding="utf-8")
+        for route in ("/annotation/tag", "/annotation/dimension", "/annotation/spot_elevation"):
+            with self.subTest(route=route):
+                self.assertIn(f'path == "{route}"', router)
+                self.assertIn(f'if (path == "{route}")', operations)
+                self.assertIn('path.StartsWith("/annotation/", StringComparison.Ordinal)', policy)
+        self.assertEqual(router.count('if (path == "/annotation/get")'), 1)
+
+    def test_negative_control_detects_unrouted_annotation(self):
+        router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
+        self.assertIn('path == "/annotation/spot_elevation"', router)
+        stripped = router.replace('path == "/annotation/spot_elevation"', 'path == "/annotation/unknown"')
+        self.assertNotIn('path == "/annotation/spot_elevation"', stripped)
+
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn('"POST /annotation/detail_line"', code)
