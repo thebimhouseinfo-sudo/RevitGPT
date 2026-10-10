@@ -11,10 +11,16 @@ from services.mep_service import (
 )
 
 
-from connection.bridge import get_mep_systems, get_mep_quantities
+from connection.bridge import get_mep_systems, get_mep_quantities, trace_mep_system
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_trace_mep_system(element_id: str, max_nodes: int = 100,
+                               max_depth: int = 6, document_id: str = None) -> dict:
+        """Bounded MEP connector connectivity graph; reports incomplete results honestly."""
+        return trace_mep_system(element_id, max_nodes, max_depth, document_id)
+
     @mcp.tool()
     def revit_quantity_takeoff(category: str = None,
                               document_id: str = None) -> dict:
