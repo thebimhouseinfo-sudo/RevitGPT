@@ -1249,6 +1249,43 @@
           "properties"
         ]
       }
+    },
+    {
+      "id": "revit_create_slab",
+      "description": "Create a simple horizontal floor or ceiling.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "floor",
+              "ceiling"
+            ]
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "type_id": {
+            "type": "string"
+          },
+          "vertices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level_id",
+          "type_id",
+          "vertices"
+        ]
+      }
     }
   ]
 }
