@@ -36,6 +36,7 @@ namespace RevitGPT.Native
             "POST /model/spatial-warnings",
             "POST /view/properties",
             "POST /view/filters",
+            "POST /view/create",
             "POST /view/filter/write",
             "POST /sheets",
             "POST /sheet/viewports",
