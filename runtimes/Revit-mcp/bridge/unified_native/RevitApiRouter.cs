@@ -134,6 +134,7 @@ namespace RevitGPT.Native
                 if (path == "/mep/quantities") return MepQuantities(doc, payload);
                 if (path == "/model/spatial-warnings") return SpatialWarnings(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
+                if (path == "/parameter/set") return SetParameter(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
             catch (JsonException) { return Error(400, "Invalid JSON payload."); }
@@ -696,6 +697,94 @@ namespace RevitGPT.Native
                     count = x.Count, length_measured_count = x.MeasuredCount,
                     total_length_internal_feet = x.LengthFeet
                 }).ToList()
+            });
+        }
+
+        // WRITE-DEV: Native handler is implemented but not reachable from
+        // external MCP until the operation-scoped, native-verified grant exists.
+        // The unconditional write guard above remains in force meanwhile.
+        private static string SetParameter(Document doc, JObject payload)
+        {
+            long? id = LongNumber(payload, "element_id");
+            if (!id.HasValue || id.Value <= 0) return Error(400, "element_id required.");
+            Element owner = doc.GetElement(new ElementId(id.Value));
+            if (owner == null) return Error(404, "Target element not found.");
+            string selector = Token(payload, "parameter");
+            if (String.IsNullOrWhiteSpace(selector) || selector.Length > 128)
+                return Error(400, "Exact parameter selector required.");
+            IList<Parameter> matches = ResolveParameters(owner, selector);
+            if (matches.Count != 1)
+                return Error(409, matches.Count == 0 ? "Parameter not found on instance." :
+                    "Ambiguous parameter display name: use guid: or bip:.");
+            Parameter p = matches[0];
+            if (p.IsReadOnly) return Error(409, "Parameter is read-only.");
+            JToken value = payload["value"];
+            if (value == null || value.Type == JTokenType.Null)
+                return Error(400, "Explicit non-null value required.");
+            // Type validation before opening the transaction. Doubles are in
+            // Revit INTERNAL units; formatted values are never guessed.
+            string text = null;
+            int integer = 0;
+            double number = 0;
+            long refId = 0;
+            if (p.StorageType == StorageType.String)
+            {
+                if (value.Type != JTokenType.String) return Error(400, "String parameter requires string value.");
+                text = value.Value<string>();
+                if (text.Length > 32768) return Error(413, "Parameter string exceeds limit.");
+            }
+            else if (p.StorageType == StorageType.Integer)
+            {
+                if (value.Type != JTokenType.Integer ||
+                    !Int32.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out integer))
+                    return Error(400, "Integer parameter requires an exact integer.");
+            }
+            else if (p.StorageType == StorageType.Double)
+            {
+                if ((value.Type != JTokenType.Float && value.Type != JTokenType.Integer) ||
+                    !Double.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out number) ||
+                    Double.IsNaN(number) || Double.IsInfinity(number))
+                    return Error(400, "Double parameter requires a finite numeric Revit-internal value.");
+            }
+            else if (p.StorageType == StorageType.ElementId)
+            {
+                if (value.Type != JTokenType.String ||
+                    !Int64.TryParse(value.Value<string>(), NumberStyles.Integer, CultureInfo.InvariantCulture, out refId))
+                    return Error(400, "ElementId parameter requires an exact string identifier.");
+                if (refId > 0 && doc.GetElement(new ElementId(refId)) == null)
+                    return Error(404, "Referenced element does not exist.");
+            }
+            else return Error(400, "Unsupported parameter storage type.");
+
+            using (var tx = new Transaction(doc, "RevitGPT Set Parameter"))
+            {
+                tx.Start();
+                try
+                {
+                    bool applied;
+                    switch (p.StorageType)
+                    {
+                        case StorageType.String: applied = p.Set(text); break;
+                        case StorageType.Integer: applied = p.Set(integer); break;
+                        case StorageType.Double: applied = p.Set(number); break;
+                        case StorageType.ElementId: applied = p.Set(new ElementId(refId)); break;
+                        default: throw new InvalidOperationException("Unsupported storage type.");
+                    }
+                    if (!applied) throw new InvalidOperationException("Revit rejected parameter assignment.");
+                    if (tx.Commit() != TransactionStatus.Committed)
+                        return Error(500, "Transaction did not commit.");
+                }
+                catch
+                {
+                    if (tx.GetStatus() == TransactionStatus.Started) tx.RollBack();
+                    throw;
+                }
+            }
+            return Data(new {
+                element_id = id.Value.ToString(CultureInfo.InvariantCulture),
+                selector,
+                parameter = ParameterInfo(p, "instance", owner),
+                transaction = "committed"
             });
         }
 
