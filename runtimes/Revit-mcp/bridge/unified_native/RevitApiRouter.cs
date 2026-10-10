@@ -154,6 +154,7 @@ namespace RevitGPT.Native
                 ? new FilteredElementCollector(doc, new ElementId(viewId.Value))
                 : new FilteredElementCollector(doc);
             var collector = source.WhereElementIsNotElementType();
+            var requestedParameters = RequestedParameters(payload);
             string category = Token(payload, "category");
             string className = Token(payload, "class");
             string family = Token(payload, "family");
@@ -166,9 +167,11 @@ namespace RevitGPT.Native
                 if (family != null && !(el is FamilyInstance instance &&
                       EqualsIgnoreCase(instance.Symbol?.Family?.Name, family))) continue;
                 if (type != null && !EqualsIgnoreCase(el.Name, type)) continue;
-                if (output.Count >= 5000)
-                    return Error(413, "Too many elements; add filters. No truncated result returned.");
-                output.Add(ElementInfo(el));
+                if (output.Count >= (requestedParameters.Count > 0 ? 1000 : 5000))
+                    return Error(413, requestedParameters.Count > 0
+                        ? "Too many parameter-bearing elements; add filters (maximum 1000). No truncated result returned."
+                        : "Too many elements; add filters. No truncated result returned.");
+                output.Add(ElementInfo(el, requestedParameters));
             }
             return Data(output);
         }
@@ -181,7 +184,7 @@ namespace RevitGPT.Native
             if (item == null) return Error(404, "Element does not exist.");
             if (payload.Value<bool?>("include_connectors") == true)
                 return Error(501, "Connector readback has not passed host verification.");
-            return Data(ElementInfo(item));
+            return Data(ElementInfo(item, RequestedParameters(payload)));
         }
 
         private static string Annotations(Document doc, JObject payload)
@@ -204,7 +207,112 @@ namespace RevitGPT.Native
             return Data(output);
         }
 
-        private static object ElementInfo(Element element)
+        // Exact, bounded parameter-name selection. Never silently choose among
+        // duplicate display names or reinterpret an ElementId as a measurement.
+        private static List<string> RequestedParameters(JObject payload)
+        {
+            var token = payload["parameters"];
+            if (token == null || token.Type == JTokenType.Null) return new List<string>();
+            if (!(token is JArray array) || array.Count > 16)
+                throw new ArgumentException("parameters must be an array of 0..16 names.");
+            var names = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (JToken item in array)
+            {
+                if (item.Type != JTokenType.String) throw new ArgumentException("parameter name must be a string.");
+                string name = item.Value<string>();
+                if (String.IsNullOrWhiteSpace(name) || name.Length > 128 ||
+                    !String.Equals(name, name.Trim(), StringComparison.Ordinal) || !seen.Add(name))
+                    throw new ArgumentException("Invalid or duplicate parameter name.");
+                names.Add(name);
+            }
+            return names;
+        }
+
+        private static object ParameterInfo(Parameter parameter, string scope, Element owner)
+        {
+            object raw = null;
+            if (parameter.HasValue)
+            {
+                switch (parameter.StorageType)
+                {
+                    case StorageType.String: raw = parameter.AsString(); break;
+                    case StorageType.Integer: raw = parameter.AsInteger(); break;
+                    case StorageType.Double: raw = parameter.AsDouble(); break;
+                    case StorageType.ElementId:
+                        var refId = parameter.AsElementId();
+                        raw = refId == null ? null : refId.Value.ToString(CultureInfo.InvariantCulture);
+                        break;
+                }
+            }
+            string spec = parameter.Definition.GetDataType()?.TypeId;
+            string display = parameter.HasValue ? parameter.AsValueString() : null;
+            string unit = parameter.StorageType == StorageType.Double
+                ? parameter.GetUnitTypeId()?.TypeId : null;
+            return new
+            {
+                status = "OK",
+                scope,
+                owner_element_id = owner.Id.Value.ToString(CultureInfo.InvariantCulture),
+                parameter_id = parameter.Id.Value.ToString(CultureInfo.InvariantCulture),
+                storage_type = parameter.StorageType.ToString(),
+                spec_type_id = spec,
+                unit_type_id = unit,
+                raw_unit = parameter.StorageType == StorageType.Double ? "revit_internal" : null,
+                raw_value = raw,
+                display_value = display,
+                has_value = parameter.HasValue,
+                read_only = parameter.IsReadOnly,
+                shared_guid = parameter.IsShared ? parameter.GUID.ToString("D") : null
+            };
+        }
+
+        private static Dictionary<string, object> RequestedParameterValues(Element element, IList<string> names)
+        {
+            var result = new Dictionary<string, object>(StringComparer.Ordinal);
+            if (names.Count == 0) return result;
+            Element typeElement = null;
+            foreach (string name in names)
+            {
+                var instanceMatches = element.GetParameters(name);
+                if (instanceMatches.Count > 1)
+                {
+                    result[name] = new { status = "AMBIGUOUS", scope = "instance",
+                        matches = instanceMatches.Count };
+                    continue;
+                }
+                if (instanceMatches.Count == 1)
+                {
+                    result[name] = ParameterInfo(instanceMatches[0], "instance", element);
+                    continue;
+                }
+                if (typeElement == null)
+                {
+                    ElementId typeId = element.GetTypeId();
+                    if (typeId != null && typeId != ElementId.InvalidElementId)
+                        typeElement = element.Document.GetElement(typeId);
+                }
+                if (typeElement != null)
+                {
+                    var typeMatches = typeElement.GetParameters(name);
+                    if (typeMatches.Count > 1)
+                    {
+                        result[name] = new { status = "AMBIGUOUS", scope = "type",
+                            matches = typeMatches.Count };
+                        continue;
+                    }
+                    if (typeMatches.Count == 1)
+                    {
+                        result[name] = ParameterInfo(typeMatches[0], "type", typeElement);
+                        continue;
+                    }
+                }
+                result[name] = new { status = "MISSING" };
+            }
+            return result;
+        }
+
+        private static object ElementInfo(Element element, IList<string> requestedParameters = null)
         {
             var result = new Dictionary<string, object>
             {
@@ -219,6 +327,8 @@ namespace RevitGPT.Native
                 result["type"] = fi.Symbol?.Name ?? "";
             }
             else { result["family"] = ""; result["type"] = element.Name ?? ""; }
+            if (requestedParameters != null && requestedParameters.Count > 0)
+                result["parameters"] = RequestedParameterValues(element, requestedParameters);
             if (element.Location is LocationPoint point)
             {
                 result["location"] = new { type = "point",
