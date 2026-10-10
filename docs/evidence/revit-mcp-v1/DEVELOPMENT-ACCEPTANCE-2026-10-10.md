@@ -41,3 +41,11 @@ WRITE tool dispatch is no longer limited to the managed fixtures directory. A lo
 This expands test coverage; it is **not** a read-only bypass for arbitrary production models, nor proof that all write handlers pass host tests. Test only disposable copies; do not add client/production RVT paths to the allowlist. Remove an RVT from the allowlist after testing. A changed Native binary requires Revit to be closed and an immutable-version add-in upgrade under the existing installer protocol.
 
 Separate roadmap work (Knowledge Writer, Job Runtime, Dynamo Writer) continues in normal future development turns. ChatGPT text conversations do not by themselves execute unattended background development.
+
+## Owner override: native WRITE dispatch on bound model (2026-10-10)
+
+This newer decision **supersedes the fixture/allowlist and per-operation approval policies above** for Revit MCP. The current runtime accepts READ, UI and WRITE tool requests for the **single current, explicitly bound model**, after a fresh Native model-binding check within Revit ExternalEvent. No extra Approve Write, allowlist or test-only folder is required.
+
+Model switching remains intentional; active tab alone is not authority. Calls carrying a different document ID, or calls after the bound model closes/changes, are refused. Writes still use their existing Revit transactions and API validation; delete/other destructive operations retain their own operation-specific input contracts. Host verification status remains PASS_RETEST_REQUIRED, not READY.
+
+Code-level sources: `src/model-authority.mjs`, `runtimes/Revit-mcp/bridge/unified_native/NativeModelBindingState.cs`, `RevitApiRouter.cs`, native operation handlers and `runtimes/Revit-mcp/tool-manifest.json`. The retired `NativeWriteAuthority.cs` source and its WPF button have been removed. After installing the updated DLL and refreshing the runtime, writes can be tested on the bound RVT (keep independent RVT backups as normal Revit practice).
