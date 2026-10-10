@@ -228,7 +228,7 @@ export function registerManagedTools(server){
     inputSchema:{kind:z.enum(["tool","job","python","dynamo"]).optional(),registry:z.enum(["internal","user"]).optional(),limit:z.number().int().min(1).max(100).optional()}
   },async(a)=>guarded("registry_list",a,async()=>textResult(await lookupRegistry(a))));
   server.registerTool("registry_search",{
-    description:"Search semantic registry summaries and when_to_use to select the right read-only tool or registered Job/Dynamo script. Does NOT execute.",
+    description:"Search semantic registry summaries and when_to_use to select the appropriate read, UI or write tool on the bound model, or a registered Job/Dynamo script. Does NOT execute.",
     inputSchema:{query:z.string().min(1),kind:z.enum(["tool","job","python","dynamo"]).optional(),limit:z.number().int().min(1).max(100).optional()}
   },async(a)=>guarded("registry_search",a,async()=>textResult(await lookupRegistry(a))));
   server.registerTool("registry_get",{
