@@ -6,7 +6,7 @@ import { effectiveRegistry, filterCapabilities, lookupRegistry, mergeCapabilitie
 const manifest=JSON.parse(await fs.readFile("runtimes/Revit-mcp/tool-manifest.json","utf8"));
 assert.equal(manifest.entries.length,42);
 assert.equal(manifest.entries.filter(x=>x.mode==="read_only").length,26);
-assert.ok(manifest.entries.filter(x=>x.mutates_model).every(x=>x.mode==="disabled_mutation"&&x.status==="not_enabled"));
+assert.ok(manifest.entries.filter(x=>x.mutates_model).every(x=>x.mode==="write_approval_required"&&x.status==="implemented_unverified"));
 assert.equal(new Set(manifest.entries.map(x=>x.id)).size,42);
 const sample=[
 {id:"my-job",kind:"job",summary:"Run HVAC checking",library_id:"a",relative_path:"JOB.md"},
