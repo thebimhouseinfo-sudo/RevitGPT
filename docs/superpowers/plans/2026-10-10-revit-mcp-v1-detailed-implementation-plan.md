@@ -25,6 +25,21 @@ User decision: Implement the entire agreed V1 Revit MCP tool surface on the ONE 
 
 This delivery policy supersedes earlier instructions in this document that schedule a host test or Human approval after each tool/checkpoint. It does not weaken functional scope, fail-closed behavior, or HAT release criteria.
 
+## 0A. Owner override — implement all WRITE tools before grouped testing (2026-10-10)
+
+The owner requires all 11 previously disabled WRITE/DESTRUCTIVE tools to be implemented as real Revit Native API handlers, as well as the entire agreed CORE and ADVANCED* V1 inventory, before conducting feature-group acceptance testing. The blanket 501 is temporary and is not the final functionality. No piecemeal Human Test.
+
+Revised sequence: IMPLEMENT ALL → COMPILE AND STATIC SECURITY CHECKS → GROUP TOOL TEST MATRIX → REPAIR AND REGRESSION BY GROUP → FULL END-TO-END REGRESSION → ONE CONSOLIDATED HUMAN TEST.
+
+- During tool implementation, continuous CI syntax checks, native compilation, route-contract parity, negative security controls and deterministic unit testing remain allowed as build-quality gates. They do not constitute the final grouped acceptance campaign.
+- Replace Native 501 on a per-route basis only after its handler and authorization path have been implemented. Tool declaration is not verification; status remains IMPLEMENTED_UNVERIFIED until real evidence exists.
+- Control plane and Native must both enforce the exact host/revision/bound document/action/arguments and explicit operation-scoped write authorization. Never use a blanket write-enabled boolean, inferred user consent, or a currently open production RVT for experimental writes.
+- All mutations require validated inputs, Transaction commit/rollback, readback, meaningful errors, and no blind retry on timeout. Delete requires dependency-impact preview plus exact confirmed ID set. Dynamo graph import remains LOAD-ONLY and MUST NOT execute.
+- At implementation freeze, generate an exact per-tool inventory listing tool, route, handler, risk, group, tests pending, and truthful status. Then evaluate all groups: READ, UI, VIEW, PARAMETER, DRAW/TRANSFORM, MEP, ANNOTATION, SHEET/SCHEDULE, DYNAMO/ADVANCED, SECURITY.
+- A single final Human Acceptance Test uses disposable models and follows independent review. Production mutation remains gated until the user's final acceptance and release.
+
+This owner override supersedes earlier instructions to run feature-group acceptance tests before the full tool inventory is written; it does not waive security checks or release safeguards.
+
 ## 1. Goal, scope and delivery contract
 
 Deliver a practical, production-oriented Revit API tool subsystem consumed by RevitGPT Brain. V1 must reliably answer placed-element queries, parameters, MEP topology, quantity summaries and everyday BIM information; safely perform selected changes on approved work/disposable RVT; and expose honest capability metadata and evidence.
