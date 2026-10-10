@@ -1,13 +1,13 @@
 /**
- * Bound model admission for RevitGPT read, UI and Native-approved write intent.
+ * Bound model admission for RevitGPT read, UI and write operations.
  *
  * Streamable MCP recovery and connector proxies can use a different server
  * instance per tool call. Never require an in-memory "admitted" boolean from
  * a previous request, and never grant/model-bind on the Node side.
  *
- * authorize() reads native binding for EVERY model read, fails closed on an
+ * authorize() reads native binding for EVERY model operation, fails closed on an
  * inactive/closed model, and rejects unknown tools before activation.
- * Writes require separate one-shot approval in the Native RevitGPT pane.
+ * Writes execute against the bound/current model in Revit ExternalEvent context.
  */
 export async function callReadOnlyTool({ name, args = {}, authority, ensureReady, invoke }) {
   if (!name || typeof name !== "string") throw new Error("REVIT_MCP_TOOL_NAME_INVALID");
@@ -15,7 +15,7 @@ export async function callReadOnlyTool({ name, args = {}, authority, ensureReady
       typeof ensureReady !== "function" || typeof invoke !== "function")
     throw new Error("REVIT_MCP_READ_GATE_INVALID");
   const safeArgs = await authority.authorize(name, args);
-  const tools = await ensureReady();  // explicit user read only; never startup polling
+  const tools = await ensureReady();  // explicit user tool request; never startup polling
   if (!Array.isArray(tools) || !tools.some(t => t.name === name))
     throw new Error("REVIT_MCP_TOOL_NOT_DISCOVERED: " + name);
   return invoke(name, safeArgs);
