@@ -77,6 +77,13 @@ class RouteParityTests(unittest.TestCase):
         self.assertNotIn('OrderBy(x => x.Elevation).FirstOrDefault()', writes)
         self.assertIn('matches.SingleOrDefault()', writes)
 
+    def test_parameter_copy_reads_readonly_sources_but_not_targets(self):
+        batch = (BASE / "bridge" / "unified_native" / "NativeParameterBatch.cs").read_text(encoding="utf-8")
+        self.assertIn('Resolve(source, from, requireWritable: false)', batch)
+        self.assertIn('Parameter targetParameter = Resolve(target, to);', batch)
+        self.assertIn('if (requireWritable && list[0].IsReadOnly)', batch)
+        self.assertNotIn('Parameter sourceParameter = Resolve(source, from);', batch)
+
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn('"POST /annotation/detail_line"', code)
