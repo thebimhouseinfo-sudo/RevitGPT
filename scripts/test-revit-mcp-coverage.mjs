@@ -20,6 +20,9 @@ assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.repl
   "Native write route not yet validated;", "Write enabled somehow;")})), /native write guard removed/);
 assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.replace(
   "Connectors require an explicit Revit API readback fixture.", "Connectors ready already.")})), /connector handler changed/);
-assert.throws(()=>auditSources(mutation({planSource:baseline.planSource.replace(
-  /^\| ADVANCED\* \|.*\n/m,"")})), /selected ADVANCED capability target matrix changed/);
+const reducedPlan = baseline.planSource.replace(/^\| ADVANCED\* \|[^\r\n]*(?:\r?\n|$)/m, "");
+assert.notEqual(reducedPlan, baseline.planSource, "negative control did not change the plan");
+assert.equal((reducedPlan.match(/^\| ADVANCED\* \|/gm) || []).length, 5);
+assert.throws(()=>auditSources(mutation({planSource:reducedPlan})),
+  /selected ADVANCED capability target matrix changed/);
 console.log("[PASS] MCP-0 23-tool static audit and negative drift/stub/write controls.");
