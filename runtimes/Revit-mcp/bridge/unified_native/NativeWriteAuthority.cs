@@ -32,8 +32,9 @@ namespace RevitGPT.Native
         private Intent _pending;
         private readonly TimeSpan _ttl = TimeSpan.FromMinutes(3);
 
-        // Compile-only development gate. MUTATIONS ARE NEVER PERMITTED outside
-        // %LOCALAPPDATA%/RevitGPT/fixtures before final Human acceptance.
+        // Test writes require an explicitly opted-in local, non-workshared RVT.
+        // The fixture directory remains available for compatibility. Other RVTs
+        // require an exact absolute path in a local user-managed allowlist.
         private static bool IsDisposableFixture(Document doc)
         {
             if (doc == null || doc.IsLinked || doc.IsFamilyDocument ||
@@ -41,11 +42,38 @@ namespace RevitGPT.Native
                 return false;
             try
             {
-                string root = Path.GetFullPath(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "RevitGPT", "fixtures")) + Path.DirectorySeparatorChar;
                 string candidate = Path.GetFullPath(doc.PathName);
-                return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
+                if (!File.Exists(candidate) ||
+                    candidate.StartsWith(@"\\", StringComparison.Ordinal) ||
+                    !String.Equals(Path.GetExtension(candidate), ".rvt",
+                        StringComparison.OrdinalIgnoreCase))
+                    return false;
+                // Refuse path indirection, including a symlink on any parent.
+                string segment = candidate;
+                while (!String.IsNullOrEmpty(segment))
+                {
+                    if ((File.GetAttributes(segment) & FileAttributes.ReparsePoint) != 0)
+                        return false;
+                    string parent = Path.GetDirectoryName(segment);
+                    if (String.Equals(parent, segment, StringComparison.Ordinal)) break;
+                    segment = parent;
+                }
+                string appRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "RevitGPT");
+                string fixtures = Path.GetFullPath(Path.Combine(appRoot, "fixtures")) +
+                    Path.DirectorySeparatorChar;
+                if (candidate.StartsWith(fixtures, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                string allowlist = Path.Combine(appRoot, "config", "write-test-models.txt");
+                if (!File.Exists(allowlist) ||
+                    (File.GetAttributes(allowlist) & FileAttributes.ReparsePoint) != 0)
+                    return false;
+                return File.ReadAllLines(allowlist)
+                    .Where(line => !String.IsNullOrWhiteSpace(line) &&
+                        !line.TrimStart().StartsWith("#", StringComparison.Ordinal))
+                    .Any(line => String.Equals(line.Trim(), candidate,
+                        StringComparison.OrdinalIgnoreCase));
             }
             catch { return false; }
         }
@@ -145,7 +173,7 @@ namespace RevitGPT.Native
                 snapshot.ActiveId != snapshot.BoundId)
                 return "MODEL_BINDING_NOT_CURRENT";
             if (!IsDisposableFixture(doc))
-                return "WRITE_DEV_FIXTURE_ONLY: Save a disposable RVT under LocalAppData/RevitGPT/fixtures.";
+                return "WRITE_TEST_MODEL_NOT_ALLOWED: Use a disposable RVT under LocalAppData/RevitGPT/fixtures or explicitly allowlist its exact local path.";
             string digest = ComputeDigest(route, payload, snapshot);
             lock (_gate)
             {
