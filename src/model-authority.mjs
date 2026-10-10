@@ -66,7 +66,7 @@ export class SessionModelAuthority {
     this.lease = null;
   }
   summary() {
-    return this.lease ? { ...this.lease, permission: "read_only" } : null;
+    return this.lease ? { ...this.lease, permission: "native_approval_required_for_writes" } : null;
   }
   async leaseCurrent() {
     this.lease = null; // If re-lease fails, old authority cannot survive.
