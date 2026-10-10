@@ -864,6 +864,21 @@
           }
         }
       }
+    },
+    {
+      "id": "revit_query_spatial_and_warnings",
+      "description": "Read rooms, MEP spaces, grids, and Revit model warnings.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "include_warnings": {
+            "type": "boolean"
+          }
+        }
+      }
     }
   ]
 }
