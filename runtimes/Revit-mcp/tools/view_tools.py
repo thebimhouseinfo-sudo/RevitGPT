@@ -10,13 +10,14 @@ def register(mcp) -> None:
                                        level_id: str = None,
                                        source_view_id: str = None,
                                        view_family_type_id: str = None,
-                                       document_id: str = None) -> dict:
-        """Create floor/ceiling plan or 3D isometric view, or duplicate existing view.
+                                       document_id: str = None,
+                                       section_box: dict = None) -> dict:
+        """Create floor/ceiling plan, 3D isometric, section, or duplicate existing view.
 
         Simple Revit 2024 supported cases only; needs exact Native write approval.
         """
         return create_or_duplicate_view(action, name, level_id, source_view_id,
-                                        view_family_type_id, document_id)
+                                        view_family_type_id, document_id, section_box)
 
     @mcp.tool()
     def revit_list_view_filters(view_id: str, document_id: str = None) -> dict:
