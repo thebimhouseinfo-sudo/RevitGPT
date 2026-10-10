@@ -765,6 +765,24 @@ def move_element(
     return result.get("data", result)
 
 
+def batch_tag(view_id: str, element_ids: list[str],
+              has_leader: bool = False, document_id: str | None = None) -> dict:
+    if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) <= 0:
+        raise ValueError("Valid view_id required")
+    if not isinstance(element_ids, list) or not 1 <= len(element_ids) <= 50 or any(
+        not isinstance(i, str) or not i.isdecimal() or int(i) <= 0 for i in element_ids
+    ) or len(set(element_ids)) != len(element_ids):
+        raise ValueError("Batch tags require 1..50 distinct positive element IDs")
+    if type(has_leader) is not bool:
+        raise ValueError("has_leader must be boolean")
+    payload = {"view_id": view_id, "element_ids": element_ids,
+               "has_leader": has_leader}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/annotation/batch-tag", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def get_annotation(element_id: str, document_id: str | None = None) -> dict:
     if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) <= 0:
         raise ValueError("Valid annotation element ID required")
