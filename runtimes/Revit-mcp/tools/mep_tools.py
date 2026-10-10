@@ -11,7 +11,15 @@ from services.mep_service import (
 )
 
 
+from connection.bridge import get_mep_systems
+
+
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_list_mep_systems(kind: str = None, document_id: str = None) -> list[dict]:
+        """List actual Revit MechanicalSystem/PipingSystem instances and member counts, not types."""
+        return get_mep_systems(kind=kind, document_id=document_id)
+
     @mcp.tool()
     def revit_get_connectors(
         element_id: str,
