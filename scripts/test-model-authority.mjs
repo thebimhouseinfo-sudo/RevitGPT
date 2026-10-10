@@ -19,12 +19,19 @@ async function fails(fn,match){await assert.rejects(fn,new RegExp(match));}
 try {
   await fails(()=>first.authorize("revit_list_levels"),"NATIVE_BINDING_INVALID_RESPONSE");
   assert.deepEqual(await first.authorize("revit_list_documents"),{});
-  await fails(()=>first.authorize("revit_delete_elements"),"NATIVE_MUTATIONS_NOT_ENABLED");
+  await fails(()=>first.authorize("revit_delete_elements"),"NATIVE_BINDING_INVALID_RESPONSE");
+  await fails(()=>first.authorize("revit_unknown_mutation"),"MODEL_TOOL_NOT_ALLOWED");
   state={...state,status:"BOUND_CURRENT",revision:1,bound_id:"A",bound_title:"Test A"};
   assert.deepEqual(await first.authorize("revit_list_levels",{category:"Ducts"}),
     {category:"Ducts",document_id:"A"});
   assert.equal((await second.authorize("revit_list_levels")).document_id,"A",
     "independent admitted session reads same native binding without pairing");
+  assert.deepEqual(await first.authorize("revit_set_parameter",{
+    element_id:"42",parameter:"Mark",value:"0012"
+  }),{element_id:"42",parameter:"Mark",value:"0012",document_id:"A"},
+  "Node forwards exact write INTENT, but only native can issue an approval");
+  await fails(()=>first.authorize("revit_delete_elements",{document_id:"B",element_ids:["42"]}),
+    "DOCUMENT_ID_MISMATCH");
   await fails(()=>first.authorize("revit_list_levels",{document_id:"B"}),"DOCUMENT_ID_MISMATCH");
   await fails(()=>first.authorize("revit_list_levels",{document_id:null}),"DOCUMENT_ID_MISMATCH");
   await fails(()=>first.authorize("revit_list_levels",null),"MODEL_TOOL_ARGUMENTS_INVALID");
@@ -48,7 +55,7 @@ try {
   })}),"NATIVE_BINDING_UNAVAILABLE");
   assert.ok(calls.every(c=>c.path==="/binding/status"&&c.id));
   assert.equal(new Set(calls.map(c=>c.id)).size,calls.length);
-  console.log("[PASS] Zero-click read of single bound model, multi-session, mismatch, closed, explicit rebinding, restart, no writes.");
+  console.log("[PASS] Bound-model admission for reads and write intent; no Node-side write grant; mismatch and restart fail closed.");
 } finally {
   await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
 }
