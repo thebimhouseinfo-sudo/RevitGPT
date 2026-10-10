@@ -90,18 +90,17 @@ class RouteParityTests(unittest.TestCase):
         self.assertIn('.Where(x => x.ViewFamily == family).Take(2).ToList()', view_create)
         self.assertNotIn('.FirstOrDefault(x => x.ViewFamily == family)', view_create)
 
-    def test_test_model_write_allowlist_is_fail_closed(self):
-        policy = (BASE / "bridge" / "unified_native" / "NativeWriteAuthority.cs").read_text(encoding="utf-8")
-        self.assertIn('"write-test-models.txt"', policy)
-        self.assertIn('doc.IsWorkshared', policy)
-        self.assertIn('doc.IsLinked', policy)
-        self.assertIn('FileAttributes.ReparsePoint', policy)
-        self.assertIn('File.ReadAllLines(allowlist)', policy)
-        self.assertIn('String.Equals(line.Trim(), candidate,', policy)
-        self.assertIn('WRITE_TEST_MODEL_NOT_ALLOWED', policy)
-        self.assertIn('_pending = null; // consume BEFORE Revit API execution', policy)
-        self.assertIn('snapshot.Revision != _pending.BindingRevision', policy)
-        self.assertNotIn('return true; // unrestricted writes', policy)
+    def test_write_routes_are_bound_to_selected_model(self):
+        native = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
+        binding = (BASE / "bridge" / "unified_native" / "NativeModelBindingState.cs").read_text(encoding="utf-8")
+        self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', native)
+        self.assertIn('if (denial != null) return Error(409, denial);', native)
+        self.assertIn('if (doc == null) return Error(404, "Target Revit document is not open.");', native)
+        self.assertIn('if (_activeId != _boundId) return "ACTIVE_MODEL_MISMATCH";', binding)
+        self.assertIn('return "DOCUMENT_ID_MISMATCH";', binding)
+        self.assertNotIn('WRITE_APPROVAL_PENDING', native)
+        self.assertNotIn('WRITE_TEST_MODEL_NOT_ALLOWED', native)
+        self.assertNotIn('NativeWriteAuthority', native)
 
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
