@@ -837,6 +837,33 @@
           "mode"
         ]
       }
+    },
+    {
+      "id": "revit_quantity_takeoff",
+      "description": "revit_quantity_takeoff in bound Revit model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_summarize_equipment",
+      "description": "revit_summarize_equipment in bound Revit model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }
