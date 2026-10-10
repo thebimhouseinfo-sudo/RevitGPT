@@ -64,6 +64,7 @@ export const routeMap = Object.freeze({
   revit_update_annotation: ["POST /annotation/update"],
   revit_create_text_note: ["POST /annotation/text"],
   revit_create_tag: ["POST /annotation/tag"],
+  revit_batch_tag: ["POST /annotation/batch-tag"],
   revit_create_dimension: ["POST /annotation/dimension"],
   revit_create_spot_elevation: ["POST /annotation/spot_elevation"],
   revit_create_detail_line: ["POST /annotation/detail_line"]
@@ -122,6 +123,8 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       writeOperationsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeTransformsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeArchitectureSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
+      nativeBatchTagsSource.includes('private static string Execute(Document doc, JObject input)') &&
+        nativeSource.includes('if (path == "/annotation/batch-tag")') ||
       nativeSheetsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeViewFormattingSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeSlabSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
@@ -175,6 +178,7 @@ export async function loadSources(base = root) {
     read(rt + "/bridge/unified_native/NativeWriteOperations.cs"),
     read(rt + "/bridge/unified_native/NativeTransforms.cs"),
     read(rt + "/bridge/unified_native/NativeArchitecture.cs"),
+    read(rt + "/bridge/unified_native/NativeBatchTags.cs"),
     read(rt + "/bridge/unified_native/NativeSheets.cs"),
     read(rt + "/bridge/unified_native/NativeViewFormatting.cs"),
     read(rt + "/bridge/unified_native/NativeSlabProfiles.cs"),
