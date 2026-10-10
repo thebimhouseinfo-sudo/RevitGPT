@@ -2,7 +2,7 @@
 
 from mcp.server.fastmcp import FastMCP
 
-from tools import annotation_tools, document_tools, element_tools, family_tools, mep_tools, runtime_tools, view_tools, ui_tools, transform_tools, architecture_tools, parameter_write_tools
+from tools import annotation_tools, document_tools, element_tools, family_tools, mep_tools, runtime_tools, view_tools, ui_tools, transform_tools, architecture_tools, parameter_write_tools, sheet_tools
 from utils.logger import log_runtime
 
 
@@ -18,6 +18,7 @@ ui_tools.register(mcp)
 transform_tools.register(mcp)
 architecture_tools.register(mcp)
 parameter_write_tools.register(mcp)
+sheet_tools.register(mcp)
 
 
 if __name__ == "__main__":
