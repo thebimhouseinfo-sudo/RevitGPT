@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 25,
+  "entry_count": 28,
   "entries": [
     {
       "id": "mcp.revit_count_elements",
@@ -312,6 +312,29 @@
       "schema_source": "live_mcp_tools_list"
     },
     {
+      "id": "mcp.revit_get_selection",
+      "name": "revit_get_selection",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "get selection",
+      "summary": "get_selection in currently bound Revit UI; no document mutation.",
+      "when_to_use": "Inspect or control user-visible selection in current bound Revit model.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_get_selection",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
       "id": "mcp.revit_group_elements",
       "name": "revit_group_elements",
       "kind": "tool",
@@ -586,6 +609,52 @@
       "mutates_model": true,
       "semantic_status": "curated",
       "status": "not_enabled",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_set_selection",
+      "name": "revit_set_selection",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "set selection",
+      "summary": "set_selection in currently bound Revit UI; no document mutation.",
+      "when_to_use": "Inspect or control user-visible selection in current bound Revit model.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_set_selection",
+      "execution": "revitgpt_call",
+      "mode": "ui_action",
+      "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_show_elements",
+      "name": "revit_show_elements",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "show elements",
+      "summary": "show_elements in currently bound Revit UI; no document mutation.",
+      "when_to_use": "Inspect or control user-visible selection in current bound Revit model.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_show_elements",
+      "execution": "revitgpt_call",
+      "mode": "ui_action",
+      "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     }
   ]
