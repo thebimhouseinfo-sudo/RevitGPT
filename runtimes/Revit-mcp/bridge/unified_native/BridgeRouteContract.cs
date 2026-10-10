@@ -37,6 +37,7 @@ namespace RevitGPT.Native
             "POST /view/properties",
             "POST /view/filters",
             "POST /view/create",
+            "POST /dynamo/load",
             "POST /view/filter/write",
             "POST /sheets",
             "POST /sheet/viewports",
