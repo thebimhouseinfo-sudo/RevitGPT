@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 32,
+  "entry_count": 34,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -654,6 +654,28 @@
       "schema_source": "live_mcp_tools_list"
     },
     {
+      "id": "mcp.revit_quantity_takeoff",
+      "name": "revit_quantity_takeoff",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.family",
+      "title": "quantity takeoff",
+      "summary": "Read MEP quantities with explicit measured-length coverage.",
+      "when_to_use": "Quantify ducts/pipes/fittings/equipment/terminals without truncation.",
+      "tags": [
+        "mep",
+        "systems"
+      ],
+      "source_tool": "revit_quantity_takeoff",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
       "id": "mcp.revit_set_parameter",
       "name": "revit_set_parameter",
       "kind": "tool",
@@ -718,6 +740,28 @@
       "execution": "revitgpt_call",
       "mode": "ui_action",
       "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_summarize_equipment",
+      "name": "revit_summarize_equipment",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.family",
+      "title": "summarize equipment",
+      "summary": "Summarize placed Mechanical Equipment by family/type.",
+      "when_to_use": "Count Mechanical Equipment instances by type and family.",
+      "tags": [
+        "mep",
+        "systems"
+      ],
+      "source_tool": "revit_summarize_equipment",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
