@@ -52,6 +52,8 @@ class RouteParityTests(unittest.TestCase):
                 self.assertIn(f'if (path == "{route}")', operations)
                 self.assertIn('path.StartsWith("/annotation/", StringComparison.Ordinal)', policy)
         self.assertEqual(router.count('if (path == "/annotation/get")'), 1)
+        self.assertEqual(router.count("private static string GetAnnotation("), 1)
+        self.assertNotIn("private static string ReadAnnotation(", router)
 
     def test_negative_control_detects_unrouted_annotation(self):
         router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
