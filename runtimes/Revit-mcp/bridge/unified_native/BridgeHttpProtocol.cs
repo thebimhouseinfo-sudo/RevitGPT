@@ -40,7 +40,7 @@ namespace RevitGPT.Native
 
         public static bool IsWrite(string path)
         {
-            return path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
+            return path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                    path == "/parameter/set" || path == "/delete" || path == "/move" ||
                    (path.StartsWith("/annotation/", StringComparison.Ordinal) && path != "/annotation/get");
         }
