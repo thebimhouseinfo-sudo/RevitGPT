@@ -54,6 +54,10 @@ class FilterContracts(unittest.TestCase):
         self.assertIn("view.SetFilterVisibility(", native)
         self.assertIn("ParameterFilterRuleFactory.CreateEqualsRule(", native)
         self.assertIn("ParameterFilterElement.Create(", native)
+        formatting = (BASE/"bridge/unified_native/NativeViewFormatting.cs").read_text(encoding="utf-8")
+        self.assertIn("Specify exactly one element_id OR category_id.", formatting)
+        self.assertIn("view.SetCategoryHidden(", formatting)
+        self.assertIn("view.SetCategoryOverrides(", formatting)
         self.assertIn('path == "/view/filter/write"', proto)
 
 
