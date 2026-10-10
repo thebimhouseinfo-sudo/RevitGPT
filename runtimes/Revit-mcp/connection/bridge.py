@@ -383,19 +383,43 @@ def list_view_filters(view_id: str, document_id: str | None = None) -> dict:
     return _send_request("/view/filters", payload=payload, method="POST")["data"]
 
 
-def manage_view_filters(view_id: str, filter_id: str, action: str,
+def manage_view_filters(view_id: str, filter_id: str | None, action: str,
                         visible: bool | None = None,
-                        document_id: str | None = None) -> dict:
-    if action not in ("apply", "remove", "visibility"):
+                        document_id: str | None = None,
+                        name: str | None = None,
+                        bip: str | None = None,
+                        value: str | None = None,
+                        category_ids: list[str] | None = None) -> dict:
+    if action not in ("apply", "remove", "visibility", "create_text_equals"):
         raise ValueError("Invalid filter action")
-    for identifier in (view_id, filter_id):
-        if not isinstance(identifier, str) or not identifier.isdecimal() or int(identifier) <= 0:
-            raise ValueError("Valid view/filter IDs required")
-    payload = {"view_id": view_id, "filter_id": filter_id, "action": action}
-    if action == "visibility":
-        if type(visible) is not bool:
+    if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) <= 0:
+        raise ValueError("Valid view ID required")
+    payload = {"view_id": view_id, "action": action}
+    if action == "create_text_equals":
+        if filter_id is not None or not isinstance(name, str) or not name.strip() or len(name) > 128:
+            raise ValueError("Create requires unique nonempty name and no filter_id")
+        if not isinstance(bip, str) or not bip.strip() or not isinstance(value, str) or len(value) > 256:
+            raise ValueError("Create requires BuiltInParameter and typed string value")
+        if not isinstance(category_ids, list) or not 1 <= len(category_ids) <= 16 or any(
+            not isinstance(x, str) or not x.lstrip("-").isdecimal() or int(x) == 0
+            for x in category_ids
+        ) or len(set(category_ids)) != len(category_ids):
+            raise ValueError("Invalid category_ids")
+        payload.update({"name": name, "bip": bip, "value": value,
+                        "category_ids": category_ids})
+    else:
+        if not isinstance(filter_id, str) or not filter_id.isdecimal() or int(filter_id) <= 0:
+            raise ValueError("Valid filter ID required")
+        payload["filter_id"] = filter_id
+        if any(v is not None for v in (name, bip, value, category_ids)):
+            raise ValueError("Rule creation arguments not allowed for existing filter actions")
+    if action in ("visibility", "create_text_equals"):
+        if visible is not None:
+            if type(visible) is not bool:
+                raise ValueError("visible must be boolean")
+            payload["visible"] = visible
+        elif action == "visibility":
             raise ValueError("visibility requires boolean")
-        payload["visible"] = visible
     elif visible is not None:
         raise ValueError("visible only allowed for visibility action")
     if document_id:
