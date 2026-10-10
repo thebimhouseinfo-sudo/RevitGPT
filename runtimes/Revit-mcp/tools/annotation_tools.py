@@ -1,7 +1,7 @@
 """Annotation MCP tools for Revit."""
 
 from connection.bridge import update_annotation
-from connection.bridge import get_annotation
+from connection.bridge import get_annotation, batch_tag
 from services.annotation_service import (
     add_detail_line,
     add_dimension,
@@ -13,6 +13,16 @@ from services.annotation_service import (
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_batch_tag(view_id: str, element_ids: list[str],
+                        has_leader: bool = False, document_id: str = None) -> dict:
+        """Atomically create category tags for up to 50 untagged elements.
+
+        Exact one-time Native approval and disposable RVT are mandatory.
+        Duplicate targets and already-tagged elements are rejected.
+        """
+        return batch_tag(view_id, element_ids, has_leader, document_id)
+
     @mcp.tool()
     def revit_get_annotation(element_id: str, document_id: str = None) -> dict:
         """Read exact text/tag/dimension annotation by element ID, no mutation."""
