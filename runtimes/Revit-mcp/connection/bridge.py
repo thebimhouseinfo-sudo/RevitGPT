@@ -779,6 +779,15 @@ def get_annotations(
     return result.get("data", [])
 
 
+def get_annotation(element_id: str, document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
+        raise ValueError("element_id must be a positive numeric string")
+    payload = {"element_id": element_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/annotation/get", payload=payload, method="POST")["data"]
+
+
 def update_annotation(element_id: str, action: str, *,
                       text: str | None = None, has_leader: bool | None = None,
                       position: dict | None = None, document_id: str | None = None) -> dict:
