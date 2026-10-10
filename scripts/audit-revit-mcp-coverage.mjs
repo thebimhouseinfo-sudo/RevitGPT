@@ -60,6 +60,7 @@ export const routeMap = Object.freeze({
   revit_get_schedule: ["POST /schedule/get"],
   revit_update_schedule: ["POST /schedule/update"],
   revit_list_annotations: ["POST /annotations"],
+  revit_get_annotation: ["POST /annotation/get"],
   revit_update_annotation: ["POST /annotation/update"],
   revit_create_text_note: ["POST /annotation/text"],
   revit_create_tag: ["POST /annotation/tag"],
