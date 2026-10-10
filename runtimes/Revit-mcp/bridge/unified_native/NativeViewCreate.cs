@@ -38,14 +38,61 @@ namespace RevitGPT.Native
             if (found == null) throw new ArgumentException("Required ViewFamilyType not found.");
             return found;
         }
+        private static XYZ ExactPoint(JObject p, string prefix)
+        {
+            var value = p[prefix] as JObject;
+            if (value == null) throw new ArgumentException(prefix + " XYZ required.");
+            var xyz = new double[3];
+            int index = 0;
+            foreach (string k in new[] { "x", "y", "z" })
+            {
+                if (value[k] == null || (value[k].Type != JTokenType.Integer &&
+                    value[k].Type != JTokenType.Float) ||
+                    !Double.TryParse(value[k].ToString(), NumberStyles.Float,
+                        CultureInfo.InvariantCulture, out xyz[index]) ||
+                    Double.IsNaN(xyz[index]) || Double.IsInfinity(xyz[index]) ||
+                    Math.Abs(xyz[index]) > 1000000)
+                    throw new ArgumentException("Invalid section XYZ: " + prefix);
+                index++;
+            }
+            return new XYZ(xyz[0], xyz[1], xyz[2]);
+        }
+
+        private static BoundingBoxXYZ SectionBox(JObject p)
+        {
+            var box = p["section_box"] as JObject;
+            if (box == null) throw new ArgumentException("section_box required.");
+            XYZ origin = ExactPoint(box, "origin");
+            XYZ bx = ExactPoint(box, "basis_x");
+            XYZ by = ExactPoint(box, "basis_y");
+            XYZ bz = ExactPoint(box, "basis_z");
+            XYZ min = ExactPoint(box, "min"), max = ExactPoint(box, "max");
+            if (Math.Abs(bx.GetLength() - 1) > 0.0001 ||
+                Math.Abs(by.GetLength() - 1) > 0.0001 ||
+                Math.Abs(bz.GetLength() - 1) > 0.0001 ||
+                Math.Abs(bx.DotProduct(by)) > 0.0001 ||
+                Math.Abs(bx.DotProduct(bz)) > 0.0001 ||
+                Math.Abs(by.DotProduct(bz)) > 0.0001 ||
+                bx.CrossProduct(by).DistanceTo(bz) > 0.0001 ||
+                max.X - min.X < 0.01 || max.Y - min.Y < 0.01 ||
+                max.Z - min.Z < 0.01)
+                throw new ArgumentException("Section transform must be right-handed orthonormal with valid box.");
+            var transform = Transform.Identity;
+            transform.Origin = origin;
+            transform.BasisX = bx;
+            transform.BasisY = by;
+            transform.BasisZ = bz;
+            return new BoundingBoxXYZ { Transform = transform, Min = min, Max = max };
+        }
+
         public static string Execute(Document doc, JObject p)
         {
             try
             {
                 string action = Token(p, "action");
                 if (action != "floor_plan" && action != "ceiling_plan" &&
-                    action != "isometric_3d" && action != "duplicate")
-                    return Error(400, "Only floor_plan, ceiling_plan, isometric_3d and duplicate supported.");
+                    action != "isometric_3d" && action != "section" && action != "duplicate")
+                    return Error(400, "Only floor_plan, ceiling_plan, isometric_3d, section and duplicate supported.");
                 View source = null;
                 Level level = null;
                 ViewFamilyType familyType = null;
@@ -59,14 +106,16 @@ namespace RevitGPT.Native
                 else
                 {
                     ViewFamily family = action == "floor_plan" ? ViewFamily.FloorPlan :
-                        action == "ceiling_plan" ? ViewFamily.CeilingPlan : ViewFamily.ThreeDimensional;
+                        action == "ceiling_plan" ? ViewFamily.CeilingPlan :
+                        action == "section" ? ViewFamily.Section : ViewFamily.ThreeDimensional;
                     familyType = FamilyType(doc, family, p);
-                    if (action != "isometric_3d")
+                    if (action == "floor_plan" || action == "ceiling_plan")
                     {
                         level = doc.GetElement(new ElementId(Id(p, "level_id"))) as Level;
                         if (level == null) return Error(404, "Level not found.");
                     }
                 }
+                BoundingBoxXYZ sectionBox = action == "section" ? SectionBox(p) : null;
                 string name = Token(p, "name");
                 if (name != null && (String.IsNullOrWhiteSpace(name) || name.Length > 128))
                     return Error(400, "View name must be nonempty and <=128 characters.");
@@ -84,6 +133,8 @@ namespace RevitGPT.Native
                             created = ViewPlan.Create(doc, familyType.Id, level.Id);
                         if (action == "isometric_3d")
                             created = View3D.CreateIsometric(doc, familyType.Id);
+                        if (action == "section")
+                            created = ViewSection.CreateSection(doc, familyType.Id, sectionBox);
                         if (action == "duplicate")
                         {
                             ElementId id = source.Duplicate(ViewDuplicateOption.Duplicate);
