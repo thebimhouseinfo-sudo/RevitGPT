@@ -1,12 +1,13 @@
 /**
- * Explicit read intent is the admission for read-only RevitGPT operations.
+ * Bound model admission for RevitGPT read, UI and Native-approved write intent.
  *
  * Streamable MCP recovery and connector proxies can use a different server
  * instance per tool call. Never require an in-memory "admitted" boolean from
  * a previous request, and never grant/model-bind on the Node side.
  *
  * authorize() reads native binding for EVERY model read, fails closed on an
- * inactive/closed model, and rejects any write/unknown tool before activation.
+ * inactive/closed model, and rejects unknown tools before activation.
+ * Writes require separate one-shot approval in the Native RevitGPT pane.
  */
 export async function callReadOnlyTool({ name, args = {}, authority, ensureReady, invoke }) {
   if (!name || typeof name !== "string") throw new Error("REVIT_MCP_TOOL_NAME_INVALID");
