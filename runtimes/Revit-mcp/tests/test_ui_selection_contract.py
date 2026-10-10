@@ -107,7 +107,10 @@ class UiSelectionContractTests(unittest.TestCase):
     def test_native_exact_binding_and_ui_guard(self):
         code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)
-        self.assertIn("uidoc.Selection.SetElementIds(ids)", code)
+        self.assertIn("uidoc.Selection.SetElementIds(selected.ToList())", code)
+        self.assertIn("selected.UnionWith(ids)", code)
+        self.assertIn("selected.ExceptWith(ids)", code)
+        self.assertIn("selected.Count > 500", code)
         self.assertIn("uidoc.ShowElements(ids)", code)
         self.assertIn("uidoc.ActiveView = view", code)
         self.assertIn("Bound document must be active before switching views.", code)
