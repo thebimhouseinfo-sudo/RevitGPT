@@ -82,7 +82,8 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("WhereElementIsNotElementType()", code)
         self.assertIn("if (counts.Count >= 500)", code)
         self.assertIn("complete = true", code)
-        self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
+        self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', code)
+        self.assertIn('if (denial != null) return Error(409, denial);', code)
 
     @patch.object(bridge, "_send_request", return_value={"data": [{"id": "400", "name": "SA-1", "kind": "duct", "member_count": 8}]})
     def test_actual_system_instances_transport(self, send):
