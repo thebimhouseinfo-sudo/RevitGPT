@@ -18,7 +18,7 @@ def register(mcp) -> None:
                         has_leader: bool = False, document_id: str = None) -> dict:
         """Atomically create category tags for up to 50 untagged elements.
 
-        Exact one-time Native approval and disposable RVT are mandatory.
+        All operations require the target RVT to be current and bound.
         Duplicate targets and already-tagged elements are rejected.
         """
         return batch_tag(view_id, element_ids, has_leader, document_id)
@@ -35,7 +35,7 @@ def register(mcp) -> None:
                                 document_id: str = None) -> dict:
         """Edit TextNote text or IndependentTag leader/head in place.
 
-        Requires exact Native one-shot approval on disposable fixture.
+        Requires the target RVT to be current and bound.
         """
         return update_annotation(element_id, action, text=text,
             has_leader=has_leader, position=position, document_id=document_id)
