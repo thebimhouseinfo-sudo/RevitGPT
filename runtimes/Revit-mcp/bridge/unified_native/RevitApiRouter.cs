@@ -127,6 +127,7 @@ namespace RevitGPT.Native
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
+                if (path == "/mep/quantities") return MepQuantities(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
@@ -407,6 +408,73 @@ namespace RevitGPT.Native
                     max = new { x = box.Max.X, y = box.Max.Y, z = box.Max.Z },
                     coordinate_unit = "revit_internal_feet"
                 }
+            });
+        }
+
+        // Bounded read-only MEP quantities with explicit measurement coverage.
+        // Never silently equate instance count with measured duct/pipe length.
+        private sealed class QuantityBucket
+        {
+            public string Category;
+            public string Family;
+            public string Type;
+            public long Count;
+            public long MeasuredCount;
+            public double LengthFeet;
+        }
+        private static string MepQuantities(Document doc, JObject payload)
+        {
+            string mode = Token(payload, "mode") ?? "all";
+            if (mode != "all" && mode != "equipment")
+                return Error(400, "mode must be all or equipment.");
+            string categoryFilter = Token(payload, "category");
+            var buckets = new SortedDictionary<string, QuantityBucket>(StringComparer.Ordinal);
+            long scanned = 0;
+            foreach (Element element in new FilteredElementCollector(doc).WhereElementIsNotElementType())
+            {
+                string category = element.Category?.Name ?? "";
+                bool isEquipment = element.Category?.Id?.Value ==
+                    (long)BuiltInCategory.OST_MechanicalEquipment;
+                bool isDuct = element is Duct;
+                bool isPipe = element is Pipe;
+                bool isFitting = element.Category?.Id?.Value ==
+                    (long)BuiltInCategory.OST_DuctFitting ||
+                    element.Category?.Id?.Value == (long)BuiltInCategory.OST_PipeFitting;
+                bool isTerminal = element.Category?.Id?.Value ==
+                    (long)BuiltInCategory.OST_DuctTerminal;
+                if (mode == "equipment" ? !isEquipment :
+                    !(isEquipment || isDuct || isPipe || isFitting || isTerminal))
+                    continue;
+                if (categoryFilter != null && !EqualsIgnoreCase(category, categoryFilter)) continue;
+                scanned++;
+                string family = (element as FamilyInstance)?.Symbol?.Family?.Name ?? "";
+                string typeName = (element as FamilyInstance)?.Symbol?.Name ??
+                    doc.GetElement(element.GetTypeId())?.Name ?? element.Name ?? "";
+                string key = category + "\u001f" + family + "\u001f" + typeName;
+                if (!buckets.TryGetValue(key, out QuantityBucket bucket))
+                {
+                    if (buckets.Count >= 500)
+                        return Error(413, "More than 500 distinct MEP groups; add category filter.");
+                    bucket = new QuantityBucket {
+                        Category = category, Family = family, Type = typeName };
+                    buckets.Add(key, bucket);
+                }
+                bucket.Count++;
+                if ((isDuct || isPipe) && element.Location is LocationCurve location)
+                {
+                    bucket.MeasuredCount++;
+                    bucket.LengthFeet += location.Curve.Length;
+                }
+            }
+            return Data(new {
+                scope = mode, total_instances = scanned,
+                length_unit = "revit_internal_feet",
+                complete = true,
+                groups = buckets.Values.Select(x => new {
+                    category = x.Category, family = x.Family, type = x.Type,
+                    count = x.Count, length_measured_count = x.MeasuredCount,
+                    total_length_internal_feet = x.LengthFeet
+                }).ToList()
             });
         }
 
