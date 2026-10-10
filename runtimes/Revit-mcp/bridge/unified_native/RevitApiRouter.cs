@@ -12,12 +12,13 @@ using Newtonsoft.Json.Linq;
 namespace RevitGPT.Native
 {
     // All methods in this class must execute ONLY inside ExternalEvent.Execute.
-    // Mutations are deliberately disabled until their per-route contract and
-    // real disposable-model transaction/rollback tests are accepted.
+    // Write handlers may execute only after one-shot Native-pane approval
+    // on an explicitly disposable fixture model. Production writes remain denied.
     public static class RevitApiRouter
     {
         public static string Execute(UIApplication app, string method, string path, string body,
-            NativeModelBindingState binding = null)
+            NativeModelBindingState binding = null,
+            NativeWriteAuthority writeAuthority = null)
         {
             if (app == null) return Error(503, "No Revit UI API context.");
             try
@@ -25,9 +26,7 @@ namespace RevitGPT.Native
                 if (path == "/health")
                     return Data(new { status = "ok", host = "unified-native-preview",
                         revit_available = true, version = "0.1.0-preview",
-                        mutations_ready = false });
-                if (BridgeHttpProtocol.IsWrite(path))
-                    return Error(501, "Native write route not yet validated; no model change was performed.");
+                        mutations_ready = false, write_fixture_approval_supported = true });
                 var payload = String.IsNullOrWhiteSpace(body) ? new JObject() : JObject.Parse(body);
                 if (path == "/documents")
                     return Data(app.Application.Documents.Cast<Document>().Select(DocumentInfo).ToList());
@@ -68,6 +67,16 @@ namespace RevitGPT.Native
                 if (denial != null) return Error(409, denial);
                 var doc = FindDocument(app, payload);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
+                if (BridgeHttpProtocol.IsWrite(path))
+                {
+                    if (writeAuthority == null)
+                        return Error(503, "Native write authorization subsystem unavailable.");
+                    string writeDenial = writeAuthority.DenialOrConsume(
+                        path, payload, binding.Current, doc);
+                    if (writeDenial != null)
+                        return Error(writeDenial.StartsWith("WRITE_APPROVAL_PENDING:",
+                            StringComparison.Ordinal) ? 428 : 403, writeDenial);
+                }
                 if (path == "/ui/selection") return Selection(app, doc);
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
