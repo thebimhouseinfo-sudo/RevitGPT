@@ -137,6 +137,18 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("total_length_internal_feet = x.LengthFeet", code)
         self.assertIn('length_unit = "revit_internal_feet"', code)
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"spatial": [], "warnings": [], "complete": True}})
+    def test_spatial_and_warnings(self, send):
+        self.assertTrue(bridge.get_spatial_warnings()["complete"])
+        send.assert_called_once_with("/model/spatial-warnings",
+            payload={"include_warnings": True}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_spatial_warning_option_rejects_non_bool(self, send):
+        with self.assertRaises(ValueError):
+            bridge.get_spatial_warnings(include_warnings="true")
+        send.assert_not_called()
+
     def test_connector_handler_still_requires_host_qa(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("private static string Connectors(Document doc, JObject payload)", code)
