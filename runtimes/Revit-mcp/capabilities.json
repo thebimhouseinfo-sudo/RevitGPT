@@ -1373,6 +1373,41 @@
           "element_id"
         ]
       }
+    },
+    {
+      "id": "revit_update_annotation",
+      "description": "Edit text note or tag in place with Native one-shot approval.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "text",
+              "tag"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "has_leader": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "object"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "action"
+        ]
+      }
     }
   ]
 }
