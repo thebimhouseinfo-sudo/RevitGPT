@@ -525,6 +525,33 @@ def create_pipe(
     return result.get("data", result)
 
 
+def batch_set_parameters(operations: list[dict], dry_run: bool = True,
+                         document_id: str | None = None) -> dict:
+    if not isinstance(operations, list) or not 1 <= len(operations) <= 100:
+        raise ValueError("batch requires 1..100 operations")
+    payload = {"operations": operations, "dry_run": dry_run}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/parameter/batch", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
+def copy_parameters(source_element_id: str, target_element_ids: list[str],
+                    mappings: list[dict], dry_run: bool = True,
+                    document_id: str | None = None) -> dict:
+    if not isinstance(target_element_ids, list) or not 1 <= len(target_element_ids) <= 50:
+        raise ValueError("1..50 target elements required")
+    if not isinstance(mappings, list) or not 1 <= len(mappings) <= 16:
+        raise ValueError("1..16 mappings required")
+    payload = {"source_element_id": source_element_id,
+               "target_element_ids": target_element_ids, "mappings": mappings,
+               "dry_run": dry_run}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/parameter/copy", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def set_parameter(
     element_id: str,
     parameter: str,
