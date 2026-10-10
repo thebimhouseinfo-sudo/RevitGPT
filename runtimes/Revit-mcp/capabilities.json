@@ -1562,6 +1562,41 @@
           "path"
         ]
       }
+    },
+    {
+      "id": "revit_query_elements",
+      "description": "Bounded element query with typed parameter predicates.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "predicate": {
+            "type": "object"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "after_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }
