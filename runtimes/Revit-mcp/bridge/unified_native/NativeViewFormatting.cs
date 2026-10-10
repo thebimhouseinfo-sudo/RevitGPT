@@ -57,7 +57,7 @@ namespace RevitGPT.Native
                 BoundingBoxXYZ crop = null;
                 if (action == "crop")
                 {
-                    if (!view.CanHaveCropBox())
+                    if (view is ViewSchedule || view is ViewSheet)
                         return Error(409, "View does not support crop box.");
                     double x0 = Number(p, "min_x"), y0 = Number(p, "min_y"),
                         z0 = Number(p, "min_z"), x1 = Number(p, "max_x"),
