@@ -33,10 +33,11 @@ namespace RevitGPT.Native
                     throw new ArgumentException("View family type does not match action.");
                 return type;
             }
-            var found = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType))
-                .Cast<ViewFamilyType>().FirstOrDefault(x => x.ViewFamily == family);
-            if (found == null) throw new ArgumentException("Required ViewFamilyType not found.");
-            return found;
+            var candidates = new FilteredElementCollector(doc).OfClass(typeof(ViewFamilyType))
+                .Cast<ViewFamilyType>().Where(x => x.ViewFamily == family).Take(2).ToList();
+            if (candidates.Count != 1)
+                throw new ArgumentException("view_family_type_id required unless exactly one suitable ViewFamilyType exists.");
+            return candidates[0];
         }
         private static XYZ ExactPoint(JObject p, string prefix)
         {
