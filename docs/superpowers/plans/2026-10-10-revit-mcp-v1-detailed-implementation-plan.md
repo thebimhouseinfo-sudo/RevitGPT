@@ -227,13 +227,13 @@ B00 — Baseline freeze and test harness:
 Files: runtimes/Revit-mcp/tests/README.md, new tests/fixtures metadata, scripts/run-revit-mcp-tests.ps1, docs/evidence/revit-mcp-v1/README.md.
 Acceptance: reproducible fixture recipe and zero unknown test files; clear distinction between build/CI and live evidence.
 
-B01 — 23-tool vertical audit:
-- Generate coverage from FastMCP registration, Python service calls, connection/bridge.py route, BridgeRouteContract, native handler branch and Node allowlist; manually verify schema field-by-field and classify 23/23.
+B01 — Existing 23-tool audit PLUS all CORE/ADVANCED* target contracts:
+- Generate source coverage from FastMCP registration, Python service calls, connection/bridge.py route, BridgeRouteContract, native handler branch and Node allowlist; manually verify schema field-by-field and classify 23/23 existing tools. In a separate target matrix, enumerate every CORE and six ADVANCED* row from section 4A and mark absent names/actions PLANNED, never IMPLEMENTED/READY.
 - Add negative control: route present, no native handler must NOT be marked implemented; fake write success must NOT mark host pass; 501 connector must stay blocked.
 - Correct descriptions for requested parameters, annotation fields, connectors, unit defaults, 5,000-item cap and system type vs instance. Keep the implementation honest without claiming missing fields.
 - Add machine-checkable manifest drift test: 23 tool names vs actual FastMCP and internal manifest, no missing/duplicate; registry status derives from reviewed evidence, not auto READY.
 Files: runtimes/Revit-mcp/tools/*.py, tool-manifest.json, capabilities.json, tests/test_native_route_contract.py, new tests/test_tool_coverage.py, scripts/test-capability-registry.mjs.
-Acceptance: 23/23 classified, 0 UNKNOWN, schema/handler gaps recorded and no unsupported field advertised as available.
+Acceptance: 23/23 existing tools classified with 0 UNKNOWN, PLUS every CORE and six ADVANCED* target row mapped to a proposed typed schema, native handler owner, Node R/U/W/X/L mode, fixture, negative controls and gate; no unsupported field advertised as READY.
 
 B02 — Live read-only baseline and boot regression:
 - Verify Revit 2024 boot and panel, binding/status, 1-model initial bind, tabs A/B no auto rebind, manual bind, close/reopen, Sleep/Wake and malformed model IDs; collect sanitized real request/response snippets.
@@ -241,7 +241,7 @@ B02 — Live read-only baseline and boot regression:
 Files: new docs/evidence/revit-mcp-v1/MCP-0-host-report.md; existing bridge/native tests.
 Acceptance: meaningful host evidence OR mark HOST_TEST_BLOCKED with the precise unmet condition; never misreport host pass.
 
-MCP-0 GATE: Reviewer independently inspects audit generator AND tests; 23/23 truthfully classified; existing P2C/P2E/binding/install regressions pass offline; live-host gaps explicitly tracked. No write permissions change.
+MCP-0 GATE: Reviewer independently inspects source-to-native audit generator, target CORE/ADVANCED* coverage validation AND tests; 23/23 current tools truthfully classified and all mandatory planned capabilities mapped; existing P2C/P2E/binding/install regressions pass offline; live-host gaps explicitly tracked. No write permissions change.
 
 ### MCP-1 — Model reads, parameters, fast aggregate (B03–B06)
 
@@ -317,7 +317,7 @@ B11 — First certified operation: set_parameter:
 - Test valid string/int/double/ElementId, shared parameter, type vs instance, duplicate names, readonly, formula, worksharing conflict, pinned/linked restrictions, mixed invalid batch, concurrency and rollback.
 - Native readback must equal requested postcondition; operation journal idempotency applies across transport loss.
 Suggested files: ParameterWriteHandler.cs, services/mep_service.py or dedicated parameter service, tools/mep_tools.py and tests.
-Acceptance: R4 positive + negative + rollback + duplicate/replay + restart/timeout evidence. Only revit_set_parameter can become READY when all gates pass.
+Acceptance: R4 positive + negative + rollback + duplicate/replay + restart/timeout evidence. At B11, only the individually certified revit_set_parameter write is eligible for READY; B11P and other writes remain locked until their separate host gates.
 
 B12 — Family placement and MEP placement (B12D covers general drawing and transforms):
 - Graduate revit_move_element and revit_place_family_instance individually; the bounded parameter batch/copy belongs to B11P. Resolve family/type/level/place mode, host/face requirements and coordinate units before mutation.
@@ -402,7 +402,7 @@ Do not use optimistic "mock transaction committed" assertions to prove a native 
 
 | Batch | Primary code paths | Primary verification |
 | --- | --- | --- |
-| B00–B02 | tools, services, BridgeRouteContract.cs, manifests, tests, CI evidence | 23/23 coverage; model binding and host baseline |
+| B00–B02 | tools, services, BridgeRouteContract.cs, manifests, tests, CI evidence | 23/23 current coverage + every CORE/ADVANCED* planned-row trace; binding and host baseline |
 | B03 | RevitApiRouter.cs, new native read handlers, bridge.py | preserve current public route parity |
 | B04 | native ParameterReadHandler, element_service.py, element_tools.py | typed parameter UI readback |
 | B05 | native ElementQuery/AggregateHandler, element_service.py | aggregate equals Revit counts; >5k |
