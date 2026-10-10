@@ -78,6 +78,7 @@ namespace RevitGPT.Native
                         .Cast<Level>().Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, elevation = x.Elevation }).ToList());
                 if (path == "/elements") return Elements(doc, payload);
+                if (path == "/elements/aggregate") return AggregateElements(doc, payload);
                 if (path == "/element") return Element(doc, payload);
                 if (path == "/families")
                 {
@@ -174,6 +175,63 @@ namespace RevitGPT.Native
                 output.Add(ElementInfo(el, requestedParameters));
             }
             return Data(output);
+        }
+
+        // Aggregate in Revit UI context; no 5,000-element response limit.
+        // Server-side count and bounded group keys avoid materializing every element.
+        private static string AggregateElements(Document doc, JObject payload)
+        {
+            string category = Token(payload, "category");
+            string className = Token(payload, "class");
+            string family = Token(payload, "family");
+            string type = Token(payload, "type");
+            string groupBy = Token(payload, "group_by");
+            if (groupBy != null && groupBy != "category" && groupBy != "family" &&
+                groupBy != "type" && groupBy != "level")
+                return Error(400, "Unsupported group_by. Use category/family/type/level.");
+            long? viewId = LongNumber(payload, "view_id");
+            var view = viewId.HasValue ? doc.GetElement(new ElementId(viewId.Value)) as View : null;
+            if (viewId.HasValue && view == null) return Error(404, "View not found.");
+            var source = viewId.HasValue
+                ? new FilteredElementCollector(doc, view.Id)
+                : new FilteredElementCollector(doc);
+            var counts = new SortedDictionary<string, long>(StringComparer.Ordinal);
+            long total = 0;
+            foreach (Element element in source.WhereElementIsNotElementType())
+            {
+                if (category != null && !EqualsIgnoreCase(element.Category?.Name, category)) continue;
+                if (className != null && !EqualsIgnoreCase(element.GetType().Name, className)) continue;
+                if (family != null && !(element is FamilyInstance inst &&
+                    EqualsIgnoreCase(inst.Symbol?.Family?.Name, family))) continue;
+                if (type != null && !EqualsIgnoreCase(element.Name, type)) continue;
+                total++;
+                if (groupBy == null) continue;
+                string key = "(none)";
+                if (groupBy == "category") key = element.Category?.Name ?? "(none)";
+                if (groupBy == "family") key = (element as FamilyInstance)?.Symbol?.Family?.Name ?? "(none)";
+                if (groupBy == "type") key = element.Name ?? "(none)";
+                if (groupBy == "level")
+                {
+                    ElementId levelId = element.LevelId;
+                    key = levelId == null || levelId == ElementId.InvalidElementId
+                        ? "(none)" : levelId.Value.ToString(CultureInfo.InvariantCulture);
+                }
+                if (!counts.ContainsKey(key))
+                {
+                    if (counts.Count >= 500)
+                        return Error(413, "Too many group keys; add filters. No incomplete count returned.");
+                    counts[key] = 0;
+                }
+                counts[key]++;
+            }
+            return Data(new {
+                count = total,
+                group_by = groupBy,
+                groups = counts.Select(kv => new { key = kv.Key, count = kv.Value }).ToList(),
+                complete = true,
+                scope = viewId.HasValue ? "view_visible" : "document_placed_instances",
+                view_id = viewId?.ToString(CultureInfo.InvariantCulture)
+            });
         }
 
         private static string Element(Document doc, JObject payload)
