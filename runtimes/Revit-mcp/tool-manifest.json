@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 56,
+  "entry_count": 57,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -385,6 +385,27 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_annotation",
+      "name": "revit_get_annotation",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.annotation",
+      "title": "get annotation",
+      "summary": "Read exact text/tag/dimension annotation detail without document mutation.",
+      "when_to_use": "Inspect annotation type, content, leader, position and view.",
+      "tags": [
+        "annotations"
+      ],
+      "source_tool": "revit_get_annotation",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {
