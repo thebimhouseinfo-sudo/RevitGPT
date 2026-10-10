@@ -21,7 +21,8 @@ class UiSelectionContractTests(unittest.TestCase):
             "hide", category="duct", view_id="17")["count"], 75)
         send.assert_called_once_with("/ui/visibility/temporary",
             payload={"mode": "hide", "element_ids": [],
-                     "category": "duct", "view_id": "17"}, method="POST")
+                     "category": "duct", "view_id": "17"}, method="POST",
+            timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_invalid_current_view_visibility_does_not_send(self, send):
@@ -46,6 +47,8 @@ class UiSelectionContractTests(unittest.TestCase):
         self.assertIn('BuiltInCategory.OST_DuctFitting', router)
         self.assertIn('BuiltInCategory.OST_DuctAccessory', router)
         self.assertIn('view.HideElementsTemporary(ids)', router)
+        protocol = (BASE / "bridge/unified_native/BridgeHttpProtocol.cs").read_text(encoding="utf-8")
+        self.assertIn('path == "/ui/visibility/temporary"', protocol)
         self.assertIn('view.IsolateElementsTemporary(ids)', router)
         self.assertIn('view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate)', router)
         self.assertNotIn('Object.ReferenceEquals(uidoc.Document, doc)', router)
@@ -115,13 +118,15 @@ class UiSelectionContractTests(unittest.TestCase):
     def test_temporary_isolate_transport(self, send):
         self.assertEqual(bridge.temporary_visibility("isolate", ["42"])["count"], 1)
         send.assert_called_once_with("/ui/visibility/temporary",
-            payload={"mode": "isolate", "element_ids": ["42"]}, method="POST")
+            payload={"mode": "isolate", "element_ids": ["42"]}, method="POST",
+            timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request", return_value={"data": {"mode": "reset", "count": 0}})
     def test_temporary_reset_empty_target(self, send):
         self.assertEqual(bridge.temporary_visibility("reset")["count"], 0)
         send.assert_called_once_with("/ui/visibility/temporary",
-            payload={"mode": "reset", "element_ids": []}, method="POST")
+            payload={"mode": "reset", "element_ids": []}, method="POST",
+            timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_invalid_visibility_never_sends(self, send):
