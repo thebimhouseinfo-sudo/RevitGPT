@@ -329,6 +329,18 @@ def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> 
     return _send_request("/mep/systems", payload=payload, method="POST")["data"]
 
 
+def inspect_element(element_id: str, aspect: str,
+                    document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
+        raise ValueError("element_id must be positive ElementId string")
+    if aspect not in ("geometry", "relationships"):
+        raise ValueError("aspect must be geometry or relationships")
+    payload = {"element_id": element_id, "aspect": aspect}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/element/inspect", payload=payload, method="POST")["data"]
+
+
 def get_element_parameters(element_id: str, document_id: str | None = None,
                            include_type: bool = True) -> dict:
     if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:

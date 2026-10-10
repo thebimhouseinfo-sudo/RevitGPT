@@ -87,6 +87,7 @@ namespace RevitGPT.Native
                 if (path == "/elements/aggregate") return AggregateElements(doc, payload);
                 if (path == "/element") return Element(doc, payload);
                 if (path == "/element/parameters") return AllParameters(doc, payload);
+                if (path == "/element/inspect") return InspectElement(doc, payload);
                 if (path == "/families")
                 {
                     var category = Token(payload, "category");
@@ -372,6 +373,54 @@ namespace RevitGPT.Native
                 scope = viewId.HasValue ? "view_visible" : "document_placed_instances",
                 view_id = viewId?.ToString(CultureInfo.InvariantCulture)
             });
+        }
+
+        private static string InspectElement(Document doc, JObject payload)
+        {
+            long? rawId = LongNumber(payload, "element_id");
+            if (!rawId.HasValue || rawId.Value <= 0)
+                return Error(400, "element_id required.");
+            string aspect = Token(payload, "aspect");
+            if (aspect != "geometry" && aspect != "relationships")
+                return Error(400, "aspect must be geometry or relationships.");
+            Element e = doc.GetElement(new ElementId(rawId.Value));
+            if (e == null) return Error(404, "Element not found.");
+            if (aspect == "geometry")
+            {
+                BoundingBoxXYZ box = e.get_BoundingBox(null);
+                return Data(new {
+                    element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                    category = e.Category?.Name ?? "",
+                    bounding_box = box == null ? null : new {
+                        min = new { x = box.Min.X, y = box.Min.Y, z = box.Min.Z },
+                        max = new { x = box.Max.X, y = box.Max.Y, z = box.Max.Z },
+                        transform_origin = new {
+                            x = box.Transform.Origin.X,
+                            y = box.Transform.Origin.Y,
+                            z = box.Transform.Origin.Z
+                        },
+                        coordinate_unit = "revit_internal_feet",
+                        coordinate_space = "bounding_box_local"
+                    },
+                    location = ElementInfo(e), complete = true
+                });
+            }
+            var familyInstance = e as FamilyInstance;
+            var link = e as RevitLinkInstance;
+            var relation = new {
+                element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                type_id = e.GetTypeId() == ElementId.InvalidElementId ? null :
+                    e.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
+                level_id = e.LevelId == ElementId.InvalidElementId ? null :
+                    e.LevelId.Value.ToString(CultureInfo.InvariantCulture),
+                group_id = e.GroupId == ElementId.InvalidElementId ? null :
+                    e.GroupId.Value.ToString(CultureInfo.InvariantCulture),
+                host_id = familyInstance?.Host?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                super_component_id = familyInstance?.SuperComponent?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                linked_document_title = link?.GetLinkDocument()?.Title,
+                is_link_instance = link != null
+            };
+            return Data(relation);
         }
 
         private static string AllParameters(Document doc, JObject payload)

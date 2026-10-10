@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 37,
+  "entry_count": 39,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -310,6 +310,52 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_element_relationships",
+      "name": "revit_get_element_relationships",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "get element relationships",
+      "summary": "Read Revit element element_relationships with type/host scoped metadata.",
+      "when_to_use": "Inspect geometry or host/level/type relationships before modifying Revit model.",
+      "tags": [
+        "element",
+        "inspect",
+        "detail"
+      ],
+      "source_tool": "revit_get_element_relationships",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_geometry_summary",
+      "name": "revit_get_geometry_summary",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "get geometry summary",
+      "summary": "Read Revit element geometry_summary with type/host scoped metadata.",
+      "when_to_use": "Inspect geometry or host/level/type relationships before modifying Revit model.",
+      "tags": [
+        "element",
+        "inspect",
+        "detail"
+      ],
+      "source_tool": "revit_get_geometry_summary",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {

@@ -921,6 +921,42 @@
           "element_id"
         ]
       }
+    },
+    {
+      "id": "revit_get_geometry_summary",
+      "description": "Read Revit element geometry/relationship metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_element_relationships",
+      "description": "Read Revit element geometry/relationship metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
     }
   ]
 }

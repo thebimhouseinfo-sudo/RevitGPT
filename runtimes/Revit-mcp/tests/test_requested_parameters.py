@@ -170,6 +170,18 @@ class SelectedParameterBridgeTests(unittest.TestCase):
             bridge.get_element_parameters("-10")
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"element_id": "42", "is_link_instance": False}})
+    def test_relationships_transport(self, send):
+        self.assertFalse(bridge.inspect_element("42", "relationships")["is_link_instance"])
+        send.assert_called_once_with("/element/inspect", payload={
+            "element_id": "42", "aspect": "relationships"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_geometry_bad_aspect_fails_closed(self, send):
+        with self.assertRaises(ValueError):
+            bridge.inspect_element("42", "execute")
+        send.assert_not_called()
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)
