@@ -1,5 +1,5 @@
 """Bound model Revit UI selection/navigation, no document writes."""
-from connection.bridge import activate_view, get_selection, set_selection, show_elements
+from connection.bridge import activate_view, get_selection, set_selection, show_elements, temporary_visibility
 
 
 def register(mcp) -> None:
@@ -23,3 +23,11 @@ def register(mcp) -> None:
     def revit_activate_view(view_id: str, document_id: str = None) -> dict:
         """Switch active Revit UI view within the currently bound document; no auto-rebind."""
         return activate_view(view_id, document_id=document_id)
+    @mcp.tool()
+    def revit_temporary_visibility(mode: str, element_ids: list[str] = None,
+                                   document_id: str = None) -> dict:
+        """Temporarily hide/isolate selected elements or reset in current bound view.
+
+        Revit uses a Transaction even though no persistent view design is intended.
+        """
+        return temporary_visibility(mode, element_ids, document_id)
