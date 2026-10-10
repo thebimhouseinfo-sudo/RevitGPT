@@ -294,6 +294,16 @@ def get_view_properties(view_id: str, document_id: str | None = None) -> dict:
     return _send_request("/view/properties", payload=payload, method="POST")["data"]
 
 
+def get_spatial_warnings(document_id: str | None = None,
+                         include_warnings: bool = True) -> dict:
+    if not isinstance(include_warnings, bool):
+        raise ValueError("include_warnings must be bool")
+    payload = {"include_warnings": include_warnings}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/model/spatial-warnings", payload=payload, method="POST")["data"]
+
+
 def get_mep_quantities(mode: str = "all", category: str | None = None,
                        document_id: str | None = None) -> dict:
     if mode not in ("all", "equipment"):
