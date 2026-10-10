@@ -154,7 +154,6 @@ namespace RevitGPT.Native
                 if (path == "/annotations") return Annotations(doc, payload);
                 if (path == "/annotation/batch-tag") return NativeBatchTags.Execute(doc, payload);
                 if (path == "/annotation/get") return GetAnnotation(doc, payload);
-                if (path == "/annotation/get") return ReadAnnotation(doc, payload);
                 if (path == "/annotation/update") return NativeAnnotationEdit.Execute(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
                 if (path == "/mep/trace") return TraceMep(doc, payload);
@@ -169,7 +168,9 @@ namespace RevitGPT.Native
                 if (path == "/transform") return NativeTransforms.Execute(doc, payload);
                 if (path == "/architecture/create") return NativeArchitecture.Execute(doc, payload);
                 if (path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
-                    path == "/annotation/text" || path == "/annotation/detail_line")
+                    path == "/annotation/text" || path == "/annotation/detail_line" ||
+                    path == "/annotation/tag" || path == "/annotation/dimension" ||
+                    path == "/annotation/spot_elevation")
                     return NativeWriteOperations.Execute(doc, path, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
