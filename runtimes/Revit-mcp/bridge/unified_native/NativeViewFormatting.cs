@@ -47,12 +47,30 @@ namespace RevitGPT.Native
                     action != "graphics")
                     return Error(400, "Unsupported view formatting action.");
                 Element target = null;
+                Category categoryTarget = null;
                 if (action == "visibility" || action == "graphics")
                 {
-                    target = doc.GetElement(new ElementId(Id(p, "element_id")));
-                    if (target == null) return Error(404, "View override target missing.");
-                    if (target.ViewSpecific && target.OwnerViewId != view.Id)
-                        return Error(409, "Target belongs to another view.");
+                    bool byElement = p["element_id"] != null;
+                    bool byCategory = p["category_id"] != null;
+                    if (byElement == byCategory)
+                        return Error(400, "Specify exactly one element_id OR category_id.");
+                    if (byElement)
+                    {
+                        target = doc.GetElement(new ElementId(Id(p, "element_id")));
+                        if (target == null) return Error(404, "View override target missing.");
+                        if (target.ViewSpecific && target.OwnerViewId != view.Id)
+                            return Error(409, "Target belongs to another view.");
+                    }
+                    else
+                    {
+                        long categoryId;
+                        if (p["category_id"].Type != JTokenType.String ||
+                            !Int64.TryParse(Token(p, "category_id"), NumberStyles.Integer,
+                                CultureInfo.InvariantCulture, out categoryId) || categoryId == 0)
+                            return Error(400, "Invalid category_id.");
+                        categoryTarget = Category.GetCategory(doc, new ElementId(categoryId));
+                        if (categoryTarget == null) return Error(404, "Category not found.");
+                    }
                 }
                 BoundingBoxXYZ crop = null;
                 if (action == "crop")
@@ -119,7 +137,14 @@ namespace RevitGPT.Native
                         {
                             if (p["hide"]?.Type != JTokenType.Boolean)
                                 throw new ArgumentException("hide boolean required.");
-                            if (p.Value<bool>("hide")) view.HideElements(new[] { target.Id });
+                            bool hide = p.Value<bool>("hide");
+                            if (categoryTarget != null)
+                            {
+                                if (!view.CanCategoryBeHidden(categoryTarget.Id))
+                                    throw new InvalidOperationException("Category visibility is locked.");
+                                view.SetCategoryHidden(categoryTarget.Id, hide);
+                            }
+                            else if (hide) view.HideElements(new[] { target.Id });
                             else view.UnhideElements(new[] { target.Id });
                         }
                         if (action == "graphics")
@@ -128,9 +153,13 @@ namespace RevitGPT.Native
                                 b = (int)Number(p, "blue");
                             if (r > 255 || g > 255 || b > 255 || r < 0 || g < 0 || b < 0)
                                 throw new ArgumentException("Color must be RGB 0..255.");
-                            var previous = view.GetElementOverrides(target.Id);
+                            var previous = categoryTarget != null ?
+                                view.GetCategoryOverrides(categoryTarget.Id) :
+                                view.GetElementOverrides(target.Id);
                             previous.SetProjectionLineColor(new Color((byte)r, (byte)g, (byte)b));
-                            view.SetElementOverrides(target.Id, previous);
+                            if (categoryTarget != null)
+                                view.SetCategoryOverrides(categoryTarget.Id, previous);
+                            else view.SetElementOverrides(target.Id, previous);
                         }
                         if (tx.Commit() != TransactionStatus.Committed)
                             return Error(500, "View transaction not committed.");
