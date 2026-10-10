@@ -7,7 +7,7 @@ const manifest=JSON.parse(await fs.readFile("runtimes/Revit-mcp/tool-manifest.js
 const internalCount=manifest.entries.length;
 assert.ok(internalCount>=42);
 assert.ok(manifest.entries.filter(x=>x.mode==="read_only").length>=26);
-assert.ok(manifest.entries.filter(x=>x.mutates_model).every(x=>x.mode==="write_approval_required"&&x.status==="implemented_unverified"));
+assert.ok(manifest.entries.filter(x=>x.mutates_model).every(x=>x.mode==="write_bound_model"&&x.status==="implemented_unverified"&&x.risk!=="blocked"));
 assert.equal(new Set(manifest.entries.map(x=>x.id)).size,internalCount);
 const sample=[
 {id:"my-job",kind:"job",summary:"Run HVAC checking",library_id:"a",relative_path:"JOB.md"},
