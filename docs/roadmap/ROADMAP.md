@@ -1,5 +1,17 @@
 # RevitGPT roadmap
 
+## Direction reset — HUMAN 2026-10-11 (CadGPT-aligned)
+
+The previous P1B implementation sequence and E-PY-as-a-global-development-blocker are **superseded as execution plans**. Preserve their evidence, open issues and safety constraints as historical input; do not treat old milestone order as authority for new work. GSA job/cursor records require separate reconciliation before their state is changed. This decision does not certify any Revit host capability.
+
+**Architecture ownership:** RevitGPT Brain owns reasoning, admission, session/model authority, registry and Job orchestration. Revit MCP is a separate Revit API tool subsystem with native Revit UI-thread execution. Knowledge is curated source documentation (Revit / Dynamo / HVAC), not MCP code. Direct Jobs are fixed workflows; Reasoning Jobs own explicit ordered steps, tool borrowing and resumable state. Custom Jobs and Dynamo drafts live in managed AppData, with explicit read/write ownership. Dynamo Writer authors/validates dynamic graphs; the .dyn loader and execution authority are separate capabilities. The panel is a chat surface, not Revit authority.
+
+**Offline work now:** audit existing code against CadGPT's control-plane, registry, Job Steps, workspace ownership, diagnostics and add-in patterns; implement only bounded host-independent gaps with regression/negative-control tests, diff review and real GitHub CI evidence. Prefer adapting existing RevitGPT modules over cloning CadGPT wholesale. No artificial E1/E-PY gate on purely offline implementation.
+
+**Deferred to one human host-test round:** real RVT read/write/delete, ExternalEvent behavior, model identity under tab/view churn, multi-process binding, Dynamo execution, panel recovery and installer/host acceptance. Offline PASS is never host PASS. No real model mutations, installer, deployment, main merge or production changes without separate authorization.
+
+**Next execution order:** (1) inventory and gap matrix CadGPT ↔ RevitGPT with code references; (2) one small offline Brain/Job/Registry/Knowledge integration slice at a time; (3) offline CI and review; (4) consolidated host acceptance when Human is available. Do not add commits solely to advance milestone counters.
+
 ## Planning rule
 
 Every architectural claim must be tagged by provenance:
