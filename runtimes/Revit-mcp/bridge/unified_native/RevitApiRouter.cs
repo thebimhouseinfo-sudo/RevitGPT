@@ -1128,34 +1128,6 @@ namespace RevitGPT.Native
             return Data(connectors);
         }
 
-        private static string ReadAnnotation(Document doc, JObject payload)
-        {
-            long? id = LongNumber(payload, "element_id");
-            if (!id.HasValue || id.Value <= 0) return Error(400, "element_id required.");
-            Element e = doc.GetElement(new ElementId(id.Value));
-            if (e == null) return Error(404, "Annotation element not found.");
-            var note = e as TextNote;
-            var tag = e as IndependentTag;
-            var dimension = e as Dimension;
-            if (note == null && tag == null && dimension == null)
-                return Error(422, "Unsupported annotation class.");
-            return Data(new {
-                element_id = e.Id.Value.ToString(CultureInfo.InvariantCulture),
-                view_id = e.OwnerViewId.Value.ToString(CultureInfo.InvariantCulture),
-                kind = note != null ? "text" : tag != null ? "tag" : "dimension",
-                type_id = e.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
-                pinned = e.Pinned,
-                text = note?.Text,
-                has_leader = tag == null ? (bool?)null : tag.HasLeader,
-                head = tag == null ? null : new {
-                    x = tag.TagHeadPosition.X, y = tag.TagHeadPosition.Y,
-                    z = tag.TagHeadPosition.Z, unit = "revit_internal_feet"
-                },
-                dimension_value_internal_feet = dimension == null ? (double?)null : dimension.Value,
-                dimension_value_display = dimension?.ValueString
-            });
-        }
-
         private static string GetAnnotation(Document doc, JObject payload)
         {
             long? id = LongNumber(payload, "element_id");
