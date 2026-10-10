@@ -238,6 +238,15 @@ def show_elements(element_ids: list[str], document_id: str | None = None) -> dic
     return _send_request("/ui/show", payload=payload, method="POST")["data"]
 
 
+def activate_view(view_id: str, document_id: str | None = None) -> dict:
+    if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) < 1:
+        raise ValueError("view_id must be a positive Revit ElementId string")
+    payload = {"view_id": view_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/ui/view/activate", payload=payload, method="POST")["data"]
+
+
 def get_element(
     element_id: str,
     document_id: str | None = None,
