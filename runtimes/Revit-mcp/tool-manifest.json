@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 61,
+  "entry_count": 62,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -1039,6 +1039,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_load_dyn_file",
+      "name": "revit_load_dyn_file",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "load Dynamo file",
+      "summary": "Load a prevalidated local .dyn into Dynamo with MANUAL mode and zero run requests; final host no-run evidence required.",
+      "when_to_use": "Open a preapproved staged Dynamo graph without execution on a disposable model.",
+      "tags": [
+        "dynamo",
+        "load",
+        "manual",
+        "no-run"
+      ],
+      "source_tool": "revit_load_dyn_file",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "high",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
