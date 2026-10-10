@@ -49,6 +49,26 @@ class UiSelectionContractTests(unittest.TestCase):
                     bridge.activate_view(invalid)
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": ["12", "15"]}})
+    def test_selection_add_mode(self, send):
+        bridge.set_selection(["15"], mode="add")
+        send.assert_called_once_with("/ui/selection/set",
+            payload={"element_ids": ["15"], "mode": "add"}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": []}})
+    def test_selection_remove_mode(self, send):
+        bridge.set_selection(["15"], mode="remove")
+        send.assert_called_once_with("/ui/selection/set",
+            payload={"element_ids": ["15"], "mode": "remove"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_selection_mode_fail_closed(self, send):
+        with self.assertRaises(ValueError):
+            bridge.set_selection(["15"], mode="toggle")
+        with self.assertRaises(ValueError):
+            bridge.set_selection(["15"], mode="clear")
+        send.assert_not_called()
+
     def test_native_exact_binding_and_ui_guard(self):
         code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)
