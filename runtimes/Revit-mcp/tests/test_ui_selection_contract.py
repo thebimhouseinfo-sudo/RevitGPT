@@ -8,6 +8,48 @@ BASE = Path(__file__).resolve().parents[1]
 
 
 class UiSelectionContractTests(unittest.TestCase):
+    @patch.object(bridge, "_send_request", return_value={"data": {
+        "view_id": "17", "view_name": "plt_GF", "complete": True}})
+    def test_get_current_active_view(self, send):
+        self.assertEqual(bridge.get_active_view()["view_id"], "17")
+        send.assert_called_once_with("/ui/view/active", payload={}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {
+        "mode": "hide", "count": 75, "view_id": "17"}})
+    def test_hide_duct_category_in_current_view(self, send):
+        self.assertEqual(bridge.temporary_visibility(
+            "hide", category="duct", view_id="17")["count"], 75)
+        send.assert_called_once_with("/ui/visibility/temporary",
+            payload={"mode": "hide", "element_ids": [],
+                     "category": "duct", "view_id": "17"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_current_view_visibility_does_not_send(self, send):
+        for kwargs in ({"view_id": "0", "element_ids": ["42"]},
+                       {"category": "duct", "element_ids": ["42"]},
+                       {"category": "duct", "mode": "reset"},
+                       {"category": "", "mode": "hide"},
+                       {"view_id": "last", "element_ids": ["42"]}):
+            kwargs = {"mode": "hide", **kwargs}
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    bridge.temporary_visibility(**kwargs)
+        send.assert_not_called()
+
+    def test_native_active_view_visibility_identity(self):
+        router = (BASE / "bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
+        self.assertIn('path == "/ui/view/active"', router)
+        self.assertIn('private static string GetActiveView(UIApplication app, Document doc)', router)
+        self.assertIn('uidoc.Document.GetHashCode() == doc.GetHashCode()', router)
+        self.assertIn('ACTIVE_VIEW_MISMATCH:', router)
+        self.assertIn('new FilteredElementCollector(doc, view.Id)', router)
+        self.assertIn('BuiltInCategory.OST_DuctFitting', router)
+        self.assertIn('BuiltInCategory.OST_DuctAccessory', router)
+        self.assertIn('view.HideElementsTemporary(ids)', router)
+        self.assertIn('view.IsolateElementsTemporary(ids)', router)
+        self.assertIn('view.DisableTemporaryViewMode(TemporaryViewMode.TemporaryHideIsolate)', router)
+        self.assertNotIn('Object.ReferenceEquals(uidoc.Document, doc)', router)
+
     @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": ["42"], "active_view_id": "3"}})
     def test_read_selection(self, send):
         self.assertEqual(bridge.get_selection()["element_ids"], ["42"])
@@ -114,10 +156,12 @@ class UiSelectionContractTests(unittest.TestCase):
         self.assertIn("uidoc.ShowElements(ids)", code)
         self.assertIn("uidoc.ActiveView = view", code)
         self.assertIn("Bound document must be active before switching views.", code)
-        self.assertIn("Object.ReferenceEquals(uidoc.Document, doc)", code)
+        self.assertIn("SameActiveDocument(uidoc, doc)", code)
+        self.assertNotIn("Object.ReferenceEquals(uidoc.Document, doc)", code)
+        self.assertEqual(code.count("!SameActiveDocument(uidoc, doc)"), 7)
         self.assertIn("activeView.Id", code)
         self.assertIn("input.Count > 500", code)
-        self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
+        self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', code)
 
 
 if __name__ == "__main__":
