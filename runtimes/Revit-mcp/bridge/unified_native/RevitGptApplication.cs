@@ -19,6 +19,7 @@ namespace RevitGPT.Native
         private readonly BridgeRetryState _retry = new BridgeRetryState();
         private readonly NativeBridgeRecoveryPolicy _recovery = new NativeBridgeRecoveryPolicy();
         private readonly NativeModelBindingState _binding = new NativeModelBindingState();
+        private readonly NativeWriteAuthority _writeAuthority = new NativeWriteAuthority();
         // Revit remembers whether a pane was hidden in its previous session.
         // VisibleByDefault only applies on first registration. Explicitly
         // show once at startup; never force it back after user closes it.
@@ -35,7 +36,7 @@ namespace RevitGPT.Native
             {
                 // WPF pane lifetime never owns or blocks the native listener.
                 app.RegisterDockablePane(RevitGptPaneProvider.PaneId, "RevitGPT",
-                    new RevitGptPaneProvider(_binding));
+                    new RevitGptPaneProvider(_binding, _writeAuthority));
                 _paneRegistered = true;
                 _initialPaneShowPending = true;
                 NativePaneDiagnostics.Record("registered");
@@ -93,7 +94,7 @@ namespace RevitGPT.Native
                 var protocol = new BridgeHttpProtocol(
                     (id, method, path, body, cancellation) =>
                         _dispatcher.Submit(id,
-                            ui => RevitApiRouter.Execute(ui, method, path, body, _binding),
+                            ui => RevitApiRouter.Execute(ui, method, path, body, _binding, _writeAuthority),
                             cancellation));
                 _server = new BridgeHttpServer(protocol);
                 _server.Start();
@@ -161,6 +162,7 @@ namespace RevitGPT.Native
 
         private void DisposeBridge()
         {
+            _writeAuthority.Clear();
             try { _server?.Dispose(); } catch { }
             _server = null;
             try { _dispatcher?.Dispose(); } catch { }
