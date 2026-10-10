@@ -168,11 +168,19 @@ namespace RevitGPT.Native
             catch (Exception e) { return Error(500, "Revit API read failed: " + e.GetType().Name); }
         }
 
+        // Autodesk Revit API can return distinct managed wrappers for the same
+        // native Document. ReferenceEquals is not a valid model-identity check.
+        // Match the exact runtime identity used by NativeModelBindingState, and
+        // only after the router's fresh bound/current-model validation.
+        private static bool SameActiveDocument(UIDocument uidoc, Document doc) =>
+            uidoc != null && doc != null && uidoc.Document != null &&
+            uidoc.Document.GetHashCode() == doc.GetHashCode();
+
         // Selection and zoom only: no persistent document edit. All run in ExternalEvent.
         private static string Selection(UIApplication app, Document doc)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound Revit document must be the active UI document.");
             return Data(new {
                 element_ids = uidoc.Selection.GetElementIds()
@@ -210,7 +218,7 @@ namespace RevitGPT.Native
         private static string SetSelection(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound Revit document must be active for selection.");
             var ids = UiElementIds(doc, uidoc.ActiveView, payload);
             string mode = Token(payload, "mode") ?? "replace";
@@ -232,7 +240,7 @@ namespace RevitGPT.Native
         private static string ShowElements(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound Revit document must be active for zoom/show.");
             var ids = UiElementIds(doc, uidoc.ActiveView, payload);
             if (ids.Count == 0) return Error(400, "show requires at least one element.");
@@ -246,7 +254,7 @@ namespace RevitGPT.Native
         private static string SelectRelated(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound document must be active to select related elements.");
             long? rawId = LongNumber(payload, "element_id");
             if (!rawId.HasValue || rawId.Value <= 0)
@@ -300,7 +308,7 @@ namespace RevitGPT.Native
         private static string TemporaryVisibility(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound document must be active for temporary visibility.");
             var view = uidoc.ActiveView;
             string mode = Token(payload, "mode");
@@ -340,7 +348,7 @@ namespace RevitGPT.Native
         private static string ActivateView(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;
-            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+            if (uidoc == null || !SameActiveDocument(uidoc, doc))
                 return Error(409, "Bound document must be active before switching views.");
             long? viewId = LongNumber(payload, "view_id");
             if (!viewId.HasValue || viewId.Value <= 0)
