@@ -42,7 +42,7 @@ namespace RevitGPT.Native
         {
             return path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                    path == "/parameter/set" || path == "/delete" || path == "/move" ||
-                   path.StartsWith("/annotation/", StringComparison.Ordinal);
+                   (path.StartsWith("/annotation/", StringComparison.Ordinal) && path != "/annotation/get");
         }
 
         public async Task<BridgeHttpResponse> ProcessAsync(
