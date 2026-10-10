@@ -226,8 +226,15 @@ def _valid_ui_ids(element_ids: list[str], allow_empty: bool = True) -> list[str]
     return element_ids
 
 
-def set_selection(element_ids: list[str], document_id: str | None = None) -> dict:
+def set_selection(element_ids: list[str], document_id: str | None = None,
+                  mode: str = "replace") -> dict:
+    if mode not in ("replace", "add", "remove", "clear"):
+        raise ValueError("Unsupported selection mode")
+    if mode == "clear" and element_ids:
+        raise ValueError("clear requires empty element_ids")
     payload = {"element_ids": _valid_ui_ids(element_ids)}
+    if mode != "replace":
+        payload["mode"] = mode
     if document_id: payload["document_id"] = document_id
     return _send_request("/ui/selection/set", payload=payload, method="POST")["data"]
 
