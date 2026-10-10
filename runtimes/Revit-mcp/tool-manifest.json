@@ -1380,8 +1380,8 @@
       "registry": "internal",
       "class": "revit.ui",
       "title": "temporary visibility",
-      "summary": "Temporarily hide, isolate or reset elements in the bound Revit view; API requires Transaction.",
-      "when_to_use": "Modify temporary Revit view visibility without changing model binding.",
+      "summary": "Temporary hide/isolate/reset of elements in the actual active bound Revit view. Accepts element_ids or category='duct'/'pipe'; optional view_id guards against tab switches.",
+      "when_to_use": "Hide all ducts/fittings/accessories in the current view using category='duct', isolate targets, or reset temporary visibility. Current active view is resolved live.",
       "tags": [
         "ui",
         "selection",
