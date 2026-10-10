@@ -27,6 +27,7 @@ export const routeMap = Object.freeze({
   revit_list_family_types: ["POST /family/types"],
   revit_list_system_types: ["POST /system/types"],
   revit_get_connectors: ["POST /element/connectors"],
+  revit_list_mep_systems: ["POST /mep/systems"],
   revit_place_family_instance: ["POST /place"],
   revit_create_duct: ["POST /create/duct"],
   revit_create_pipe: ["POST /create/pipe"],
@@ -57,7 +58,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
   expect(unique(names) && unique(manifestNames) && unique(capsNames), "duplicate MCP tool name");
   expect(same(names, manifestNames) && same(names, capsNames), "declared tools drift from one or more manifests");
   expect(manifest.entry_count === names.length, "manifest entry_count differs from registered tools");
-  expect(names.length >= 29, "expected 23 baseline plus 2 aggregate tools");
+  expect(names.length >= 30, "expected 23 baseline plus 2 aggregate tools");
   expect(Object.keys(routeMap).every(x => names.includes(x)), "original 23 tools unexpectedly missing");
   expect(names.every(x => routeMap[x]), "new tool needs an explicit audited routeMap contract");
   for (const file of pythonToolFiles) {
@@ -106,7 +107,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     };
   });
   const counts = toolRows.reduce((acc,x) => { acc[x.classification] = (acc[x.classification] || 0) + 1; return acc; }, {});
-  expect(counts.BLOCKED === 11 && counts.PARTIAL === 18, "baseline classifications changed; require reviewed update");
+  expect(counts.BLOCKED === 11 && counts.PARTIAL === 19, "baseline classifications changed; require reviewed update");
   return { schema_version: 1, audit_type: "SOURCE_STATIC_ONLY", host_verified: false,
     warning: "Neither mock HTTP, declared tool, route nor built DLL proves real Revit functionality.",
     summary: { declared_tools: names.length, classification_counts: counts,
