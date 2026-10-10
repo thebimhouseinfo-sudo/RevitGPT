@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 44,
+  "entry_count": 46,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -24,6 +24,54 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_batch_set_parameters",
+      "name": "revit_batch_set_parameters",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "batch set parameters",
+      "summary": "Atomic typed Revit parameter edits with dry-run preview and native approval; instance only.",
+      "when_to_use": "Batch parameter editing on disposable RVT fixtures.",
+      "tags": [
+        "mep",
+        "revit",
+        "set",
+        "parameter"
+      ],
+      "source_tool": "revit_batch_set_parameters",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_copy_parameters",
+      "name": "revit_copy_parameters",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "copy parameters",
+      "summary": "Atomic typed Revit parameter edits with dry-run preview and native approval; instance only.",
+      "when_to_use": "Batch parameter editing on disposable RVT fixtures.",
+      "tags": [
+        "mep",
+        "revit",
+        "set",
+        "parameter"
+      ],
+      "source_tool": "revit_copy_parameters",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
