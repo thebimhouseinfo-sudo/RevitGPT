@@ -245,6 +245,20 @@ def show_elements(element_ids: list[str], document_id: str | None = None) -> dic
     return _send_request("/ui/show", payload=payload, method="POST")["data"]
 
 
+def temporary_visibility(mode: str, element_ids: list[str] | None = None,
+                         document_id: str | None = None) -> dict:
+    if mode not in ("hide", "isolate", "reset"):
+        raise ValueError("mode must be hide, isolate or reset")
+    ids = _valid_ui_ids(element_ids if element_ids is not None else [],
+                        allow_empty=mode == "reset")
+    if (mode == "reset" and ids) or (mode != "reset" and not ids):
+        raise ValueError("inconsistent temporary visibility target set")
+    payload = {"mode": mode, "element_ids": ids}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/ui/visibility/temporary", payload=payload, method="POST")["data"]
+
+
 def activate_view(view_id: str, document_id: str | None = None) -> dict:
     if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) < 1:
         raise ValueError("view_id must be a positive Revit ElementId string")
