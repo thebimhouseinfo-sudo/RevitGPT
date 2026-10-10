@@ -89,6 +89,9 @@ namespace RevitGPT.Native
                 if (path == "/sheet/write") return NativeSheets.Write(doc, payload);
                 if (path == "/view/format") return NativeViewFormatting.Execute(doc, payload);
                 if (path == "/slab/create") return NativeSlabProfiles.Create(doc, payload);
+                if (path == "/schedules") return NativeSchedules.List(doc);
+                if (path == "/schedule/get") return NativeSchedules.GetSchedule(doc, payload);
+                if (path == "/schedule/update") return NativeSchedules.Update(doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
