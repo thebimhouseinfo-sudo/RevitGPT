@@ -96,6 +96,20 @@ class SelectedParameterBridgeTests(unittest.TestCase):
             bridge.get_mep_systems(kind="electrical")
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"id": "17", "scale": 100}})
+    def test_read_view_properties(self, send):
+        self.assertEqual(bridge.get_view_properties("17")["scale"], 100)
+        send.assert_called_once_with("/view/properties",
+            payload={"view_id": "17"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_read_view_rejects_bad_id(self, send):
+        for bad in ("0", "-1", "abc", 17):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    bridge.get_view_properties(bad)
+        send.assert_not_called()
+
     def test_native_system_instances_not_type_inventory(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("private static string MepSystems(Document doc, JObject payload)", code)
