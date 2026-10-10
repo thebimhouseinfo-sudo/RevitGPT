@@ -807,6 +807,36 @@
           "view_id"
         ]
       }
+    },
+    {
+      "id": "revit_temporary_visibility",
+      "description": "Temporary hide/isolate/reset in Revit view.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hide",
+              "isolate",
+              "reset"
+            ]
+          },
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      }
     }
   ]
 }
