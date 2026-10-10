@@ -36,6 +36,12 @@ For each unfamiliar node, port, graph serialization detail, DesignScript/API beh
 
 Working/domain knowledge remains an independently evolving long-term capability.
 
+**Two-layer Dynamo Writer knowledge contract:**
+- **Core Coding Knowledge (local, mandatory):** concise, version-aware invariants the coder must load before writing/editing any graph: a `.dyn` is a Dynamo graph (not arbitrary JSON or a Python script); preserve valid graph/node/port/connector identities and existing graph structure; DesignScript, Python nodes and Revit API run in different contexts and must not be mixed; distinguish built-in nodes from external packages; never invent nodes, ports, packages or API signatures; offline-valid graph does not imply successful Revit execution. Add further invariants only when verified by official documentation or tested fixtures, with source/version evidence and regression tests. This is analogous to CadGPT's AutoLISP/Visual LISP dialect rules, not a Dynamo-specific ban on Common Lisp.
+- **Reference Knowledge (web on demand):** search only the approved domains for detailed node/API/package/version specifics; cite evidence and mark unsupported or unknown behavior explicitly.
+
+
+
 ## Planning rule
 
 Every architectural claim must be tagged by provenance:
