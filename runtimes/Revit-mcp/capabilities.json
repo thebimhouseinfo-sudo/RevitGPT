@@ -6,17 +6,26 @@
     {
       "id": "revit_get_runtime_info",
       "description": "Report Revit bridge availability and runtime readiness.",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "id": "revit_get_active_document",
       "description": "Get metadata about the active Revit document.",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "id": "revit_list_documents",
       "description": "List all open Revit documents.",
-      "input_schema": {"type": "object", "properties": {}}
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "id": "revit_list_views",
@@ -24,7 +33,10 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "document_id": {"type": "string", "description": "Optional document ID"}
+          "document_id": {
+            "type": "string",
+            "description": "Optional document ID"
+          }
         }
       }
     },
@@ -34,7 +46,10 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "document_id": {"type": "string", "description": "Optional document ID"}
+          "document_id": {
+            "type": "string",
+            "description": "Optional document ID"
+          }
         }
       }
     },
@@ -44,13 +59,30 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "document_id": {"type": "string"},
-          "category": {"type": "string"},
-          "class_name": {"type": "string"},
-          "family": {"type": "string"},
-          "type_name": {"type": "string"},
-          "view_id": {"type": "string"},
-          "parameters": {"type": "array", "items": {"type": "string"}}
+          "document_id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "view_id": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -60,11 +92,19 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {"type": "string"},
-          "document_id": {"type": "string"},
-          "include_connectors": {"type": "boolean"}
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_connectors": {
+            "type": "boolean"
+          }
         },
-        "required": ["element_id"]
+        "required": [
+          "element_id"
+        ]
       }
     },
     {
@@ -73,8 +113,13 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "category": {"type": "string", "description": "MEP category filter"},
-          "document_id": {"type": "string"}
+          "category": {
+            "type": "string",
+            "description": "MEP category filter"
+          },
+          "document_id": {
+            "type": "string"
+          }
         }
       }
     },
@@ -84,9 +129,15 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "family": {"type": "string"},
-          "category": {"type": "string"},
-          "document_id": {"type": "string"}
+          "family": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         }
       }
     },
@@ -96,8 +147,13 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "classification": {"type": "string", "description": "e.g. SupplyAir, DomesticColdWater"},
-          "document_id": {"type": "string"}
+          "classification": {
+            "type": "string",
+            "description": "e.g. SupplyAir, DomesticColdWater"
+          },
+          "document_id": {
+            "type": "string"
+          }
         }
       }
     },
@@ -107,10 +163,16 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {"type": "string"},
-          "document_id": {"type": "string"}
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["element_id"]
+        "required": [
+          "element_id"
+        ]
       }
     },
     {
@@ -119,16 +181,37 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "family": {"type": "string"},
-          "type": {"type": "string"},
-          "x": {"type": "number"},
-          "y": {"type": "number"},
-          "z": {"type": "number"},
-          "level_id": {"type": "string"},
-          "rotation": {"type": "number"},
-          "document_id": {"type": "string"}
+          "family": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "rotation": {
+            "type": "number"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["family", "type", "x", "y"]
+        "required": [
+          "family",
+          "type",
+          "x",
+          "y"
+        ]
       }
     },
     {
@@ -137,20 +220,51 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "start_x": {"type": "number"},
-          "start_y": {"type": "number"},
-          "start_z": {"type": "number"},
-          "end_x": {"type": "number"},
-          "end_y": {"type": "number"},
-          "end_z": {"type": "number"},
-          "width": {"type": "number"},
-          "height": {"type": "number"},
-          "duct_type": {"type": "string"},
-          "system_type": {"type": "string"},
-          "level_id": {"type": "string"},
-          "document_id": {"type": "string"}
+          "start_x": {
+            "type": "number"
+          },
+          "start_y": {
+            "type": "number"
+          },
+          "start_z": {
+            "type": "number"
+          },
+          "end_x": {
+            "type": "number"
+          },
+          "end_y": {
+            "type": "number"
+          },
+          "end_z": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "duct_type": {
+            "type": "string"
+          },
+          "system_type": {
+            "type": "string"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["start_x", "start_y", "start_z", "end_x", "end_y", "end_z"]
+        "required": [
+          "start_x",
+          "start_y",
+          "start_z",
+          "end_x",
+          "end_y",
+          "end_z"
+        ]
       }
     },
     {
@@ -159,19 +273,48 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "start_x": {"type": "number"},
-          "start_y": {"type": "number"},
-          "start_z": {"type": "number"},
-          "end_x": {"type": "number"},
-          "end_y": {"type": "number"},
-          "end_z": {"type": "number"},
-          "diameter": {"type": "number"},
-          "pipe_type": {"type": "string"},
-          "system_type": {"type": "string"},
-          "level_id": {"type": "string"},
-          "document_id": {"type": "string"}
+          "start_x": {
+            "type": "number"
+          },
+          "start_y": {
+            "type": "number"
+          },
+          "start_z": {
+            "type": "number"
+          },
+          "end_x": {
+            "type": "number"
+          },
+          "end_y": {
+            "type": "number"
+          },
+          "end_z": {
+            "type": "number"
+          },
+          "diameter": {
+            "type": "number"
+          },
+          "pipe_type": {
+            "type": "string"
+          },
+          "system_type": {
+            "type": "string"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["start_x", "start_y", "start_z", "end_x", "end_y", "end_z"]
+        "required": [
+          "start_x",
+          "start_y",
+          "start_z",
+          "end_x",
+          "end_y",
+          "end_z"
+        ]
       }
     },
     {
@@ -180,12 +323,24 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {"type": "string"},
-          "parameter": {"type": "string"},
-          "value": {"type": "string"},
-          "document_id": {"type": "string"}
+          "element_id": {
+            "type": "string"
+          },
+          "parameter": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["element_id", "parameter", "value"]
+        "required": [
+          "element_id",
+          "parameter",
+          "value"
+        ]
       }
     },
     {
@@ -194,10 +349,19 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_ids": {"type": "array", "items": {"type": "string"}},
-          "document_id": {"type": "string"}
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["element_ids"]
+        "required": [
+          "element_ids"
+        ]
       }
     },
     {
@@ -206,16 +370,34 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {"type": "string"},
-          "dx": {"type": "number"},
-          "dy": {"type": "number"},
-          "dz": {"type": "number"},
-          "x": {"type": "number"},
-          "y": {"type": "number"},
-          "z": {"type": "number"},
-          "document_id": {"type": "string"}
+          "element_id": {
+            "type": "string"
+          },
+          "dx": {
+            "type": "number"
+          },
+          "dy": {
+            "type": "number"
+          },
+          "dz": {
+            "type": "number"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["element_id"]
+        "required": [
+          "element_id"
+        ]
       }
     },
     {
@@ -224,11 +406,20 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "annotation_type": {"type": "string", "description": "text, tag, dimension, spot_elevation, detail_line"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "annotation_type": {
+            "type": "string",
+            "description": "text, tag, dimension, spot_elevation, detail_line"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id"]
+        "required": [
+          "view_id"
+        ]
       }
     },
     {
@@ -237,15 +428,34 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "text": {"type": "string"},
-          "x": {"type": "number"},
-          "y": {"type": "number"},
-          "z": {"type": "number"},
-          "text_type": {"type": "string"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "text_type": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id", "text", "x", "y"]
+        "required": [
+          "view_id",
+          "text",
+          "x",
+          "y"
+        ]
       }
     },
     {
@@ -254,16 +464,37 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "element_id": {"type": "string"},
-          "x": {"type": "number"},
-          "y": {"type": "number"},
-          "z": {"type": "number"},
-          "tag_type": {"type": "string"},
-          "has_leader": {"type": "boolean"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "element_id": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "tag_type": {
+            "type": "string"
+          },
+          "has_leader": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id", "element_id", "x", "y"]
+        "required": [
+          "view_id",
+          "element_id",
+          "x",
+          "y"
+        ]
       }
     },
     {
@@ -272,12 +503,26 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "references": {"type": "array", "items": {"type": "object"}},
-          "dimension_type": {"type": "string"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "dimension_type": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id", "references"]
+        "required": [
+          "view_id",
+          "references"
+        ]
       }
     },
     {
@@ -286,21 +531,59 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "element_id": {"type": "string"},
-          "point_x": {"type": "number"},
-          "point_y": {"type": "number"},
-          "point_z": {"type": "number"},
-          "bend_x": {"type": "number"},
-          "bend_y": {"type": "number"},
-          "bend_z": {"type": "number"},
-          "end_x": {"type": "number"},
-          "end_y": {"type": "number"},
-          "end_z": {"type": "number"},
-          "spot_type": {"type": "string"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "element_id": {
+            "type": "string"
+          },
+          "point_x": {
+            "type": "number"
+          },
+          "point_y": {
+            "type": "number"
+          },
+          "point_z": {
+            "type": "number"
+          },
+          "bend_x": {
+            "type": "number"
+          },
+          "bend_y": {
+            "type": "number"
+          },
+          "bend_z": {
+            "type": "number"
+          },
+          "end_x": {
+            "type": "number"
+          },
+          "end_y": {
+            "type": "number"
+          },
+          "end_z": {
+            "type": "number"
+          },
+          "spot_type": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id", "element_id", "point_x", "point_y", "point_z", "bend_x", "bend_y", "bend_z", "end_x", "end_y", "end_z"]
+        "required": [
+          "view_id",
+          "element_id",
+          "point_x",
+          "point_y",
+          "point_z",
+          "bend_x",
+          "bend_y",
+          "bend_z",
+          "end_x",
+          "end_y",
+          "end_z"
+        ]
       }
     },
     {
@@ -309,17 +592,109 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {"type": "string"},
-          "start_x": {"type": "number"},
-          "start_y": {"type": "number"},
-          "start_z": {"type": "number"},
-          "end_x": {"type": "number"},
-          "end_y": {"type": "number"},
-          "end_z": {"type": "number"},
-          "line_style": {"type": "string"},
-          "document_id": {"type": "string"}
+          "view_id": {
+            "type": "string"
+          },
+          "start_x": {
+            "type": "number"
+          },
+          "start_y": {
+            "type": "number"
+          },
+          "start_z": {
+            "type": "number"
+          },
+          "end_x": {
+            "type": "number"
+          },
+          "end_y": {
+            "type": "number"
+          },
+          "end_z": {
+            "type": "number"
+          },
+          "line_style": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
         },
-        "required": ["view_id", "start_x", "start_y", "start_z", "end_x", "end_y", "end_z"]
+        "required": [
+          "view_id",
+          "start_x",
+          "start_y",
+          "start_z",
+          "end_x",
+          "end_y",
+          "end_z"
+        ]
+      }
+    },
+    {
+      "id": "revit_count_elements",
+      "description": "Count placed Revit elements.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "view_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_group_elements",
+      "description": "Group and count placed Revit elements.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "category",
+              "family",
+              "type",
+              "level"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "view_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "group_by"
+        ]
       }
     }
   ]
