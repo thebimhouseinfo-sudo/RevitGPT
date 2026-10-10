@@ -7,11 +7,9 @@ namespace RevitGPT.Native
     public sealed class RevitGptPaneProvider : IDockablePaneProvider, IFrameworkElementCreator
     {
         private readonly NativeModelBindingState _binding;
-        private readonly NativeWriteAuthority _writeAuthority;
-        public RevitGptPaneProvider(NativeModelBindingState binding, NativeWriteAuthority writeAuthority)
+        public RevitGptPaneProvider(NativeModelBindingState binding)
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
-            _writeAuthority = writeAuthority ?? throw new ArgumentNullException(nameof(writeAuthority));
         }
 
         public static readonly DockablePaneId PaneId =
@@ -31,7 +29,7 @@ namespace RevitGPT.Native
             NativePaneDiagnostics.Record("element_create");
             try
             {
-                var pane = new RevitGptPane(_binding, _writeAuthority);
+                var pane = new RevitGptPane(_binding);
                 NativePaneDiagnostics.Record("element_created");
                 return pane;
             }
