@@ -23,18 +23,15 @@ namespace RevitGPT.Native
         private readonly TextBlock _status;
         private readonly DispatcherTimer _bindingTimer;
         private readonly NativeModelBindingState _binding;
-        private readonly NativeWriteAuthority _writeAuthority;
-        private readonly Button _approveWrite;
         private bool _starting;
 
         internal static string ProfileDirectory => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RevitGPT", "webview", "revit");
 
-        public RevitGptPane(NativeModelBindingState binding, NativeWriteAuthority writeAuthority)
+        public RevitGptPane(NativeModelBindingState binding)
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
-            _writeAuthority = writeAuthority ?? throw new ArgumentNullException(nameof(writeAuthority));
             var grid = new Grid();
             // Two rows only: no reserved footer strip under the WebView.
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -78,16 +75,6 @@ namespace RevitGPT.Native
             Grid.SetColumn(_theme, 2);
             columns.Children.Add(_theme);
 
-            _approveWrite = new Button {
-                Content = "Approve Write", IsEnabled = false,
-                Visibility = Visibility.Collapsed,
-                ToolTip = "Approve one exact pending write on an explicitly allowed local test RVT",
-                Padding = new Thickness(7, 3, 7, 3),
-                Margin = new Thickness(2, 0, 2, 0)
-            };
-            Grid.SetColumn(_approveWrite, 3);
-            columns.Children.Add(_approveWrite);
-
             _header.Child = columns;
             Grid.SetRow(_header, 0);
             grid.Children.Add(_header);
@@ -128,13 +115,6 @@ namespace RevitGPT.Native
                     ? "Switching binding to active project"
                     : "No active project to bind");
             };
-            _approveWrite.Click += (sender, args) => {
-                bool approved = _writeAuthority.ApproveFromNativePane(_binding.Current);
-                ShowStatus(approved
-                    ? "One exact pending write approved; resubmit the same operation."
-                    : "Write request expired or binding changed; no write approved.");
-                RefreshBindingIndicator();
-            };
             _theme.Checked += (sender, args) => ApplyTheme();
             _theme.Unchecked += (sender, args) => ApplyTheme();
             ApplyTheme();
@@ -171,12 +151,6 @@ namespace RevitGPT.Native
         {
             var snap = _binding.Current; // UI reads snapshots only
             bool dark = _theme.IsChecked == true;
-            string pendingWrite = _writeAuthority.PendingDescription;
-            _approveWrite.Visibility = pendingWrite == null ?
-                Visibility.Collapsed : Visibility.Visible;
-            _approveWrite.IsEnabled = pendingWrite != null && snap.Status == "BOUND_CURRENT";
-            _approveWrite.ToolTip = pendingWrite == null ? null :
-                "Approve EXACT one-time intent: " + pendingWrite;
             _bind.IsEnabled = !String.IsNullOrEmpty(snap.ActiveId) &&
                 snap.Status != "BOUND_CURRENT";
             _modelName.Text = String.IsNullOrEmpty(snap.BoundTitle)
