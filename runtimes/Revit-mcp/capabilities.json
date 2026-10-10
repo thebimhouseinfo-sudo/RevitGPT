@@ -1426,6 +1426,36 @@
           "element_id"
         ]
       }
+    },
+    {
+      "id": "revit_batch_tag",
+      "description": "Atomic category batch tags.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "has_leader": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id",
+          "element_ids"
+        ]
+      }
     }
   ]
 }
