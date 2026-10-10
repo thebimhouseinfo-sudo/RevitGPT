@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 50,
+  "entry_count": 51,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -211,6 +211,30 @@
         "pipe"
       ],
       "source_tool": "revit_create_pipe",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_create_slab",
+      "name": "revit_create_slab",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "create floor or ceiling",
+      "summary": "Simple horizontal closed profile floor/ceiling on approved disposable model.",
+      "when_to_use": "Create a floor or ceiling from bounded polygon.",
+      "tags": [
+        "transform",
+        "copy",
+        "rotate",
+        "type"
+      ],
+      "source_tool": "revit_create_slab",
       "execution": "revitgpt_call",
       "mode": "write_approval_required",
       "risk": "blocked",
