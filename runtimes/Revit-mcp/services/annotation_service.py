@@ -65,12 +65,16 @@ def add_dimension(
     references: list[dict],
     dimension_type: str | None = None,
     document_id: str | None = None,
+    line_start: dict | None = None,
+    line_end: dict | None = None,
 ) -> dict:
     return create_dimension(
         view_id=view_id,
         references=references,
         dimension_type=dimension_type,
         document_id=document_id,
+        line_start=line_start,
+        line_end=line_end,
     )
 
 
@@ -88,6 +92,7 @@ def add_spot_elevation(
     end_z: float,
     spot_type: str | None = None,
     document_id: str | None = None,
+    stable_reference: str | None = None,
 ) -> dict:
     return create_spot_elevation(
         view_id=view_id,
@@ -103,6 +108,7 @@ def add_spot_elevation(
         end_z=end_z,
         spot_type=spot_type,
         document_id=document_id,
+        stable_reference=stable_reference,
     )
 
 
