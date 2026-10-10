@@ -20,6 +20,6 @@ def register(mcp) -> None:
         """Create a sheet or place/move/remove a viewport on a disposable RVT.
 
         Action create_sheet, place_viewport, move_viewport or remove_viewport.
-        Transaction and exact per-call Native approval are mandatory.
+        Transaction and current bound-model validation are mandatory.
         """
         return write_sheet(action, properties, document_id)
