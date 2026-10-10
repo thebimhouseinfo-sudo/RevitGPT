@@ -190,7 +190,7 @@ def register(mcp) -> None:
     def revit_set_parameter(
         element_id: str,
         parameter: str,
-        value: str,
+        value: str | int | float,
         document_id: str = None,
     ) -> dict:
         """Set a parameter value on an element.
@@ -198,7 +198,9 @@ def register(mcp) -> None:
         Args:
             element_id: The Revit element ID (as string).
             parameter: Parameter name (e.g., "Width", "Height", "Diameter", "Comments").
-            value: New value. String for text, number for numeric, element ID string for element links.
+            value: Exact typed value: string for text/ElementId, int for Integer,
+                number for Double (Revit internal units). Numeric-looking strings
+                are NEVER converted implicitly, preserving identifiers like "0012".
             document_id: Optional document ID. Uses active document if not provided.
 
         Returns the updated parameter info including element ID, parameter name, value, and storage type.
