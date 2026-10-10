@@ -128,6 +128,7 @@ namespace RevitGPT.Native
                 if (path == "/annotations") return Annotations(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
                 if (path == "/mep/quantities") return MepQuantities(doc, payload);
+                if (path == "/model/spatial-warnings") return SpatialWarnings(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
@@ -422,6 +423,46 @@ namespace RevitGPT.Native
             public long MeasuredCount;
             public double LengthFeet;
         }
+        private static string SpatialWarnings(Document doc, JObject payload)
+        {
+            var elements = new List<object>();
+            var categories = new HashSet<long> {
+                (long)BuiltInCategory.OST_Rooms,
+                (long)BuiltInCategory.OST_MEPSpaces,
+                (long)BuiltInCategory.OST_Grids
+            };
+            foreach (Element element in new FilteredElementCollector(doc).WhereElementIsNotElementType())
+            {
+                if (element.Category == null || !categories.Contains(element.Category.Id.Value))
+                    continue;
+                if (elements.Count >= 1000)
+                    return Error(413, "Spatial result exceeds 1000; no truncated success.");
+                elements.Add(new {
+                    id = element.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    name = element.Name,
+                    category = element.Category.Name,
+                    level_id = element.LevelId == ElementId.InvalidElementId
+                        ? null : element.LevelId.Value.ToString(CultureInfo.InvariantCulture)
+                });
+            }
+            var warnings = new List<object>();
+            bool includeWarnings = payload.Value<bool?>("include_warnings") ?? true;
+            if (includeWarnings)
+                foreach (var warning in doc.GetWarnings())
+                {
+                    if (warnings.Count >= 1000)
+                        return Error(413, "Warning result exceeds 1000; no truncated success.");
+                    warnings.Add(new {
+                        failure_id = warning.GetFailureDefinitionId().Guid.ToString("D"),
+                        description = warning.GetDescriptionText(),
+                        element_ids = warning.GetFailingElements().Take(30)
+                            .Select(x => x.Value.ToString(CultureInfo.InvariantCulture)).ToList(),
+                        failed_element_count = warning.GetFailingElements().Count
+                    });
+                }
+            return Data(new { spatial = elements, warnings, complete = true });
+        }
+
         private static string MepQuantities(Document doc, JObject payload)
         {
             string mode = Token(payload, "mode") ?? "all";
