@@ -68,6 +68,9 @@ namespace RevitGPT.Native
                 if (denial != null) return Error(409, denial);
                 var doc = FindDocument(app, payload);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
+                if (path == "/ui/selection") return Selection(app, doc);
+                if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
+                if (path == "/ui/show") return ShowElements(app, doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
@@ -128,6 +131,67 @@ namespace RevitGPT.Native
             catch (FormatException) { return Error(400, "Malformed element or view ID."); }
             catch (ArgumentException) { return Error(400, "Invalid Revit API request arguments."); }
             catch (Exception e) { return Error(500, "Revit API read failed: " + e.GetType().Name); }
+        }
+
+        // Selection and zoom only: no persistent document edit. All run in ExternalEvent.
+        private static string Selection(UIApplication app, Document doc)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound Revit document must be the active UI document.");
+            return Data(new {
+                element_ids = uidoc.Selection.GetElementIds()
+                    .Select(id => id.Value.ToString(CultureInfo.InvariantCulture)).ToList(),
+                active_view_id = uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture)
+            });
+        }
+
+        private static List<ElementId> UiElementIds(Document doc, View activeView, JObject payload)
+        {
+            var input = payload["element_ids"] as JArray;
+            if (input == null || input.Count > 500)
+                throw new ArgumentException("element_ids must be an array of at most 500 IDs.");
+            var result = new List<ElementId>();
+            var seen = new HashSet<long>();
+            foreach (var item in input)
+            {
+                long raw;
+                if (item.Type != JTokenType.String ||
+                    !Int64.TryParse(item.ToString(), NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out raw) ||
+                    !seen.Add(raw) || raw <= 0)
+                    throw new ArgumentException("Invalid or duplicate element ID.");
+                var id = new ElementId(raw);
+                var element = doc.GetElement(id);
+                if (element == null || (element.ViewSpecific &&
+                    element.OwnerViewId != ElementId.InvalidElementId &&
+                    element.OwnerViewId != activeView.Id))
+                    throw new ArgumentException("Unknown or view-incompatible element ID.");
+                result.Add(id);
+            }
+            return result;
+        }
+
+        private static string SetSelection(UIApplication app, Document doc, JObject payload)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound Revit document must be active for selection.");
+            var ids = UiElementIds(doc, uidoc.ActiveView, payload);
+            uidoc.Selection.SetElementIds(ids);
+            return Selection(app, doc);
+        }
+
+        private static string ShowElements(UIApplication app, Document doc, JObject payload)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound Revit document must be active for zoom/show.");
+            var ids = UiElementIds(doc, uidoc.ActiveView, payload);
+            if (ids.Count == 0) return Error(400, "show requires at least one element.");
+            uidoc.ShowElements(ids);
+            return Data(new { shown = ids.Count, active_view_id =
+                uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture) });
         }
 
         private static object DocumentInfo(Document doc)
