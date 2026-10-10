@@ -73,9 +73,10 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
   const hasWriteGuard = nativeSource.includes("if (BridgeHttpProtocol.IsWrite(path))") &&
     nativeSource.includes("Native write route not yet validated;");
   expect(hasWriteGuard, "native write guard removed: require a separately reviewed write audit");
-  const hasConnectorStub = nativeSource.includes('if (path == "/element/connectors")') &&
-    nativeSource.includes("Connectors require an explicit Revit API readback fixture.");
-  expect(hasConnectorStub, "connector handler changed: replace MCP-0 stub assumption with host evidence");
+  const hasConnectors = nativeSource.includes('if (path == "/element/connectors") return Connectors(doc, payload);') &&
+    nativeSource.includes("private static string Connectors(Document doc, JObject payload)") &&
+    nativeSource.includes("foreach (Connector connector in manager.Connectors)");
+  expect(hasConnectors, "connector source handler missing or changed; require new audit proof");
   const planRows = [...planSource.matchAll(/^\| (CORE|ADVANCED\*) \| ([^\n]+)\| (READ|UI_ACTION|READ\/UI_ACTION|WRITE|DESTRUCTIVE|READ\/WRITE|WRITE\/DESTRUCTIVE|DYN_LOAD) \| ([^\n]+)\|$/gm)]
     .map(m => ({ tier: m[1], contract: m[2].trim(), mode: m[3], implementation: m[4].trim(), release_gate: "HOST_TEST_BLOCKED", ready: false }));
   expect(planRows.filter(x => x.tier === "CORE").length === 39, "CORE capability target matrix changed: revise review gate");
@@ -95,9 +96,9 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       http_routes: route, native_route_registered: true,
       native_handler_observed: nativePresent,
       native_write_guard_active: isWrite && hasWriteGuard,
-      classification: isWrite ? "BLOCKED" : isConnector ? "STUB" : "PARTIAL",
+      classification: isWrite ? "BLOCKED" : "PARTIAL",
       reason: isWrite ? "Native HTTP 501 for all write routes; Node mutation gate active."
-        : isConnector ? "Native connector route deliberately returns 501."
+         : isConnector ? "Native connector reader added; still requires live Revit host evidence."
         : entry.name === "revit_get_element" || entry.name === "revit_list_elements"
           ? "Native read exists; promised parameters are not fully serialized. No live-host proof."
           : "Static read handler exists; not verified against real Revit 2024.",
@@ -105,7 +106,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     };
   });
   const counts = toolRows.reduce((acc,x) => { acc[x.classification] = (acc[x.classification] || 0) + 1; return acc; }, {});
-  expect(counts.BLOCKED === 11 && counts.STUB === 1 && counts.PARTIAL === 17, "baseline classifications changed; require reviewed update");
+  expect(counts.BLOCKED === 11 && counts.PARTIAL === 18, "baseline classifications changed; require reviewed update");
   return { schema_version: 1, audit_type: "SOURCE_STATIC_ONLY", host_verified: false,
     warning: "Neither mock HTTP, declared tool, route nor built DLL proves real Revit functionality.",
     summary: { declared_tools: names.length, classification_counts: counts,
