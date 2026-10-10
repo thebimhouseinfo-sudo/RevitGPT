@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 31,
+  "entry_count": 32,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -715,6 +715,29 @@
         "zoom"
       ],
       "source_tool": "revit_show_elements",
+      "execution": "revitgpt_call",
+      "mode": "ui_action",
+      "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_temporary_visibility",
+      "name": "revit_temporary_visibility",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "temporary visibility",
+      "summary": "Temporarily hide, isolate or reset elements in the bound Revit view; API requires Transaction.",
+      "when_to_use": "Modify temporary Revit view visibility without changing model binding.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_temporary_visibility",
       "execution": "revitgpt_call",
       "mode": "ui_action",
       "risk": "medium",
