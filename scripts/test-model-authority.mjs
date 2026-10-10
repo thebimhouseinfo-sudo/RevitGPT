@@ -29,7 +29,7 @@ try {
   assert.deepEqual(await first.authorize("revit_set_parameter",{
     element_id:"42",parameter:"Mark",value:"0012"
   }),{element_id:"42",parameter:"Mark",value:"0012",document_id:"A"},
-  "Node forwards exact write INTENT, but only native can issue an approval");
+  "Node forwards exact WRITE to the current native-bound model only");
   await fails(()=>first.authorize("revit_delete_elements",{document_id:"B",element_ids:["42"]}),
     "DOCUMENT_ID_MISMATCH");
   await fails(()=>first.authorize("revit_list_levels",{document_id:"B"}),"DOCUMENT_ID_MISMATCH");
@@ -55,7 +55,7 @@ try {
   })}),"NATIVE_BINDING_UNAVAILABLE");
   assert.ok(calls.every(c=>c.path==="/binding/status"&&c.id));
   assert.equal(new Set(calls.map(c=>c.id)).size,calls.length);
-  console.log("[PASS] Bound-model admission for reads and write intent; no Node-side write grant; mismatch and restart fail closed.");
+  console.log("[PASS] Bound-model read/write admission; mismatch, closed model and restart fail closed.");
 } finally {
   await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
 }
