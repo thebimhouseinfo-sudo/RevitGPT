@@ -190,6 +190,29 @@ def _validated_parameter_names(names: list[str]) -> list[str]:
     return names
 
 
+def aggregate_elements(
+    document_id: str | None = None,
+    category: str | None = None,
+    class_name: str | None = None,
+    family: str | None = None,
+    type_name: str | None = None,
+    view_id: str | None = None,
+    group_by: str | None = None,
+) -> dict:
+    if group_by is not None and group_by not in ("category", "family", "type", "level"):
+        raise ValueError("group_by must be category, family, type, or level")
+    payload = {}
+    for key, value in (
+        ("document_id", document_id), ("category", category), ("class", class_name),
+        ("family", family), ("type", type_name), ("view_id", view_id),
+        ("group_by", group_by),
+    ):
+        if value is not None:
+            payload[key] = value
+    result = _send_request("/elements/aggregate", payload=payload, method="POST")
+    return result.get("data", result)
+
+
 def get_element(
     element_id: str,
     document_id: str | None = None,
