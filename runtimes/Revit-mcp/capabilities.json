@@ -1153,6 +1153,69 @@
           }
         }
       }
+    },
+    {
+      "id": "revit_list_sheets",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_sheet_viewports",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_manage_sheet",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }
