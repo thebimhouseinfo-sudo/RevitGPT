@@ -37,10 +37,16 @@ const diagnostic=await callReadOnlyTool({name:"revit_get_active_document",
   authority:session(),ensureReady,invoke});
 assert.equal(diagnostic.name,"revit_get_active_document");
 
-await fail(()=>callReadOnlyTool({name:"revit_delete_elements",authority:session(),ensureReady,invoke}),
-  "NATIVE_MUTATIONS_NOT_ENABLED");
+const writeIntent=await callReadOnlyTool({
+  name:"revit_delete_elements",args:{element_ids:["42"]},
+  authority:session(),ensureReady,invoke
+});
+assert.deepEqual(writeIntent.args,{element_ids:["42"],document_id:"M"},
+  "Node forwards bound write INTENT but never grants permission to commit");
 await fail(()=>callReadOnlyTool({name:"revit_create_duct",authority:session(),ensureReady,invoke}),
-  "NATIVE_MUTATIONS_NOT_ENABLED");
+  "REVIT_MCP_TOOL_NOT_DISCOVERED");
+await fail(()=>callReadOnlyTool({name:"revit_unknown_write",authority:session(),ensureReady,invoke}),
+  "MODEL_TOOL_NOT_ALLOWED");
 await fail(()=>callReadOnlyTool({name:"revit_list_levels",args:{document_id:"OTHER"},
   authority:session(),ensureReady,invoke}),"DOCUMENT_ID_MISMATCH");
 const performed=counts.call;
@@ -85,4 +91,4 @@ const legacy=source.replace("await callReadOnlyTool({",
   'if (!admitted || !revitUpstream.status().connected) throw new Error("REVITGPT_ADMISSION_REQUIRED"); await callReadOnlyTool({');
 assert.notEqual(legacy,source);
 assert.ok(legacy.includes("REVITGPT_ADMISSION_REQUIRED"),"negative control identifies regression");
-console.log("[PASS] Fresh MCP sessions can read native-bound model without lease/admission; cold explicit read activates once; mismatches/writes/closed/bridge-off fail closed.");
+console.log("[PASS] Fresh MCP sessions can read native-bound model without lease/admission; cold explicit read activates once; mismatches/unknown tools/closed/bridge-off fail closed; Native alone approves write.");
