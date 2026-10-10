@@ -299,6 +299,18 @@ def get_element(
     return result.get("data", result)
 
 
+def load_dyn_file(path: str, document_id: str | None = None) -> dict:
+    from services.dynamo_preflight import validate_staged_dyn
+    report = validate_staged_dyn(path)
+    payload = {"path": report["path"], "sha256": report["sha256"]}
+    if document_id:
+        payload["document_id"] = document_id
+    # The Native adapter independently rechecks hash, file and node restrictions.
+    # This NEVER sends graph-run request; Dynamo must remain MANUAL.
+    return _send_request("/dynamo/load", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def create_or_duplicate_view(action: str, name: str | None = None,
                              level_id: str | None = None,
                              source_view_id: str | None = None,
