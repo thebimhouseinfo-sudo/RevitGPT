@@ -31,6 +31,8 @@ class ViewCreateTests(unittest.TestCase):
         proto = (BASE/"bridge/unified_native/BridgeHttpProtocol.cs").read_text(encoding="utf-8")
         self.assertIn("ViewPlan.Create(", native)
         self.assertIn("View3D.CreateIsometric(", native)
+        self.assertIn("ViewSection.CreateSection(", native)
+        self.assertIn("bx.CrossProduct(by).DistanceTo(bz)", native)
         self.assertIn("source.Duplicate(", native)
         self.assertIn("tx.RollBack()", native)
         self.assertIn('path == "/view/create"', proto)
