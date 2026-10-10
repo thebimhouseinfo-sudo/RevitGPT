@@ -90,6 +90,19 @@ class RouteParityTests(unittest.TestCase):
         self.assertIn('.Where(x => x.ViewFamily == family).Take(2).ToList()', view_create)
         self.assertNotIn('.FirstOrDefault(x => x.ViewFamily == family)', view_create)
 
+    def test_test_model_write_allowlist_is_fail_closed(self):
+        policy = (BASE / "bridge" / "unified_native" / "NativeWriteAuthority.cs").read_text(encoding="utf-8")
+        self.assertIn('"write-test-models.txt"', policy)
+        self.assertIn('doc.IsWorkshared', policy)
+        self.assertIn('doc.IsLinked', policy)
+        self.assertIn('FileAttributes.ReparsePoint', policy)
+        self.assertIn('File.ReadAllLines(allowlist)', policy)
+        self.assertIn('String.Equals(line.Trim(), candidate,', policy)
+        self.assertIn('WRITE_TEST_MODEL_NOT_ALLOWED', policy)
+        self.assertIn('_pending = null; // consume BEFORE Revit API execution', policy)
+        self.assertIn('snapshot.Revision != _pending.BindingRevision', policy)
+        self.assertNotIn('return true; // unrestricted writes', policy)
+
     def test_negative_control_detects_missing_mutating_route(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn('"POST /annotation/detail_line"', code)
