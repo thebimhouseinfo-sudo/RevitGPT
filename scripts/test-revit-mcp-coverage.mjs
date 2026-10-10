@@ -18,8 +18,10 @@ assert.throws(()=>auditSources(mutation({routesSource:baseline.routesSource.repl
   '"POST \/element\/connectors"', '"POST \/element\/connector-removed"')})), /missing native route contract/);
 assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.replace(
   "Native write route not yet validated;", "Write enabled somehow;")})), /native write guard removed/);
-assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.replace(
-  "foreach (Connector connector in manager.Connectors)", "/* connector collector disabled */")})),
+const connectorControl = baseline.nativeSource.replaceAll(
+  "foreach (Connector connector in manager.Connectors)", "/* connector collector disabled */");
+assert.notEqual(connectorControl, baseline.nativeSource, "negative control did not change connector reader");
+assert.throws(()=>auditSources(mutation({nativeSource:connectorControl})),
   /connector source handler missing/);
 const reducedPlan = baseline.planSource.replace(/^\| ADVANCED\* \|[^\r\n]*(?:\r?\n|$)/m, "");
 assert.notEqual(reducedPlan, baseline.planSource, "negative control did not change the plan");
