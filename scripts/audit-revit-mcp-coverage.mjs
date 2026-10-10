@@ -70,7 +70,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
   expect(unique(names) && unique(manifestNames) && unique(capsNames), "duplicate MCP tool name");
   expect(same(names, manifestNames) && same(names, capsNames), "declared tools drift from one or more manifests");
   expect(manifest.entry_count === names.length, "manifest entry_count differs from registered tools");
-  expect(names.length >= 42, "expected 23 baseline plus 2 aggregate tools");
+  expect(names.length >= 42, "V1 tool surface unexpectedly dropped below migrated baseline");
   expect(Object.keys(routeMap).every(x => names.includes(x)), "original 23 tools unexpectedly missing");
   expect(names.every(x => routeMap[x]), "new tool needs an explicit audited routeMap contract");
   for (const file of pythonToolFiles) {
@@ -126,8 +126,11 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     };
   });
   const counts = toolRows.reduce((acc,x) => { acc[x.classification] = (acc[x.classification] || 0) + 1; return acc; }, {});
-  expect(counts.WRITE_IMPLEMENTED_UNVERIFIED === 11 && counts.PARTIAL === 31,
-    "implementation counts changed; require reviewed update");
+  const declaredWrites = manifest.entries.filter(x => x.mutates_model).length;
+  expect(declaredWrites >= 11 &&
+    counts.WRITE_IMPLEMENTED_UNVERIFIED === declaredWrites &&
+    counts.PARTIAL === manifest.entries.length - declaredWrites,
+    "implementation inventory or risk classification drifted");
   return { schema_version: 1, audit_type: "SOURCE_STATIC_ONLY", host_verified: false,
     warning: "Neither mock HTTP, declared tool, route nor built DLL proves real Revit functionality.",
     summary: { declared_tools: names.length, classification_counts: counts,
