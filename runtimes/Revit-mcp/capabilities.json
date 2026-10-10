@@ -770,6 +770,25 @@
           "view_id"
         ]
       }
+    },
+    {
+      "id": "revit_list_mep_systems",
+      "description": "List actual MEP system instances.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "duct",
+              "pipe"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }
