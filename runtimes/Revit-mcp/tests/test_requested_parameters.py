@@ -84,6 +84,13 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("complete = true", code)
         self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
 
+    def test_connector_handler_still_requires_host_qa(self):
+        code = NATIVE.read_text(encoding="utf-8")
+        self.assertIn("private static string Connectors(Document doc, JObject payload)", code)
+        self.assertIn("foreach (Connector connector in manager.Connectors)", code)
+        self.assertIn("if (connectors.Count >= 256)", code)
+        self.assertIn("reference.Owner?.Id.Value", code)
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)
