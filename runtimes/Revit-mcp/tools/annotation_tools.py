@@ -113,15 +113,19 @@ def register(mcp) -> None:
         references: list[dict],
         dimension_type: str = None,
         document_id: str = None,
+        line_start: dict = None,
+        line_end: dict = None,
     ) -> dict:
         """Create a dimension annotation between elements.
 
         Args:
             view_id: The view ID to place the dimension in.
             references: List of element references to dimension. Each reference
-                should be a dict with "element_id" key. At least 2 references required.
+                needs an exact "stable_reference" geometry string. At least 2 references required.
             dimension_type: Optional dimension type name. Uses project default if not provided.
             document_id: Optional document ID. Uses active document if not provided.
+
+            line_start / line_end: Exact {"x","y","z"} endpoints in Revit internal feet.
 
         Returns the created dimension with its ID, value, and value string.
         The operation is wrapped in a Revit transaction.
@@ -131,6 +135,8 @@ def register(mcp) -> None:
             references=references,
             dimension_type=dimension_type,
             document_id=document_id,
+            line_start=line_start,
+            line_end=line_end,
         )
 
     @mcp.tool()
@@ -148,6 +154,7 @@ def register(mcp) -> None:
         end_z: float,
         spot_type: str = None,
         document_id: str = None,
+        stable_reference: str = None,
     ) -> dict:
         """Create a spot elevation annotation on an element.
 
@@ -170,6 +177,8 @@ def register(mcp) -> None:
             spot_type: Optional spot dimension type name. Uses project default if not provided.
             document_id: Optional document ID. Uses active document if not provided.
 
+            stable_reference: Required exact Revit geometry reference; element_id alone is insufficient.
+
         Returns the created spot elevation with its ID, value, and value string.
         The operation is wrapped in a Revit transaction.
         """
@@ -187,6 +196,7 @@ def register(mcp) -> None:
             end_z=end_z,
             spot_type=spot_type,
             document_id=document_id,
+            stable_reference=stable_reference,
         )
 
     @mcp.tool()
