@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 30,
+  "entry_count": 31,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -349,6 +349,27 @@
         "zoom"
       ],
       "source_tool": "revit_get_selection",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_view_properties",
+      "name": "revit_get_view_properties",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.view",
+      "title": "get view properties",
+      "summary": "Read scale, detail, discipline, template, crop and display style for a Revit view.",
+      "when_to_use": "Inspect exact native view formatting and template status.",
+      "tags": [
+        "views"
+      ],
+      "source_tool": "revit_get_view_properties",
       "execution": "revitgpt_call",
       "mode": "read_only",
       "risk": "low",
