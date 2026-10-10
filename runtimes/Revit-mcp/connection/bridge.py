@@ -273,6 +273,12 @@ def temporary_visibility(mode: str, element_ids: list[str] | None = None,
     return _send_request("/ui/visibility/temporary", payload=payload, method="POST")["data"]
 
 
+def get_active_view(document_id: str | None = None) -> dict:
+    """Inspect the Revit UI active view of the current bound model, not a cached view."""
+    payload = {"document_id": document_id} if document_id else {}
+    return _send_request("/ui/view/active", payload=payload, method="POST")["data"]
+
+
 def activate_view(view_id: str, document_id: str | None = None) -> dict:
     if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) < 1:
         raise ValueError("view_id must be a positive Revit ElementId string")
