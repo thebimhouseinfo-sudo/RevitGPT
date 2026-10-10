@@ -573,7 +573,9 @@ class FakeBridgeTests(unittest.TestCase):
     def test_create_dimension(self):
         result = create_dimension(
             view_id="100",
-            references=[{"element_id": "300"}, {"element_id": "301"}],
+            references=[{"stable_reference": "300:0:FACE"}, {"stable_reference": "301:0:FACE"}],
+            line_start={"x": 0, "y": 0, "z": 0},
+            line_end={"x": 10, "y": 0, "z": 0},
         )
         self.assertEqual(result["id"], "912")
         self.assertEqual(result["type"], "dimension")
@@ -586,6 +588,7 @@ class FakeBridgeTests(unittest.TestCase):
             point_x=0, point_y=0, point_z=0,
             bend_x=1, bend_y=0, bend_z=0,
             end_x=2, end_y=0, end_z=0,
+            stable_reference="300:0:FACE",
         )
         self.assertEqual(result["id"], "913")
         self.assertEqual(result["type"], "spot_dimension")
