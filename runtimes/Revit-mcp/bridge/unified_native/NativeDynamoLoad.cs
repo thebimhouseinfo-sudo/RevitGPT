@@ -36,7 +36,10 @@ namespace RevitGPT.Native
                 full.StartsWith("\\\\", StringComparison.Ordinal) || !File.Exists(full))
                 return false;
             string part = full;
-            while (part.StartsWith(ManagedRoot(), StringComparison.OrdinalIgnoreCase))
+            string rootDirectory = ManagedRoot().TrimEnd(Path.DirectorySeparatorChar);
+            while (!String.IsNullOrWhiteSpace(part) &&
+                (part.StartsWith(ManagedRoot(), StringComparison.OrdinalIgnoreCase) ||
+                 String.Equals(part, rootDirectory, StringComparison.OrdinalIgnoreCase)))
             {
                 if ((File.GetAttributes(part) & FileAttributes.ReparsePoint) != 0)
                     return false;
