@@ -329,6 +329,18 @@ def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> 
     return _send_request("/mep/systems", payload=payload, method="POST")["data"]
 
 
+def get_categories(document_id: str | None = None,
+                   name_contains: str | None = None) -> list[dict]:
+    if name_contains is not None and (
+        not isinstance(name_contains, str) or not name_contains.strip() or len(name_contains) > 128
+    ):
+        raise ValueError("name_contains must be a nonempty bounded string")
+    payload = {}
+    if document_id: payload["document_id"] = document_id
+    if name_contains is not None: payload["name_contains"] = name_contains
+    return _send_request("/categories", payload=payload, method="POST")["data"]
+
+
 def inspect_element(element_id: str, aspect: str,
                     document_id: str | None = None) -> dict:
     if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:

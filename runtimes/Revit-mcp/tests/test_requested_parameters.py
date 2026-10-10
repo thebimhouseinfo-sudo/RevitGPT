@@ -182,6 +182,19 @@ class SelectedParameterBridgeTests(unittest.TestCase):
             bridge.inspect_element("42", "execute")
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": [{"name": "Walls", "id": "-2000011"}]})
+    def test_categories_read_transport(self, send):
+        result = bridge.get_categories(name_contains="Walls")
+        self.assertEqual(result[0]["name"], "Walls")
+        send.assert_called_once_with("/categories",
+            payload={"name_contains": "Walls"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_categories_bad_filter_rejected(self, send):
+        with self.assertRaises(ValueError):
+            bridge.get_categories(name_contains="")
+        send.assert_not_called()
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)

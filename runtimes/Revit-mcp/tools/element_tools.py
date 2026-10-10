@@ -1,10 +1,16 @@
 """Element MCP tools."""
 
 from services.element_service import count_or_group_elements, get_element_by_id, list_elements
-from connection.bridge import get_spatial_warnings, get_element_parameters, inspect_element
+from connection.bridge import get_spatial_warnings, get_element_parameters, inspect_element, get_categories
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_get_categories(document_id: str = None,
+                             name_contains: str = None) -> list[dict]:
+        """Read Revit category IDs, names, types and binding support."""
+        return get_categories(document_id=document_id, name_contains=name_contains)
+
     @mcp.tool()
     def revit_get_geometry_summary(element_id: str, document_id: str = None) -> dict:
         """Read element native geometry location/bounding box without any model write."""

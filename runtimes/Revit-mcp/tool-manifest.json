@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 39,
+  "entry_count": 40,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -265,6 +265,32 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_get_categories",
+      "name": "revit_get_categories",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "get categories",
+      "summary": "List Revit category IDs/types and parameter binding support.",
+      "when_to_use": "Choose native category ID for typed queries.",
+      "tags": [
+        "elements",
+        "equipment",
+        "family",
+        "type",
+        "placed",
+        "instances"
+      ],
+      "source_tool": "revit_get_categories",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {

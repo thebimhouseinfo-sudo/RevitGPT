@@ -27,6 +27,7 @@ namespace RevitGPT.Native
             "POST /element",
             "POST /element/parameters",
             "POST /element/inspect",
+            "POST /categories",
             "POST /element/connectors",
             "POST /mep/systems",
             "POST /mep/quantities",

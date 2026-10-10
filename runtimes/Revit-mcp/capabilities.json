@@ -957,6 +957,21 @@
           "element_id"
         ]
       }
+    },
+    {
+      "id": "revit_get_categories",
+      "description": "List document Revit categories and IDs.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "name_contains": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }

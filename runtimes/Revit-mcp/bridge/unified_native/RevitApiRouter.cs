@@ -88,6 +88,7 @@ namespace RevitGPT.Native
                 if (path == "/element") return Element(doc, payload);
                 if (path == "/element/parameters") return AllParameters(doc, payload);
                 if (path == "/element/inspect") return InspectElement(doc, payload);
+                if (path == "/categories") return Categories(doc, payload);
                 if (path == "/families")
                 {
                     var category = Token(payload, "category");
@@ -373,6 +374,26 @@ namespace RevitGPT.Native
                 scope = viewId.HasValue ? "view_visible" : "document_placed_instances",
                 view_id = viewId?.ToString(CultureInfo.InvariantCulture)
             });
+        }
+
+        private static string Categories(Document doc, JObject payload)
+        {
+            string filter = Token(payload, "name_contains");
+            var result = new List<object>();
+            foreach (Category category in doc.Settings.Categories)
+            {
+                if (filter != null && category.Name.IndexOf(filter,
+                    StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (result.Count >= 2048)
+                    return Error(413, "More than 2048 categories; no truncated result.");
+                result.Add(new {
+                    id = category.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    name = category.Name,
+                    category_type = category.CategoryType.ToString(),
+                    allows_bound_parameters = category.AllowsBoundParameters
+                });
+            }
+            return Data(result);
         }
 
         private static string InspectElement(Document doc, JObject payload)
