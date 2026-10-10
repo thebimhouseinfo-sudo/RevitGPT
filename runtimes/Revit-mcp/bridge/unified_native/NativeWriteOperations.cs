@@ -100,6 +100,9 @@ namespace RevitGPT.Native
                 if (path == "/create/pipe") return PipeRun(doc, p);
                 if (path == "/annotation/text") return Text(doc, p);
                 if (path == "/annotation/detail_line") return DetailLine(doc, p);
+                if (path == "/annotation/tag") return Tag(doc, p);
+                if (path == "/annotation/dimension") return Dimension(doc, p);
+                if (path == "/annotation/spot_elevation") return SpotElevation(doc, p);
                 return Error(501, "Write handler is not implemented for: " + path);
             }
             catch (ArgumentException ex) { return Error(400, ex.Message); }
@@ -201,6 +204,110 @@ namespace RevitGPT.Native
             return WithTransaction(doc, "RevitGPT Text Note", () => {
                 TextNote note = TextNote.Create(doc, view.Id, at, text, type.Id);
                 return new { id = ElementIdString(note), view_id = ElementIdString(view) };
+            });
+        }
+        private static Reference StableReference(Document doc, string stable)
+        {
+            if (String.IsNullOrWhiteSpace(stable) || stable.Length > 4096)
+                throw new ArgumentException("Exact stable geometry reference is required.");
+            Reference reference;
+            try { reference = Reference.ParseFromStableRepresentation(doc, stable); }
+            catch { throw new ArgumentException("Invalid Revit stable geometry reference."); }
+            if (reference == null || doc.GetElement(reference.ElementId) == null)
+                throw new ArgumentException("Geometry reference target is not present.");
+            return reference;
+        }
+        private static string Tag(Document doc, JObject p)
+        {
+            View view = ResolveDetailView(doc, p);
+            string elementId = Token(p, "element_id");
+            long id;
+            if (!Int64.TryParse(elementId, out id) || id <= 0)
+                return Error(400, "element_id required.");
+            Element target = doc.GetElement(new ElementId(id));
+            if (target == null) return Error(404, "Tag target not found.");
+            XYZ point = Point(p, "");
+            bool leader = p.Value<bool?>("has_leader") == true;
+            return WithTransaction(doc, "RevitGPT Tag Element", () => {
+                IndependentTag tag = IndependentTag.Create(doc, view.Id, new Reference(target),
+                    leader, TagMode.TM_ADDBY_CATEGORY, TagOrientation.Horizontal, point);
+                if (tag == null) throw new InvalidOperationException("Tag creation failed.");
+                string requestedType = Token(p, "tag_type");
+                if (!String.IsNullOrWhiteSpace(requestedType))
+                {
+                    var candidates = tag.GetValidTypes()
+                        .Select(x => doc.GetElement(x))
+                        .Where(x => String.Equals(x.Name, requestedType, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (candidates.Count != 1)
+                        throw new ArgumentException("Tag type missing or ambiguous.");
+                    tag.ChangeTypeId(candidates[0].Id);
+                }
+                return new { id = ElementIdString(tag), tagged_id = ElementIdString(target),
+                    view_id = ElementIdString(view) };
+            });
+        }
+        private static string Dimension(Document doc, JObject p)
+        {
+            View view = ResolveDetailView(doc, p);
+            var values = p["references"] as JArray;
+            if (values == null || values.Count < 2 || values.Count > 16)
+                return Error(400, "Dimension requires 2..16 stable references.");
+            var references = new ReferenceArray();
+            foreach (JToken entry in values)
+            {
+                var obj = entry as JObject;
+                if (obj == null) return Error(400, "Each dimension reference must be an object.");
+                references.Append(StableReference(doc, Token(obj, "stable_reference")));
+            }
+            XYZ start = Point(p, "line_start_");
+            XYZ end = Point(p, "line_end_");
+            if (start.DistanceTo(end) < 0.0001)
+                return Error(400, "Dimension line is too short.");
+            return WithTransaction(doc, "RevitGPT Dimension", () => {
+                Dimension dimension = doc.Create.NewDimension(view,
+                    Line.CreateBound(start, end), references);
+                if (dimension == null)
+                    throw new InvalidOperationException("Dimension creation failed.");
+                string name = Token(p, "dimension_type");
+                if (!String.IsNullOrWhiteSpace(name))
+                {
+                    var matches = dimension.GetValidTypes().Select(x => doc.GetElement(x))
+                        .Where(x => String.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (matches.Count != 1)
+                        throw new ArgumentException("Dimension type missing or ambiguous.");
+                    dimension.ChangeTypeId(matches[0].Id);
+                }
+                return new { id = ElementIdString(dimension),
+                    reference_count = values.Count, view_id = ElementIdString(view) };
+            });
+        }
+        private static string SpotElevation(Document doc, JObject p)
+        {
+            View view = ResolveDetailView(doc, p);
+            // A generic Element reference is insufficient for a reliable spot.
+            // Require an exact stable geometry reference obtained from Revit.
+            Reference reference = StableReference(doc, Token(p, "stable_reference"));
+            XYZ origin = Point(p, "point_");
+            XYZ bend = Point(p, "bend_");
+            XYZ end = Point(p, "end_");
+            return WithTransaction(doc, "RevitGPT Spot Elevation", () => {
+                SpotDimension spot = doc.Create.NewSpotElevation(view, reference,
+                    origin, bend, end, origin, true);
+                if (spot == null)
+                    throw new InvalidOperationException("SpotElevation creation failed.");
+                string requestedType = Token(p, "spot_type");
+                if (!String.IsNullOrWhiteSpace(requestedType))
+                {
+                    var types = spot.GetValidTypes().Select(x => doc.GetElement(x))
+                        .Where(x => String.Equals(x.Name, requestedType, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (types.Count != 1)
+                        throw new ArgumentException("Spot elevation type missing or ambiguous.");
+                    spot.ChangeTypeId(types[0].Id);
+                }
+                return new { id = ElementIdString(spot), view_id = ElementIdString(view) };
             });
         }
         private static string DetailLine(Document doc, JObject p)
