@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 62,
+  "entry_count": 63,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -1175,6 +1175,32 @@
         "systems"
       ],
       "source_tool": "revit_quantity_takeoff",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_query_elements",
+      "name": "revit_query_elements",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "query elements",
+      "summary": "Read bounded keyset pages with exact typed parameter predicates; pagination has no frozen snapshot guarantee.",
+      "when_to_use": "Query placed Revit elements by category/family/type and parameter value.",
+      "tags": [
+        "elements",
+        "equipment",
+        "family",
+        "type",
+        "placed",
+        "instances"
+      ],
+      "source_tool": "revit_query_elements",
       "execution": "revitgpt_call",
       "mode": "read_only",
       "risk": "low",
