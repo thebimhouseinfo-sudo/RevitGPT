@@ -72,6 +72,7 @@ namespace RevitGPT.Native
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
                 if (path == "/ui/view/activate") return ActivateView(app, doc, payload);
+                if (path == "/view/properties") return GetViewProperties(doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
@@ -327,6 +328,33 @@ namespace RevitGPT.Native
         }
 
         // Actual system INSTANCE inventory, not MechanicalSystemType/PipingSystemType.
+        private static string GetViewProperties(Document doc, JObject payload)
+        {
+            long? id = LongNumber(payload, "view_id");
+            if (!id.HasValue) return Error(400, "view_id required.");
+            View view = doc.GetElement(new ElementId(id.Value)) as View;
+            if (view == null) return Error(404, "View not found.");
+            var box = view.CropBox;
+            return Data(new {
+                id = view.Id.Value.ToString(CultureInfo.InvariantCulture),
+                name = view.Name,
+                view_type = view.ViewType.ToString(),
+                is_template = view.IsTemplate,
+                view_template_id = view.ViewTemplateId?.Value.ToString(CultureInfo.InvariantCulture),
+                scale = view.Scale,
+                detail_level = view.DetailLevel.ToString(),
+                discipline = view.Discipline.ToString(),
+                display_style = view.DisplayStyle.ToString(),
+                crop_box_active = view.CropBoxActive,
+                crop_box_visible = view.CropBoxVisible,
+                crop_box = box == null ? null : new {
+                    min = new { x = box.Min.X, y = box.Min.Y, z = box.Min.Z },
+                    max = new { x = box.Max.X, y = box.Max.Y, z = box.Max.Z },
+                    coordinate_unit = "revit_internal_feet"
+                }
+            });
+        }
+
         private static string MepSystems(Document doc, JObject payload)
         {
             string kind = Token(payload, "kind");
