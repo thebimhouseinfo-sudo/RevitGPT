@@ -267,6 +267,31 @@ namespace RevitGPT.Native
             };
         }
 
+        // Stable selectors: guid:<D-format GUID>, bip:<BuiltInParameter enum>.
+        // Unprefixed selectors preserve legacy exact display-name lookup.
+        private static IList<Parameter> ResolveParameters(Element owner, string selector)
+        {
+            if (selector.StartsWith("guid:", StringComparison.OrdinalIgnoreCase))
+            {
+                Guid guid;
+                if (!Guid.TryParseExact(selector.Substring(5), "D", out guid))
+                    throw new ArgumentException("Invalid shared parameter GUID selector.");
+                Parameter match = owner.get_Parameter(guid);
+                return match == null ? new List<Parameter>() : new List<Parameter> { match };
+            }
+            if (selector.StartsWith("bip:", StringComparison.OrdinalIgnoreCase))
+            {
+                string enumName = selector.Substring(4);
+                BuiltInParameter bip;
+                if (!Enum.TryParse<BuiltInParameter>(enumName, false, out bip) ||
+                    !Enum.IsDefined(typeof(BuiltInParameter), bip))
+                    throw new ArgumentException("Invalid BuiltInParameter selector.");
+                Parameter match = owner.get_Parameter(bip);
+                return match == null ? new List<Parameter>() : new List<Parameter> { match };
+            }
+            return owner.GetParameters(selector);
+        }
+
         private static Dictionary<string, object> RequestedParameterValues(Element element, IList<string> names)
         {
             var result = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -274,7 +299,7 @@ namespace RevitGPT.Native
             Element typeElement = null;
             foreach (string name in names)
             {
-                var instanceMatches = element.GetParameters(name);
+                var instanceMatches = ResolveParameters(element, name);
                 if (instanceMatches.Count > 1)
                 {
                     result[name] = new { status = "AMBIGUOUS", scope = "instance",
@@ -294,7 +319,7 @@ namespace RevitGPT.Native
                 }
                 if (typeElement != null)
                 {
-                    var typeMatches = typeElement.GetParameters(name);
+                    var typeMatches = ResolveParameters(typeElement, name);
                     if (typeMatches.Count > 1)
                     {
                         result[name] = new { status = "AMBIGUOUS", scope = "type",
