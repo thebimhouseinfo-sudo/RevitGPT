@@ -260,14 +260,26 @@ def select_related(element_id: str, relation: str, apply: bool = False,
 
 
 def temporary_visibility(mode: str, element_ids: list[str] | None = None,
-                         document_id: str | None = None) -> dict:
+                         document_id: str | None = None, view_id: str | None = None,
+                         category: str | None = None) -> dict:
     if mode not in ("hide", "isolate", "reset"):
         raise ValueError("mode must be hide, isolate or reset")
     ids = _valid_ui_ids(element_ids if element_ids is not None else [],
-                        allow_empty=mode == "reset")
-    if (mode == "reset" and ids) or (mode != "reset" and not ids):
+                        allow_empty=(mode == "reset" or category is not None))
+    if category is not None:
+        if (not isinstance(category, str) or not category.strip() or
+                len(category) > 128 or mode == "reset" or ids):
+            raise ValueError("category requires hide/isolate and empty element_ids")
+    elif (mode == "reset" and ids) or (mode != "reset" and not ids):
         raise ValueError("inconsistent temporary visibility target set")
+    if view_id is not None and (not isinstance(view_id, str) or
+            not view_id.isdecimal() or int(view_id) <= 0):
+        raise ValueError("view_id must be a positive Revit ElementId string")
     payload = {"mode": mode, "element_ids": ids}
+    if category is not None:
+        payload["category"] = category
+    if view_id is not None:
+        payload["view_id"] = view_id
     if document_id:
         payload["document_id"] = document_id
     return _send_request("/ui/visibility/temporary", payload=payload, method="POST")["data"]
