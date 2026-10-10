@@ -50,6 +50,7 @@ namespace RevitGPT.Native
                 {
                     if (binding == null) return Error(503, "Native binding state unavailable.");
                     var snap = binding.Current;
+                    var activeView = app.ActiveUIDocument?.ActiveView;
                     return Data(new {
                         status = snap.Status,
                         host_instance_id = snap.HostInstanceId,
@@ -57,7 +58,10 @@ namespace RevitGPT.Native
                         active_id = snap.ActiveId,
                         active_title = snap.ActiveTitle,
                         bound_id = snap.BoundId,
-                        bound_title = snap.BoundTitle
+                        bound_title = snap.BoundTitle,
+                        active_view_id = activeView?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                        active_view_name = activeView?.Name,
+                        active_view_type = activeView?.ViewType.ToString()
                     });
                 }
                 if (binding == null) return Error(503, "Native binding enforcement unavailable.");
@@ -65,6 +69,7 @@ namespace RevitGPT.Native
                 if (denial != null) return Error(409, denial);
                 var doc = FindDocument(app, payload);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
+                if (path == "/ui/view/active") return GetActiveView(app, doc);
                 if (path == "/ui/selection") return Selection(app, doc);
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
@@ -175,6 +180,25 @@ namespace RevitGPT.Native
         private static bool SameActiveDocument(UIDocument uidoc, Document doc) =>
             uidoc != null && doc != null && uidoc.Document != null &&
             uidoc.Document.GetHashCode() == doc.GetHashCode();
+
+        private static string GetActiveView(UIApplication app, Document doc)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (!SameActiveDocument(uidoc, doc))
+                return Error(409, "Bound model must be active to inspect the current view.");
+            var view = uidoc.ActiveView;
+            if (view == null) return Error(404, "No active Revit view.");
+            return Data(new {
+                document_id = doc.GetHashCode().ToString(CultureInfo.InvariantCulture),
+                view_id = view.Id.Value.ToString(CultureInfo.InvariantCulture),
+                view_name = view.Name,
+                view_type = view.ViewType.ToString(),
+                view_template_id = view.ViewTemplateId?.Value.ToString(CultureInfo.InvariantCulture),
+                is_template = view.IsTemplate,
+                temporary_hide_isolate_active = view.IsTemporaryHideIsolateActive(),
+                complete = true
+            });
+        }
 
         // Selection and zoom only: no persistent document edit. All run in ExternalEvent.
         private static string Selection(UIApplication app, Document doc)
