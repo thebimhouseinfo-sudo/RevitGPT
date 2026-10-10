@@ -1020,6 +1020,57 @@
           "relation"
         ]
       }
+    },
+    {
+      "id": "revit_transform_elements",
+      "description": "Atomic copy, rotate, type change of Revit elements.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "rotate",
+              "change_type"
+            ]
+          },
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dx": {
+            "type": "number"
+          },
+          "dy": {
+            "type": "number"
+          },
+          "dz": {
+            "type": "number"
+          },
+          "axis_start": {
+            "type": "object"
+          },
+          "axis_end": {
+            "type": "object"
+          },
+          "angle": {
+            "type": "number"
+          },
+          "new_type_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "element_ids"
+        ]
+      }
     }
   ]
 }
