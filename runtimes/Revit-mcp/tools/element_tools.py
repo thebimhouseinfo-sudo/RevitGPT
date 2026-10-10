@@ -1,10 +1,23 @@
 """Element MCP tools."""
 
 from services.element_service import count_or_group_elements, get_element_by_id, list_elements
-from connection.bridge import get_spatial_warnings, get_element_parameters, inspect_element, get_categories
+from connection.bridge import query_elements,
+     get_spatial_warnings, get_element_parameters, inspect_element, get_categories
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_query_elements(category: str = None, family: str = None,
+                             type_name: str = None, class_name: str = None,
+                             predicate: dict = None, page_size: int = 100,
+                             after_id: str = None, document_id: str = None) -> dict:
+        """Query model elements with bounded keyset pages and typed predicates.
+
+        Results are NOT a frozen model snapshot; restart if RVT changes.
+        """
+        return query_elements(category, family, type_name, class_name,
+                              predicate, page_size, after_id, document_id)
+
     @mcp.tool()
     def revit_get_categories(document_id: str = None,
                              name_contains: str = None) -> list[dict]:
