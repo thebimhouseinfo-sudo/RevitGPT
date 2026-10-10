@@ -545,8 +545,27 @@ def set_parameter(
 def delete_elements(
     element_ids: list[str],
     document_id: str | None = None,
+    confirm: bool = False,
+    acknowledged_affected_ids: list[str] | None = None,
 ) -> dict:
+    if not isinstance(element_ids, list) or not 1 <= len(element_ids) <= 50:
+        raise ValueError("delete requires 1..50 element IDs")
+    if any(not isinstance(x, str) or not x.isdecimal() or int(x) <= 0 for x in element_ids):
+        raise ValueError("invalid delete element ID")
+    if len(set(element_ids)) != len(element_ids):
+        raise ValueError("duplicate delete ID")
+    if confirm and (not isinstance(acknowledged_affected_ids, list) or
+                    not 1 <= len(acknowledged_affected_ids) <= 2000):
+        raise ValueError("delete commit requires acknowledged_affected_ids")
     payload: dict[str, Any] = {"element_ids": element_ids}
+    if confirm:
+        if any(not isinstance(x, str) or not x.isdecimal() or int(x) <= 0
+               for x in acknowledged_affected_ids):
+            raise ValueError("invalid acknowledged affected ID")
+        if len(set(acknowledged_affected_ids)) != len(acknowledged_affected_ids):
+            raise ValueError("duplicate acknowledged affected ID")
+        payload["confirm"] = True
+        payload["acknowledged_affected_ids"] = acknowledged_affected_ids
     if document_id:
         payload["document_id"] = document_id
     result = _send_request("/delete", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
