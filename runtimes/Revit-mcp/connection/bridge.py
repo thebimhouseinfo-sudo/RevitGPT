@@ -264,6 +264,17 @@ def get_element(
     return result.get("data", result)
 
 
+def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> list[dict]:
+    if kind is not None and kind not in ("duct", "pipe"):
+        raise ValueError("kind must be duct or pipe")
+    payload = {}
+    if kind is not None:
+        payload["kind"] = kind
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/mep/systems", payload=payload, method="POST")["data"]
+
+
 def get_element_connectors(element_id: str, document_id: str | None = None) -> list[dict]:
     payload: dict[str, Any] = {"element_id": element_id}
     if document_id:
