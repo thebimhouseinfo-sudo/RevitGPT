@@ -599,6 +599,18 @@ def delete_elements(
     return result.get("data", result)
 
 
+def create_slab(kind: str, level_id: str, type_id: str,
+                vertices: list[dict], document_id: str | None = None) -> dict:
+    if kind not in ("floor", "ceiling") or not isinstance(vertices, list) or not 3 <= len(vertices) <= 24:
+        raise ValueError("Simple floor/ceiling requires 3..24 vertices")
+    payload = {"kind": kind, "level_id": level_id,
+               "type_id": type_id, "vertices": vertices}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/slab/create", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def format_view(view_id: str, action: str, properties: dict,
                 document_id: str | None = None) -> dict:
     if action not in ("properties", "crop", "template", "visibility", "graphics"):
