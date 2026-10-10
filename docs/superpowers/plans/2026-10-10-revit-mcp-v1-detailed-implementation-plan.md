@@ -1,6 +1,6 @@
 # Revit MCP V1 — Detailed Implementation Plan
 
-Status: DETAILED IMPLEMENTATION PLAN / NOT IMPLEMENTED.
+Status: PLANNER R2 / PENDING REVIEW / NOT IMPLEMENTED. CR: J-28D5 verification 01a124f4-8508-7208-a1ba-f49b23d557c9. Section 4A–4C overrides earlier discretionary coverage/release wording.
 Date: 2026-10-10.
 Canonical work branch: work/J-AFC4-p1-revit-mcp-bootstrap.
 Reviewed source baseline for planning: 2e97e8d9892a0a58c178dc7e7b6e6337d00ce148.
@@ -16,7 +16,7 @@ Deliver a practical, production-oriented Revit API tool subsystem consumed by Re
 
 IN: Python FastMCP schemas/services; Revit-specific Node admission, forwarding and per-operation authorization; native .NET API handlers, binding verification, ExternalEvent dispatch and Transactions; schema compatibility, offline/host tests, performance traces and release evidence.
 
-OUT: RevitGPT model reasoning/classification, source Knowledge retrieval/promotion, unified Job runner, Dynamo graph engine, broad RevitGPT Registry ownership, UI redesign, arbitrary code execution. These are external integration boundaries, not tasks inside the MCP implementation.
+OUT: RevitGPT reasoning, source Knowledge promotion, unified Job runner, Dynamo authoring/graph EXECUTION, Registry ownership, UI redesign, arbitrary code and general imports. Narrow exception: native host LOAD of trusted .dyn in MANUAL/no-run mode, whose separate runner never belongs to the MCP execution path.
 
 Product invariants:
 1. Keep the current installed WebView2 panel and single primary Revit model binding. Auto-bind only a first eligible sole model when unbound; later tab change or bound-model closure never silently rebinds.
@@ -113,6 +113,107 @@ Write architecture decision MUST be reviewed before code: native-enforced, one-u
 
 Write phases: PREVIEW (read-only effect estimate, target identity, before state, dependencies) -> APPROVE (risk-specific one-time authorization for exact hash) -> EXECUTE (only Revit UI ExternalEvent/Transaction, revalidate model/revision/preconditions) -> VERIFY (postcondition/readback) -> JOURNAL (durable outcome). A preflight/approval mismatch invalidates the request. On timeout-after-start, return UNKNOWN; query outcome by operation_id, never automatically replay. Atomic failure/rollback by default; batch behavior and partial effects must be explicit. For delete, preview dependent/cascaded removals and require a fresh explicit confirmation.
 
+
+## 4A. Planner R2 — V1 capability coverage (normative after CR J-28D5)
+
+This is the corrected scope replacing the earlier optional/ambiguous authoring language in B12–B19. V1 is not a full Revit API clone. All CORE entries and the six marked ADVANCED* are V1 release blockers. Proposed tool names are contracts to freeze at MCP-0, NOT evidence that source routes already implement them. Keep existing 23 tool names/schema compatibility, avoid duplicate wrappers, and record each semantic action's exact READ / UI_ACTION / WRITE / DESTRUCTIVE / DYN_LOAD mode, input/output, native Revit 2024 API, Node admission, model binding, units, supported subtype, risk, tests and evidence. Only genuine Revit host validation permits READY.
+
+Test fixtures: R0 simple architecture; R1 connected and disconnected MEP; R2 two open RVTs, links and workshared; R3 more than 5,000 elements; R4 disposable parameter/transaction; R5 views, selection, annotations, sheets; R6 safe .dyn file/no-run; R7 disposable modeling geometry. UI_ACTION means a user-visible selection/navigation/temporary view effect, NOT blanket exemption from a Revit Transaction: check each API. Persistent view formatting is WRITE.
+
+| Priority | Tool and bounded operations | Mode | Implementation batch / host test |
+| --- | --- | --- | --- |
+| CORE | revit_get_runtime_info, revit_get_active_document, revit_list_documents, binding status | READ | B01 / R0,R2 |
+| CORE | revit_get_categories, revit_query_elements, revit_get_element, class/family/type/level filtering | READ | B03 / R0,R3 |
+| CORE | revit_count_elements, revit_group_elements, placed instance counts (not loaded types) | READ | B05 / R3 |
+| CORE | revit_get_parameters, revit_list_parameters, instance/type/shared GUID, storage, readonly, ForgeTypeId | READ | B04 / R4 |
+| CORE | revit_query_elements parameter predicates, pagination and completeness | READ | B04–05 / R3,R4 |
+| CORE | revit_get_geometry_summary, revit_get_element_relationships, link scopes and units | READ | B06 / R0,R2 |
+| CORE | revit_get_selection | READ | B06S / R5 |
+| CORE | revit_set_selection: replace/add/remove/clear, selection by filtered IDs | UI_ACTION | B06S / R3,R5 |
+| CORE | revit_show_elements and revit_activate_view (show, zoom, open view; no silent rebind) | UI_ACTION | B06S / R5 |
+| CORE | revit_temporary_visibility: isolate/hide/reset | UI_ACTION | B06S / R5 |
+| ADVANCED* | revit_select_related: hosted/connected/related selection, bounded | READ/UI_ACTION | B06S–09 / R1,R5 |
+| CORE | revit_set_parameter: exact typed parameter, preflight and readback | WRITE | B11 / R4 |
+| CORE | revit_batch_set_parameters: bounded multi-edit; explicit set/clear/skip; atomic default | WRITE | B11P / R4 |
+| ADVANCED* | revit_copy_parameters: source→target mapping, units/conflicts | WRITE | B11P / R4 |
+| CORE | revit_place_family_instance; host, family symbol, level and placement conditions | WRITE | B12 / R7 |
+| CORE | revit_move_element, revit_copy_elements, revit_rotate_elements, revit_change_type | WRITE | B12D / R7 |
+| CORE | revit_create_wall: simple straight wall | WRITE | B12D / R7 |
+| CORE | revit_create_floor, revit_create_ceiling: validated simple closed profiles | WRITE | B12D / R7 |
+| CORE | revit_create_level, revit_create_grid | WRITE | B12D / R7 |
+| CORE | revit_create_model_line, revit_create_detail_line: valid sketch/view plane | WRITE | B12D / R5,R7 |
+| CORE | revit_create_duct, revit_create_pipe; type/system/size/level | WRITE | B12 / R1,R7 |
+| CORE | revit_delete_elements with dependent cascade preview and specific confirmation | DESTRUCTIVE | B13X / R4 |
+| CORE | revit_list_views, revit_get_view_properties, view type/template/scale/crop/graphics | READ | B14V / R5 |
+| CORE | revit_create_view, revit_duplicate_view: supported plan, section and 3D | WRITE | B14V / R5 |
+| CORE | revit_set_view_properties: scale, detail, discipline, display style | WRITE | B14V / R5 |
+| CORE | revit_set_view_crop, revit_set_view_template | WRITE | B14V / R5 |
+| CORE | revit_set_view_visibility: permanent hide/unhide by element/category | WRITE | B14V / R5 |
+| CORE | revit_set_view_graphics: element/category overrides | WRITE | B14V / R5 |
+| ADVANCED* | revit_manage_view_filters: parameter filters, rules and overrides | READ/WRITE | B14V / R5 |
+| CORE | revit_list_annotations, revit_get_annotation: tags, text, dimensions, spots, leaders | READ | B13A / R5 |
+| CORE | revit_create_tag, revit_update_tag: type, leader, position and target references | WRITE | B13A / R5 |
+| CORE | revit_create_text_note, revit_update_text_note: type, content, position | WRITE | B13A / R5 |
+| CORE | revit_create_dimension, revit_create_spot_elevation using valid Revit References | WRITE | B13A / R5 |
+| CORE | revit_update_annotation on supported types; never silently delete/recreate | WRITE | B13A / R5 |
+| ADVANCED* | revit_batch_tag: bounded category/view tags with duplicate checks | WRITE | B13A / R5 |
+| CORE | revit_list_sheets, revit_create_sheet, titleblocks | READ/WRITE | B15S / R5 |
+| CORE | revit_manage_viewport: place, move, remove on sheet | WRITE/DESTRUCTIVE | B15S / R5 |
+| CORE | revit_get_schedule, revit_query_schedule: fields, sort, filters, displayed rows | READ | B15S / R5 |
+| CORE | revit_update_schedule: supported field/filter/sort edits, not arbitrary cell writes | WRITE | B15S / R5 |
+| CORE | revit_query_spatial_and_warnings: rooms, spaces, grids, warnings | READ | B15S / R0,R5 |
+| CORE | revit_get_connectors, revit_list_mep_systems: actual connectors/system INSTANCES | READ | B07–08 / R1 |
+| CORE | revit_summarize_equipment, revit_quantity_takeoff: MEP inventory/quantities | READ | B09 / R1 |
+| ADVANCED* | revit_trace_mep_system: bounded graph with cycle/disconnect detection | READ | B08 / R1 |
+| ADVANCED* | revit_inspect_family_instance: host, connector and system relationships | READ | B08–09 / R1,R2 |
+| CORE | revit_load_dyn_file: trusted Dynamo .dyn MANUAL load only; NO execution | DYN_LOAD | B16D / R6 |
+
+CORE means each row passes positive/negative host tests for its stated SIMPLE supported case, not every overload of the Revit API. Unsupported geometry, parameter specs, view subtypes, special family hosts or editor contexts return UNSUPPORTED with explanation. Full API cloning, generic execute-script, complex rebar/fabrication/freeform editing, universal automatic routing, Dynamo graph authoring or RUN, and importing CAD/IFC/RVT/PDF/Excel are OUT of V1. Linked model reads remain in scope, but not linked model import or mutation.
+
+## 4B. New implementation batches and risk boundaries
+
+B06S (move into MCP-1): Build typed Python selection/UI tools, Native ExternalEvent adapter and a separate Node/Native UI_ACTION admission class; selection get/replace/add/remove/clear, select by query result, zoom/show, activate view and temporary hide/isolate/reset. Validate the exact active/bound RVT, host instance, binding revision and view on EVERY action. Reject modal blocking PickObject automation, wrong-model/stale IDs and unsupported temporary view. Do not infer U operations are always Transaction-free. Host evidence R5/R2 and P2 binding regression must PASS before UI_ACTION READY.
+
+B11P: Extend B04/B11 to exact instance/type/shared parameter discovery, query by parameter predicates, and batch set/clear/skip. Null does not implicitly mean clear. Show per-ID preview conflicts (readonly, formula, workshared, duplicates), typed unit conversions, transactional atomic default and optional reviewed partial policy, plus post-readback for every affected ID. revit_copy_parameters is selected ADVANCED*. Use B10 write coordinator; never bypass with Python mock successful writes.
+
+B12D: Add ordinary wall/floor/ceiling/level/grid/model+detail curve authoring, move/copy/rotate/type replacement alongside family, duct and pipe placement. Explicit level/type/host/plane, internal/SI units, geometry limits, valid closed profiles, pinned/groups/dependent preview. Reject unsupported complex geometry, read back locations/types and demonstrate rollback in R7.
+
+B13A/B13X: Implement real get/create/update/reposition tags, note text, tag leaders, dimensions/spot types/references and batch-tag (selected ADVANCED*). Never silently delete-and-recreate a reference-bearing annotation if in-place update is unsupported. Keep destructive deletion in separate X mode with dependency/cascade preview, explicit user approval and live Revit readback only on disposable R4/R5/R7.
+
+B14V/B15S: Complete view formatting API: scale, crop/section box, template controls, detail, discipline, display, persistent visibility, graphics overrides and selected ADVANCED* parameter view filters. UI activation and temporary isolate are in B06S, not document write. Create/inspect sheets/titleblocks, place/move/remove viewports, read/update supported schedule field/filters/sorts and rooms/spaces/grids/warnings. Verify property readback + Revit screenshot; never claim arbitrary schedule-cell editing.
+
+B16D: The ONLY import tool is revit_load_dyn_file. User supplies an explicit local .dyn or managed staged copy; verify .dyn extension, JSON schema, bounded size, checksum/provenance, compatible DynamoRevit for installed Revit 2024, dependencies/packages and trusted code. Copy into ACL-protected managed AppData staging, reject untrusted UNC/network and symlink/reparse traversal. Open in forced MANUAL no-run mode via dedicated DynamoRevit host adapter. Manual flag is NOT proof of no execution: R6 must verify no graph evaluations, parameter edits or file/network sentinel effects. If unknown custom nodes, missing packages or host API cannot ensure nonexecution, fail closed and mark BLOCKED. The separate Dynamo Runner may later execute only separately approved graphs; MCP LOAD never runs a graph or installs packages and is not a general importer.
+
+Tool implementation granularity: group truly related actions under typed enums to minimize tool-selection latency, but authorization/risk/status/host tests remain PER ACTION. Do not add a generic execute_any_revit_api or a parallel second capability registry. Legacy 23 names must remain compatible or explicitly versioned with migration tests.
+
+## 4C. Mandatory E2E host scenarios, gating and CR disposition
+
+E01 query/count/filter placed elements → select → show/zoom → clear, including >5000 results.
+E02 selected elements → get instance/type/shared params → batch dry-run/set/copy → post-readback + readonly/rollback negatives.
+E03 wall/floor/ceiling/level/grid/curve draw → copy/rotate/type change → geometry readback; illegal profile refusal.
+E04 FCU/duct/pipe/terminal inventory → connector/system graph → quantity check vs Revit, with disconnected/cyclic negative.
+E05 place/update tag and leader, text note, dimension/spot → viewport/reference/position readback.
+E06 activate view → temporary hide/isolate/reset → scale/crop/template/graphics/filter → screenshot + readback, template-locked negative.
+E07 sheet/titleblock/viewport and schedule fields/filter/sort create/edit/readback, invalid view/sheet negative.
+E08 safe staged .dyn import → graph LOADED MANUAL, ZERO execution/side effects; missing dependency, path escape and unsafe node negatives.
+E09 models A/B tab switches, manual rebind, close/sleep/wake/restart, stale write token, timeout UNKNOWN and no blind retry.
+
+Every E0x requires the disposable fixture hash, Revit 2024/Dynamo build, exact before/after objects, traced native calls, negative tests, screenshots when visual, rollback and Reviewer/Tester evidence. Mock tests or build green do not mean host PASS.
+
+| CR issue | Owner | Updated disposition / acceptance evidence |
+| --- | --- | --- |
+| CR-01 missing complete tools | B01 / section 4A / B19 | all CORE + six ADVANCED* per-action READY, NOT merely 23 tool names |
+| CR-02 Selection/UI gap | B06S | R5 select/show/zoom/temp reset and model A/B isolation |
+| CR-03 drawing gap | B12D | R7 geometry/transform positive-negative and rollback |
+| CR-04 view presentation gap | B14V | scale/crop/template/filter/graphics UI+API readback |
+| CR-05 edit annotations gap | B13A | leader/note/tag/reference updates, batch tag evidence |
+| CR-06 batch parameters gap | B04,B11P | typed set/clear/copy, per-ID conflict+readback |
+| CR-07 Dynamo import gap | B16D | .dyn ONLY, manual/no-run/no side-effect R6 |
+| CR-08 no combined workflow | B18W | E01–E09 mandatory real-host passes |
+| CR-09 late UI/wrong authorization | B06S early; B10; B16D | explicit U / W / X / L Node and Native negative controls |
+
+REVISED V1 RELEASE GATE: all CORE and exactly SIX selected ADVANCED* tool groups HOST_TESTED/READY for declared supported cases, E01–E09 real Revit 2024 E2E PASS, one-model binding/no-cross-model effects, authenticated per-operation W/X, proven rollback/UNKNOWN idempotency and proven Dynamo no-run. Any missing mandatory whole tool group blocks V1; only HUMAN can explicitly re-scope the product. No merge to main and no installed DLL mutation during this planning-only revision. This plan requires an independent Reviewer pass before implementation; CR FAIL on old source commit a299adc does not automatically transfer as PASS.
+
 ## 5. Execution DAG and scoped delivery batches
 
 Tasks are sequential only where safety/data dependencies require it. Read-only feature work can proceed in bounded slices after MCP-0, but no write implementation can be activated before the secure coordinator gate.
@@ -173,7 +274,7 @@ B06 — Links, relationship and geometry read summaries:
 Suggested names: revit_get_geometry_summary, revit_get_element_relationships and read-only linked-model query.
 Acceptance: R0/R2 unit, origin and links reconcile; cross-document refusal and unsupported values are testable.
 
-MCP-1 GATE: Stable count/parameter/aggregate host evidence, high-volume regression, type-vs-instance proof and snapshot/units contract. Reviewer validates both implementation and test quality before READY transitions.
+MCP-1 GATE: Stable count/parameter/aggregate AND B06S selection/UI_ACTION host evidence, high-volume regression, type-vs-instance proof and snapshot/units contract. Reviewer validates both implementation and test quality before READY transitions.
 
 ### MCP-2 — Deterministic MEP reads (B07–B09)
 
@@ -342,6 +443,8 @@ The specific shell and Revit API locations must be selected by the current local
 
 Review triggers: breaking schema changes, new native HTTP route, mutation auth changes, new write capability, non-idempotent recovery, linked-model support, Revit API version assumptions and host installation changes. When one occurs, require independent review before next gate.
 
+The stricter section 4A–4C release gate supersedes any permissive description below about possibly deferred CORE tools.
+
 ## 9. V1 exit conditions and explicit hold points
 
 Necessary V1 outcomes:
@@ -363,7 +466,7 @@ HOLD on Revit disconnected: code/test may proceed offline, host-tested status re
 
 Start B00/B01 under MCP-0, in that order:
 1. Pin current source and test inventory, create tool coverage schema and test-classified fixture catalog.
-2. Build an automated 23-tool source-to-native matrix; hand-audit actual handlers and response shape.
+2. Build two matrices: truthful CURRENT 23-tool source-to-native state, and full TARGET CORE + six ADVANCED* rows in §4A; missing tools stay PLANNED/BLOCKED until host evidence.
 3. Fix inaccurate existing tool descriptions; write negative controls distinguishing fake-bridge responses and native implementation.
 4. Run full offline regression; request real Revit 2024 host access only for B02, with no write operations.
 5. Record Reviewer verdict on the MCP-0 evidence before MCP-1 feature work.
