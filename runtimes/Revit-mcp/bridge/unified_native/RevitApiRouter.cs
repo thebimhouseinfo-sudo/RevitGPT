@@ -124,6 +124,7 @@ namespace RevitGPT.Native
                     return Data(types);
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
+                if (path == "/mep/systems") return MepSystems(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
@@ -323,6 +324,38 @@ namespace RevitGPT.Native
             if (payload.Value<bool?>("include_connectors") == true)
                 return Error(501, "Connector readback has not passed host verification.");
             return Data(ElementInfo(item, RequestedParameters(payload)));
+        }
+
+        // Actual system INSTANCE inventory, not MechanicalSystemType/PipingSystemType.
+        private static string MepSystems(Document doc, JObject payload)
+        {
+            string kind = Token(payload, "kind");
+            if (kind != null && kind != "duct" && kind != "pipe")
+                return Error(400, "kind must be duct or pipe.");
+            var systems = new List<object>();
+            if (kind == null || kind == "duct")
+                foreach (MechanicalSystem sys in new FilteredElementCollector(doc)
+                    .OfClass(typeof(MechanicalSystem)).Cast<MechanicalSystem>())
+                {
+                    if (systems.Count >= 1000)
+                        return Error(413, "Too many MEP systems; select kind.");
+                    systems.Add(new { id = sys.Id.Value.ToString(CultureInfo.InvariantCulture),
+                        name = sys.Name, kind = "duct",
+                        type_id = sys.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
+                        member_count = sys.Elements.Size });
+                }
+            if (kind == null || kind == "pipe")
+                foreach (PipingSystem sys in new FilteredElementCollector(doc)
+                    .OfClass(typeof(PipingSystem)).Cast<PipingSystem>())
+                {
+                    if (systems.Count >= 1000)
+                        return Error(413, "Too many MEP systems; select kind.");
+                    systems.Add(new { id = sys.Id.Value.ToString(CultureInfo.InvariantCulture),
+                        name = sys.Name, kind = "pipe",
+                        type_id = sys.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
+                        member_count = sys.Elements.Size });
+                }
+            return Data(systems);
         }
 
         private static string Connectors(Document doc, JObject payload)
