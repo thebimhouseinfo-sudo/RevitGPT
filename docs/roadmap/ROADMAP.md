@@ -28,6 +28,12 @@ Other subsystems must reach explicit bounded deliverables rather than remaining 
 
 Delivery terminology: FULL means implementation and applicable offline tests are complete, **not** a claim of real-host PASS. Real Revit acceptance is recorded separately, by subsystem/tool, in a consolidated Human test round. Avoid empty commits and avoid modifying main, deploying or mutating real RVT models without explicit authorization.
 
+## Dynamo knowledge sourcing — HUMAN 2026-10-11
+
+Dynamo Coder Knowledge must be built **source-first**, using existing official Dynamo/Autodesk documentation rather than re-authoring speculative material. Primary reference entry points: Dynamo Primer (https://primer.dynamobim.org/), Dynamo BIM (https://dynamobim.org/), Dynamo Developer Resources (https://developer.dynamobim.org/) and Autodesk Revit/Dynamo documentation. Record source URL, product/version scope, retrieval date, provenance and applicability in a curated local knowledge index. Do not bulk-copy copyrighted documentation: maintain concise summaries, references, permitted examples and validated technical contracts. RevitAPIDocs is a useful independent/community API reference, not Autodesk's official publication.
+
+For FULL coder readiness, distinguish end-user tutorials from implementation-critical graph serialization, node/port/connector IDs, DesignScript, Revit API integration, package dependencies and version compatibility. Where documentation is incomplete, derive only from explicitly licensed/reference implementations and tested fixtures; mark unknowns and add negative controls. Working/domain knowledge remains continuous and separate.
+
 ## Planning rule
 
 Every architectural claim must be tagged by provenance:
