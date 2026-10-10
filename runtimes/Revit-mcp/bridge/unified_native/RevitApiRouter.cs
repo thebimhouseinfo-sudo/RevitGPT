@@ -147,6 +147,7 @@ namespace RevitGPT.Native
                     return Data(types);
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
+                if (path == "/annotation/update") return NativeAnnotationEdit.Execute(doc, payload);
                 if (path == "/mep/systems") return MepSystems(doc, payload);
                 if (path == "/mep/trace") return TraceMep(doc, payload);
                 if (path == "/mep/quantities") return MepQuantities(doc, payload);
