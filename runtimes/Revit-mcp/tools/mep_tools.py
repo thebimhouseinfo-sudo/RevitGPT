@@ -11,10 +11,21 @@ from services.mep_service import (
 )
 
 
-from connection.bridge import get_mep_systems
+from connection.bridge import get_mep_systems, get_mep_quantities
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_quantity_takeoff(category: str = None,
+                              document_id: str = None) -> dict:
+        """MEP instance quantities by category/family/type and measured straight duct/pipe length."""
+        return get_mep_quantities(mode="all", category=category, document_id=document_id)
+
+    @mcp.tool()
+    def revit_summarize_equipment(document_id: str = None) -> dict:
+        """Mechanical Equipment instance counts grouped by family and type."""
+        return get_mep_quantities(mode="equipment", document_id=document_id)
+
     @mcp.tool()
     def revit_list_mep_systems(kind: str = None, document_id: str = None) -> list[dict]:
         """List actual Revit MechanicalSystem/PipingSystem instances and member counts, not types."""
