@@ -597,9 +597,19 @@ namespace RevitGPT.Native
             if (!id.HasValue) return Error(400, "element_id required.");
             Element item = doc.GetElement(new ElementId(id.Value));
             if (item == null) return Error(404, "Element does not exist.");
-            if (payload.Value<bool?>("include_connectors") == true)
-                return Error(501, "Connector readback has not passed host verification.");
-            return Data(ElementInfo(item, RequestedParameters(payload)));
+            var info = ElementInfo(item, RequestedParameters(payload));
+            if (payload.Value<bool?>("include_connectors") != true)
+                return Data(info);
+            // Reuse the same bounded native connector collector as /element/connectors.
+            // Preserve its 4xx/5xx error envelope; never report partial success.
+            JObject connectorEnvelope = JObject.Parse(Connectors(doc, payload));
+            if (connectorEnvelope["error"] != null)
+                return connectorEnvelope.ToString(Formatting.None);
+            return Data(new {
+                element = info,
+                connectors = connectorEnvelope["data"],
+                complete = true
+            });
         }
 
         // Actual system INSTANCE inventory, not MechanicalSystemType/PipingSystemType.
