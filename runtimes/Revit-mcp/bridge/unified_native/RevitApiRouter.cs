@@ -135,6 +135,7 @@ namespace RevitGPT.Native
                 if (path == "/model/spatial-warnings") return SpatialWarnings(doc, payload);
                 if (path == "/element/connectors") return Connectors(doc, payload);
                 if (path == "/parameter/set") return SetParameter(doc, payload);
+                if (path == "/move") return MoveElement(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
             catch (JsonException) { return Error(400, "Invalid JSON payload."); }
@@ -703,6 +704,71 @@ namespace RevitGPT.Native
         // WRITE-DEV: Native handler is implemented but not reachable from
         // external MCP until the operation-scoped, native-verified grant exists.
         // The unconditional write guard above remains in force meanwhile.
+        // WRITE-DEV: transaction-backed movement. Activation must wait for
+        // the same Native operation-specific authorization as other writes.
+        private static string MoveElement(Document doc, JObject payload)
+        {
+            long? rawId = LongNumber(payload, "element_id");
+            if (!rawId.HasValue || rawId.Value <= 0) return Error(400, "element_id required.");
+            Element element = doc.GetElement(new ElementId(rawId.Value));
+            if (element == null) return Error(404, "Element not found.");
+            if (element.Pinned) return Error(409, "Pinned elements cannot be moved.");
+            if (element.Location == null) return Error(409, "Element has no editable location.");
+            bool absolute = payload["x"] != null || payload["y"] != null || payload["z"] != null;
+            double dx, dy, dz;
+            if (absolute)
+            {
+                var point = element.Location as LocationPoint;
+                if (point == null) return Error(400, "Absolute move requires LocationPoint; use offsets for curves.");
+                if (payload["x"] == null || payload["y"] == null || payload["z"] == null)
+                    return Error(400, "Absolute move requires all x/y/z coordinates.");
+                double x = FiniteCoordinate(payload, "x");
+                double y = FiniteCoordinate(payload, "y");
+                double z = FiniteCoordinate(payload, "z");
+                dx = x - point.Point.X;
+                dy = y - point.Point.Y;
+                dz = z - point.Point.Z;
+            }
+            else
+            {
+                dx = FiniteCoordinate(payload, "dx");
+                dy = FiniteCoordinate(payload, "dy");
+                dz = FiniteCoordinate(payload, "dz");
+            }
+            if (Math.Sqrt(dx * dx + dy * dy + dz * dz) > 100000.0)
+                return Error(413, "Movement exceeds 100,000 internal feet.");
+            using (var tx = new Transaction(doc, "RevitGPT Move Element"))
+            {
+                tx.Start();
+                try
+                {
+                    ElementTransformUtils.MoveElement(doc, element.Id, new XYZ(dx, dy, dz));
+                    if (tx.Commit() != TransactionStatus.Committed)
+                        return Error(500, "Movement transaction did not commit.");
+                }
+                catch
+                {
+                    if (tx.GetStatus() == TransactionStatus.Started) tx.RollBack();
+                    throw;
+                }
+            }
+            return Data(new { transaction = "committed", element = ElementInfo(element),
+                offset = new { dx, dy, dz, coordinate_unit = "revit_internal_feet" } });
+        }
+
+        private static double FiniteCoordinate(JObject payload, string key)
+        {
+            JToken token = payload[key];
+            if (token == null) return 0;
+            if (token.Type != JTokenType.Float && token.Type != JTokenType.Integer)
+                throw new ArgumentException("Coordinates must be numeric.");
+            double value;
+            if (!Double.TryParse(token.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+                || Double.IsNaN(value) || Double.IsInfinity(value))
+                throw new ArgumentException("Coordinates must be finite.");
+            return value;
+        }
+
         private static string SetParameter(Document doc, JObject payload)
         {
             long? id = LongNumber(payload, "element_id");
