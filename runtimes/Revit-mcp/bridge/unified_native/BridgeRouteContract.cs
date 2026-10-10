@@ -31,6 +31,7 @@ namespace RevitGPT.Native
             "POST /categories",
             "POST /element/connectors",
             "POST /mep/systems",
+            "POST /mep/trace",
             "POST /mep/quantities",
             "POST /model/spatial-warnings",
             "POST /view/properties",
