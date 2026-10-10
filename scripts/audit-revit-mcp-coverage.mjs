@@ -21,6 +21,7 @@ export const routeMap = Object.freeze({
   revit_manage_view_filters: ["POST /view/filter/write"],
   revit_list_levels: ["GET /levels", "POST /levels"],
   revit_list_elements: ["POST /elements"],
+  revit_query_elements: ["POST /elements/query"],
   revit_count_elements: ["POST /elements/aggregate"],
   revit_group_elements: ["POST /elements/aggregate"],
   revit_get_selection: ["POST /ui/selection"],
@@ -80,7 +81,7 @@ const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 const quoted = s => JSON.stringify(s);
 const pathFromRoute = route => route.split(" ")[1];
 
-export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource }) {
+export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource }) {
   expect(Array.isArray(manifest.entries) && Array.isArray(capabilities.tools), "bad tool manifest/capabilities");
   const registered = toolSources.flatMap(({ file, content }) => [...content.matchAll(/@mcp\.tool\(\)\s*def\s+(revit_[A-Za-z0-9_]+)\s*\(/g)]
     .map(x => ({ name: x[1], file })));
@@ -124,6 +125,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     const isConnector = entry.name === "revit_get_connectors";
     const nativePresent = route.some(r =>
       nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
+      (pathFromRoute(r) === "/elements/query" && nativeElementQuerySource.includes('public static string Execute(Document doc, JObject input)')) ||
       nativeViewFiltersSource.includes('public static string List(Document doc, JObject p)') && pathFromRoute(r) === "/view/filters" ||
       nativeViewFiltersSource.includes('public static string Write(Document doc, JObject p)') && pathFromRoute(r) === "/view/filter/write" ||
       (pathFromRoute(r) === "/view/create" && nativeViewCreateSource.includes('public static string Execute(Document doc, JObject p)')) ||
@@ -176,7 +178,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
 
 export async function loadSources(base = root) {
   const read = p => fs.readFile(path.join(base, p), "utf8");
-  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, paneSource, ...sources] = await Promise.all([
+  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, paneSource, ...sources] = await Promise.all([
     read(rt + "/tool-manifest.json"), read(rt + "/capabilities.json"),
     read(rt + "/bridge/unified_native/RevitApiRouter.cs"),
     read(rt + "/bridge/unified_native/BridgeRouteContract.cs"),
@@ -191,6 +193,7 @@ export async function loadSources(base = root) {
     read(rt + "/bridge/unified_native/NativeViewFilters.cs"),
     read(rt + "/bridge/unified_native/NativeViewCreate.cs"),
     read(rt + "/bridge/unified_native/NativeDynamoLoad.cs"),
+    read(rt + "/bridge/unified_native/NativeElementQuery.cs"),
     read(rt + "/bridge/unified_native/NativeSheets.cs"),
     read(rt + "/bridge/unified_native/NativeViewFormatting.cs"),
     read(rt + "/bridge/unified_native/NativeSlabProfiles.cs"),
@@ -201,7 +204,7 @@ export async function loadSources(base = root) {
   ]);
   return { manifest: JSON.parse(manifest), capabilities: JSON.parse(capabilities),
     nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource,
-    writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource,
+    writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource,
     toolSources: pythonToolFiles.map((file, i) => ({file, content: sources[i]})) };
 }
 
