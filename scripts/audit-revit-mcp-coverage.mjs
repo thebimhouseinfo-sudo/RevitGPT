@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rt = "runtimes/Revit-mcp";
 export const pythonToolFiles = [
   "runtime_tools.py", "document_tools.py", "view_tools.py", "element_tools.py",
-  "family_tools.py", "mep_tools.py", "annotation_tools.py", "ui_tools.py", "transform_tools.py"
+  "family_tools.py", "mep_tools.py", "annotation_tools.py", "ui_tools.py", "transform_tools.py", "architecture_tools.py"
 ];
 export const routeMap = Object.freeze({
   revit_get_runtime_info: ["GET /health", "GET /document/active", "GET /documents"],
@@ -47,6 +47,7 @@ export const routeMap = Object.freeze({
   revit_delete_elements: ["POST /delete"],
   revit_move_element: ["POST /move"],
   revit_transform_elements: ["POST /transform"],
+  revit_create_architecture: ["POST /architecture/create"],
   revit_list_annotations: ["POST /annotations"],
   revit_create_text_note: ["POST /annotation/text"],
   revit_create_tag: ["POST /annotation/tag"],
@@ -61,7 +62,7 @@ const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 const quoted = s => JSON.stringify(s);
 const pathFromRoute = route => route.split(" ")[1];
 
-export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource }) {
+export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource }) {
   expect(Array.isArray(manifest.entries) && Array.isArray(capabilities.tools), "bad tool manifest/capabilities");
   const registered = toolSources.flatMap(({ file, content }) => [...content.matchAll(/@mcp\.tool\(\)\s*def\s+(revit_[A-Za-z0-9_]+)\s*\(/g)]
     .map(x => ({ name: x[1], file })));
@@ -107,6 +108,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       writeOperationsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeTransformsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
+      nativeArchitectureSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
       nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')'));
     expect(nativePresent, "Native write/read operation handler not implemented: " + entry.name);
     expect(nativePresent, "declared tool has no native operation handler: " + entry.name);
@@ -144,7 +146,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
 
 export async function loadSources(base = root) {
   const read = p => fs.readFile(path.join(base, p), "utf8");
-  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, nativeTransformsSource, paneSource, ...sources] = await Promise.all([
+  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, nativeTransformsSource, nativeArchitectureSource, paneSource, ...sources] = await Promise.all([
     read(rt + "/tool-manifest.json"), read(rt + "/capabilities.json"),
     read(rt + "/bridge/unified_native/RevitApiRouter.cs"),
     read(rt + "/bridge/unified_native/BridgeRouteContract.cs"),
@@ -154,12 +156,13 @@ export async function loadSources(base = root) {
     read(rt + "/bridge/unified_native/NativeWriteAuthority.cs"),
     read(rt + "/bridge/unified_native/NativeWriteOperations.cs"),
     read(rt + "/bridge/unified_native/NativeTransforms.cs"),
+    read(rt + "/bridge/unified_native/NativeArchitecture.cs"),
     read(rt + "/bridge/unified_native/RevitGptPane.cs"),
     ...pythonToolFiles.map(x => read(rt + "/tools/" + x))
   ]);
   return { manifest: JSON.parse(manifest), capabilities: JSON.parse(capabilities),
     nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource,
-    writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource,
+    writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource,
     toolSources: pythonToolFiles.map((file, i) => ({file, content: sources[i]})) };
 }
 
