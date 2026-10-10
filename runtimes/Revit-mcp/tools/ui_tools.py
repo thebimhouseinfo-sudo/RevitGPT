@@ -1,5 +1,5 @@
 """Bound model Revit UI selection/navigation, no document writes."""
-from connection.bridge import activate_view, get_selection, set_selection, show_elements, temporary_visibility
+from connection.bridge import activate_view, get_selection, set_selection, show_elements, temporary_visibility, select_related
 
 
 def register(mcp) -> None:
@@ -31,3 +31,8 @@ def register(mcp) -> None:
         Revit uses a Transaction even though no persistent view design is intended.
         """
         return temporary_visibility(mode, element_ids, document_id)
+    @mcp.tool()
+    def revit_select_related(element_id: str, relation: str, apply: bool = False,
+                             document_id: str = None) -> dict:
+        """Preview or select one-hop hosted/host/connected elements in the bound Revit model."""
+        return select_related(element_id, relation, apply, document_id)

@@ -990,6 +990,36 @@
           "element_id"
         ]
       }
+    },
+    {
+      "id": "revit_select_related",
+      "description": "Preview/select related elements by host or connector relations.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "host",
+              "hosted",
+              "connected"
+            ]
+          },
+          "apply": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "relation"
+        ]
+      }
     }
   ]
 }

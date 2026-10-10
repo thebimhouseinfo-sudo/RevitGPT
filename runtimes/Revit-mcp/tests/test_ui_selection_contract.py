@@ -90,6 +90,20 @@ class UiSelectionContractTests(unittest.TestCase):
                     bridge.temporary_visibility(mode, ids)
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {
+        "element_ids": ["77"], "applied": False, "complete": True}})
+    def test_preview_related_elements_does_not_apply_selection(self, send):
+        result = bridge.select_related("42", "connected")
+        self.assertFalse(result["applied"])
+        send.assert_called_once_with("/ui/select-related", payload={
+            "element_id": "42", "relation": "connected", "apply": False}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_reject_unsupported_relationship(self, send):
+        with self.assertRaises(ValueError):
+            bridge.select_related("42", "all")
+        send.assert_not_called()
+
     def test_native_exact_binding_and_ui_guard(self):
         code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)

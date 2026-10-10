@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 41,
+  "entry_count": 42,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -837,6 +837,29 @@
       "execution": "revitgpt_call",
       "mode": "read_only",
       "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_select_related",
+      "name": "revit_select_related",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.ui",
+      "title": "select related",
+      "summary": "Preview or select host, hosted or connected one-hop elements.",
+      "when_to_use": "Navigate related MEP equipment or hosted geometry with bounded one-hop search.",
+      "tags": [
+        "ui",
+        "selection",
+        "zoom"
+      ],
+      "source_tool": "revit_select_related",
+      "execution": "revitgpt_call",
+      "mode": "ui_action",
+      "risk": "medium",
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",

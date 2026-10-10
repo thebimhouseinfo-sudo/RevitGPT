@@ -73,6 +73,7 @@ namespace RevitGPT.Native
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
                 if (path == "/ui/view/activate") return ActivateView(app, doc, payload);
                 if (path == "/ui/visibility/temporary") return TemporaryVisibility(app, doc, payload);
+                if (path == "/ui/select-related") return SelectRelated(app, doc, payload);
                 if (path == "/view/properties") return GetViewProperties(doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
@@ -216,6 +217,60 @@ namespace RevitGPT.Native
 
         // Temporary visibility changes are Revit view UI state. They still
         // require a Revit Transaction and must never be marketed as READ.
+        private static string SelectRelated(UIApplication app, Document doc, JObject payload)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound document must be active to select related elements.");
+            long? rawId = LongNumber(payload, "element_id");
+            if (!rawId.HasValue || rawId.Value <= 0)
+                return Error(400, "element_id required.");
+            Element source = doc.GetElement(new ElementId(rawId.Value));
+            if (source == null) return Error(404, "Source element not found.");
+            string relation = Token(payload, "relation");
+            if (relation != "host" && relation != "hosted" && relation != "connected")
+                return Error(400, "relation must be host, hosted or connected.");
+            bool apply = payload.Value<bool?>("apply") ?? false;
+            var targetIds = new HashSet<ElementId>();
+            var sourceFamily = source as FamilyInstance;
+            if (relation == "host" && sourceFamily?.Host != null)
+                targetIds.Add(sourceFamily.Host.Id);
+            if (relation == "hosted")
+                foreach (FamilyInstance other in new FilteredElementCollector(doc)
+                    .OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>())
+                {
+                    if (other.Host?.Id == source.Id)
+                    {
+                        if (targetIds.Count >= 500)
+                            return Error(413, "More than 500 hosted elements.");
+                        targetIds.Add(other.Id);
+                    }
+                }
+            if (relation == "connected")
+            {
+                ConnectorManager manager = sourceFamily?.MEPModel?.ConnectorManager ??
+                    (source as MEPCurve)?.ConnectorManager;
+                if (manager == null)
+                    return Error(400, "Element has no supported connector manager.");
+                foreach (Connector connector in manager.Connectors)
+                    foreach (Connector adjacent in connector.AllRefs)
+                    {
+                        Element owner = adjacent.Owner;
+                        if (owner == null || owner.Id == source.Id) continue;
+                        if (targetIds.Count >= 500)
+                            return Error(413, "More than 500 adjacent elements.");
+                        targetIds.Add(owner.Id);
+                    }
+            }
+            if (apply) uidoc.Selection.SetElementIds(targetIds.ToList());
+            return Data(new {
+                source_element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                relation, applied = apply,
+                element_ids = targetIds.Select(id => id.Value.ToString(CultureInfo.InvariantCulture)).ToList(),
+                complete = true
+            });
+        }
+
         private static string TemporaryVisibility(UIApplication app, Document doc, JObject payload)
         {
             var uidoc = app.ActiveUIDocument;

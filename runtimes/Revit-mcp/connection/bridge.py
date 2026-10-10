@@ -245,6 +245,20 @@ def show_elements(element_ids: list[str], document_id: str | None = None) -> dic
     return _send_request("/ui/show", payload=payload, method="POST")["data"]
 
 
+def select_related(element_id: str, relation: str, apply: bool = False,
+                   document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
+        raise ValueError("element_id must be positive ElementId")
+    if relation not in ("host", "hosted", "connected"):
+        raise ValueError("relation must be host, hosted or connected")
+    if not isinstance(apply, bool):
+        raise ValueError("apply must be boolean")
+    payload = {"element_id": element_id, "relation": relation, "apply": apply}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/ui/select-related", payload=payload, method="POST")["data"]
+
+
 def temporary_visibility(mode: str, element_ids: list[str] | None = None,
                          document_id: str | None = None) -> dict:
     if mode not in ("hide", "isolate", "reset"):
