@@ -1,9 +1,17 @@
 """Element MCP tools."""
 
 from services.element_service import count_or_group_elements, get_element_by_id, list_elements
+from connection.bridge import get_spatial_warnings
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_query_spatial_and_warnings(document_id: str = None,
+                                         include_warnings: bool = True) -> dict:
+        """Read room/space/grid inventory and documented Revit model warnings."""
+        return get_spatial_warnings(document_id=document_id,
+                                    include_warnings=include_warnings)
+
     @mcp.tool()
     def revit_list_elements(
         document_id: str = None,
