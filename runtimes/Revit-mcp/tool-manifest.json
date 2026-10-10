@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 43,
+  "entry_count": 44,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -48,6 +48,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_create_architecture",
+      "name": "revit_create_architecture",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "create architecture",
+      "summary": "Create straight wall, level, grid or model line with exact native approval on disposable fixtures.",
+      "when_to_use": "Basic Revit architectural creation.",
+      "tags": [
+        "transform",
+        "copy",
+        "rotate",
+        "type"
+      ],
+      "source_tool": "revit_create_architecture",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
