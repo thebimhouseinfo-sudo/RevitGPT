@@ -16,6 +16,7 @@ $offlineTests = @(
     "test_batch_tag_contract.py",
     "test_view_filters_contract.py",
     "test_view_create_contract.py",
+    "test_schedule_fields_contract.py",
     "test_native_host_preview.py",
     "test_native_pane_shell.py"
 )
