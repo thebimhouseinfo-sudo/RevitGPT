@@ -12,6 +12,41 @@ Every architectural claim must be tagged by provenance:
 
 No UNKNOWN may be silently promoted to implementation contract.
 
+## Approved post-MCP-V1 priorities — HUMAN 2026-10-10
+
+Revit MCP V1 implementation checkpoint is accepted as **PASS_RETEST_REQUIRED**. Host verification and per-tool status remain distinct. RevitGPT Brain owns orchestration; Revit MCP remains a separate Revit API subsystem.
+
+### 1. Internal MCP coder — narrow scope, not a general dev agent
+- One small source-coding capability, using predefined syntax/static test scripts.
+- Write/edit permission is **strictly limited to the Revit MCP subsystem directory** (`runtimes/Revit-mcp/**`), with canonical-path and symlink/reparse defenses. Other source modules, Knowledge, Jobs and unrelated files are read-only or inaccessible for mutation.
+- The sole exception is a **controlled Registry metadata updater**: change the existing registry entry only after the tool change and required tests succeed, with implementation evidence, exact identity and hash-based concurrency control. Do not set READY without applicable real-host verification.
+- No unrestricted repository editing, generic shell access, production Revit mutation, or independent Job ownership.
+
+### 2. Knowledge Writer — one-turn interruption
+- Expose an explicit user-invoked `update knowledge` skill/tool. It temporarily suspends (never terminates) the current Direct or Reasoning Job, preserves its exact Job Steps/checkpoint/context/lease and resumes it after the single Knowledge turn.
+- On that **one turn only**, collect the user-provided insight and context, check existing knowledge and conflicts, classify global vs project/model scope, format an evidence-grounded entry, and save it under the correct canonical `knowledge/revit/**`, `knowledge/dynamo/**`, `knowledge/hvac/**` or newly approved subject folder. SOURCE `knowledge/**` is authoritative; managed AppData can hold staging/observations only.
+- For an unresolved conflict or unsafe promotion, report the conflict and retain a draft; **do not auto-reason a conflicting decision or silently overwrite**. After success, report path/hash/summary and release the interruption immediately. No multi-turn takeover of the current Job.
+- Do not infer that knowledge from one RVT applies globally; do not convert an unverified model observation into a general engineering rule.
+
+### 3. Job Runtime — borrow proven CadGPT patterns
+- Reuse the conceptual patterns in CadGPT `knowledge/jobs/JOB_RULES.md`, `src/cadgpt/runtime/job-runtime.ts` and Job Steps tests: Direct versus Reasoning Jobs; simple `JOB.md` plus `JOB_STEPS`, ordered checkmarks and bounded postconditions, reset on completion/failure/new Job, resumable interruption, tool scopes and logs.
+- Keep user custom jobs and their steps in managed `%LOCALAPPDATA%\\RevitGPT\\libraries\\jobs/**` (drafts under workspace); no deep coupling of each custom Job into global runtime logic. A one-turn Knowledge Writer uses a bounded interruption frame, not a new Job or a rewritten plan.
+- Port behavior, not AutoCAD/DWG/LISP/TBH-specific implementation.
+
+### 4. Dynamo Writer — specialized small coder, distinct from .dyn loader
+- Add `skills/write-dynamo/` patterned on CadGPT `skills/write-lisp/`: registry-first discovery, AppData checkout/draft/promotion, minimal edits, structured authoring templates, bounded API/host-version knowledge and dependency manifests.
+- Ship local reference material for Dynamo graph JSON format, Dynamo Core/Revit integration/API contracts, relevant Revit 2024 constraints, nodes/packages and compatibility matrix. Validate references against the installed Dynamo version; never guess unsupported nodes or package availability.
+- Provide existing-script and generated-script **static JSON/schema/graph/node/dependency validators and negative controls** before promotion. Passing static validation is not a live execution PASS.
+- Separate the authoring skill from `revit_load_dyn_file` (LOAD-only/MANUAL/no-run) and from the separately authorized Dynamo runner. The authoring skill cannot silently execute graphs or perform unrestricted filesystem writes.
+- Keep Dynamo drafts and libraries in managed AppData. User external files are imported as copies, never edited in place.
+
+### 5. Integration and release
+- Preserve one-primary-model binding and native Revit UI-thread authority, recoverability, instrumentation and latency work.
+- Integrate Knowledge Writer, internal MCP coder, Job Steps and Dynamo Writer through RevitGPT Brain and existing Capability Registry without a competing registry.
+- Deliver host/integration acceptance, regression, independent review, rollback and explicit user release approval before promotion to main.
+
+Status: **OWNER DECISION / ROADMAP**, not a claim that these runtime capabilities are already implemented.
+
 ## Current approved facts and decisions
 
 ### Chat/session ownership
