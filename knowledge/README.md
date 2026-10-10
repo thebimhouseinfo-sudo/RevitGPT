@@ -19,3 +19,12 @@ through a versioned change. Current AppData seeding, searching and promotion
 code is legacy to refactor; it must not become a competing source of truth.
 
 Canonical boundary: docs/architecture/REVITGPT_BRAIN_MCP_KNOWLEDGE.md
+
+## Custom Jobs are not Knowledge files
+
+This source `knowledge/jobs/JOB_RULES.md` documents how RevitGPT Jobs
+should be authored. Actual **Direct** and **Reasoning** Custom Jobs live
+exclusively in `%LOCALAPPDATA%\RevitGPT\libraries\jobs\` with drafts
+under `workspace\job-draft\`; they are never canonical source
+`knowledge/` documents. External Job folders can only be copied/imported
+to managed Local AppData before registration.

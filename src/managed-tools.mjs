@@ -192,7 +192,8 @@ export function registerManagedTools(server){
     return textResult({library_id:a.library_id,kind:a.kind,managed_path:target,registered:entries.length});
   }));
 
-  server.registerTool("asset_register_external",{description:"Register/index an explicitly user-approved external Python, Dynamo or Job folder in place as read-only source.",inputSchema:{kind:z.enum(["python","dynamo","jobs"]),library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),name:z.string(),source_path:z.string(),user_approved_source:z.literal(true)}},async (a)=>guarded("asset_register_external",a,async()=>{
+  server.registerTool("asset_register_external",{description:"Register/index an explicitly approved EXTERNAL Python or Dynamo folder. Custom Jobs must be imported/copied into Local AppData with asset_import.",inputSchema:{kind:z.enum(["python","dynamo","jobs"]),library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),name:z.string(),source_path:z.string(),user_approved_source:z.literal(true)}},async (a)=>guarded("asset_register_external",a,async()=>{
+    if(a.kind==="jobs")throw new Error("CUSTOM_JOBS_MUST_USE_LOCAL_APPDATA: use asset_import instead");
     if(!path.isAbsolute(a.source_path))throw new Error("ABSOLUTE_SOURCE_PATH_REQUIRED");
     const source=await fs.realpath(a.source_path),stat=await fs.stat(source);if(!stat.isDirectory())throw new Error("SOURCE_DIRECTORY_REQUIRED");
     const entries=await discoverAssets(a.kind,a.library_id,source);
@@ -335,7 +336,13 @@ Draft only. Promote after validation and real Revit test.
 
   server.registerTool("job_get",{description:"Read one registered Job record and source.",inputSchema:{id:z.string()}},async (a)=>guarded("job_get",a,async()=>{
     const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]}); const entry=(reg.entries||[]).find(x=>x.id===a.id&&x.kind==="job");
-    if(!entry)throw new Error("JOB_NOT_FOUND"); const source=await fs.readFile(entry.path,"utf8"); return textResult({entry,source,sha256:sha256(source)});
+    if(!entry)throw new Error("JOB_NOT_FOUND");
+    const p=entry.path || (entry.library_id&&entry.relative_path?path.resolve(jobLibrariesRoot(),entry.library_id,entry.relative_path):null);
+    if(!p||!inside(jobLibrariesRoot(),p))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
+    const stat=await fs.lstat(p);if(!stat.isFile()||stat.isSymbolicLink())throw new Error("CUSTOM_JOB_INVALID_FILE");
+    const real=await fs.realpath(p);
+    if(!inside(jobLibrariesRoot(),real))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
+    const source=await fs.readFile(real,"utf8"); return textResult({entry,source,sha256:sha256(source)});
   }));
 
   server.registerTool("job_draft_validate",{description:"Validate a direct Python or reasoning Markdown Job draft structurally.",inputSchema:{path:z.string(),mode:z.enum(["reasoning","direct"])}},async (a)=>guarded("job_draft_validate",a,async()=>{

@@ -8,9 +8,11 @@ Create or refine repeatable RevitGPT Jobs using the CadGPT Job semantics adapted
 - Direct Job: deterministic reviewed `.py` entrypoint.
 
 ## Storage
-- reusable: `appdata/libraries/jobs/<library-id>/**`
-- drafts: `appdata/workspace/job-draft/**`
-- evidence: `appdata/data/runs/**`
+- reusable: `%LOCALAPPDATA%\RevitGPT\libraries\jobs\<library-id>\**`
+- drafts: `%LOCALAPPDATA%\RevitGPT\workspace\job-draft\**`
+- evidence: `%LOCALAPPDATA%\RevitGPT\data\runs\**`
+- registry: `%LOCALAPPDATA%\RevitGPT\registry\user\capabilities.json`
+- external folders must be imported/copied into Local AppData. Exported backups are not separate active Job locations. Source `knowledge/jobs/JOB_RULES.md` is reference documentation, not a Custom Job.
 
 ## Required lifecycle
 `job_draft_new -> author/review -> validate -> real test -> final validation -> Human acceptance -> job_promote_draft`

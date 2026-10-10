@@ -17,7 +17,7 @@ Status: HUMAN architecture correction (2026-10-10). This document is canonical f
       |
       +--- calls execution subsystems
               |--- Revit MCP -> Native Bridge -> Revit API -> bound RVT
-              |--- Job runner (multi-step planning and orchestration)
+              |--- Job runner (Direct + Reasoning Custom Jobs in Local AppData)
               +--- Dynamo runner (verified .dyn execution in Revit context)
 
 RevitGPT is the brain. It interprets requests, searches and learns from Knowledge, plans actions, selects an appropriate capability, applies professional reasoning, verifies results and reports to the user. It is NOT identical to the Revit MCP package, nor is Revit MCP the reasoning engine.
@@ -28,7 +28,9 @@ Revit MCP is a SEPARATE tool component. It provides deterministic typed Revit AP
 
 The Capability Registry is RevitGPT-owned discovery metadata spanning tools, Jobs, Dynamo and other capabilities. It does not grant permissions. A capability is READY only after implementation and applicable validation.
 
-Jobs and Dynamo are separate executable capabilities. A Job may coordinate Revit MCP, Dynamo and file-processing operations, but neither Job nor Dynamo Knowledge is part of the Revit MCP implementation. The WebView2 dockable panel is UI only.
+Jobs and Dynamo are separate executable capabilities. **Every Custom Job is either Direct or Reasoning**. Direct Jobs are reviewed deterministic executables (currently Python); Reasoning Jobs use a `JOB.md` workflow planned and executed by the RevitGPT brain. Either kind may coordinate Revit MCP, Dynamo and file-processing operations. Neither Job type is part of the Revit MCP implementation. The WebView2 panel is UI only.
+
+**Custom Job canonical storage: Local AppData only.** On Windows: `%LOCALAPPDATA%\RevitGPT\libraries\jobs\<library-id>\...` for promoted Jobs, `%LOCALAPPDATA%\RevitGPT\workspace\job-draft\...` for drafts, `%LOCALAPPDATA%\RevitGPT\registry\user\` for metadata and `%LOCALAPPDATA%\RevitGPT\data\runs\...` for run evidence. A Job provided through an external directory must be copied/imported into managed Local AppData, not linked there as a live Job. A Job export is a backup, not an alternative canonical installation. Source `knowledge/jobs/JOB_RULES.md` is knowledge about how to make Jobs, never a Custom Job library.
 
 ## Knowledge authority and actual implementation gap
 
