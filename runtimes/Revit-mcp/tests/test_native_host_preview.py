@@ -40,8 +40,8 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("!active.IsFamilyDocument && !active.IsLinked", source)
         self.assertIn('NativePaneDiagnostics.Record("show_exhausted"', source)
         self.assertIn("new BridgeHttpServer(protocol)", source)
-        self.assertIn("new RevitGptPaneProvider(_binding, _writeAuthority)", source)
-        self.assertIn("RevitApiRouter.Execute(ui, method, path, body, _binding, _writeAuthority)", source)
+        self.assertIn("new RevitGptPaneProvider(_binding)", source)
+        self.assertIn("RevitApiRouter.Execute(ui, method, path, body, _binding)", source)
         self.assertIn("_retry.TryConsume()", source)
         self.assertIn("!d.IsLinked && !d.IsFamilyDocument", source)
         self.assertIn("_binding.ObserveUnavailable();", source)
@@ -83,23 +83,27 @@ class HostPreviewTests(unittest.TestCase):
         self.assertNotIn("Document", listener)
         self.assertNotIn("ExternalEvent.Create", listener)
 
-    def test_writes_require_native_approval_and_fixture_boundary(self):
+    def test_writes_route_only_through_current_bound_document(self):
         source = ROUTER.read_text(encoding="utf-8")
-        authority = (BASE / "bridge" / "unified_native" / "NativeWriteAuthority.cs").read_text(encoding="utf-8")
         pane = (BASE / "bridge" / "unified_native" / "RevitGptPane.cs").read_text(encoding="utf-8")
-        self.assertIn("if (BridgeHttpProtocol.IsWrite(path))", source)
-        self.assertIn("writeAuthority.DenialOrConsume(", source)
-        self.assertIn("ApproveFromNativePane(", authority)
-        self.assertIn("IsDisposableFixture(doc)", authority)
-        self.assertIn("LocalApplicationData", authority)
-        self.assertIn("_pending = null; // consume BEFORE Revit API execution", authority)
-        self.assertIn("_writeAuthority.ApproveFromNativePane(_binding.Current)", pane)
-        self.assertNotIn("Native write route not yet validated", source)
-        self.assertIn("Int64.Parse", source)
-        self.assertIn("NativeDocumentContract.Create(", source)
-        self.assertNotIn("IntegerValue", source)
-        mutant = source.replace("writeAuthority.DenialOrConsume(", "UnsafeWrite(")
-        self.assertNotIn("writeAuthority.DenialOrConsume(", mutant)
+        self.assertIn('mutations_ready = true', source)
+        self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', source)
+        self.assertIn('if (denial != null) return Error(409, denial);', source)
+        self.assertIn('var doc = FindDocument(app, payload);', source)
+        self.assertIn('if (doc == null) return Error(404, "Target Revit document is not open.");', source)
+        self.assertNotIn("writeAuthority.DenialOrConsume(", source)
+        self.assertNotIn('NativeWriteAuthority', source)
+        self.assertNotIn('Approve Write', pane)
+        self.assertNotIn('_approveWrite', pane)
+        self.assertIn('NativeDocumentContract.Create(', source)
+        self.assertNotIn('Native write route not yet validated', source)
+        self.assertIn('Int64.Parse', source)
+        # Red control: dropping the bound-model check is detected.
+        mutant = source.replace('binding.ReadDenial(Token(payload, "document_id"))',
+                                'null', 1)
+        self.assertNotIn('binding.ReadDenial(Token(payload, "document_id"))', mutant)
+        with self.assertRaises(AssertionError):
+            self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', mutant)
 
 
 if __name__ == "__main__":
