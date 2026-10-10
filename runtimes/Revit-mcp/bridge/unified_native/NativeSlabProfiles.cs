@@ -52,7 +52,7 @@ namespace RevitGPT.Native
                     throw new ArgumentException("Degenerate edge in profile.");
                 loop.Append(Line.CreateBound(a, b));
             }
-            if (Math.Abs(CurveLoop.GetExactLength(loop)) < 0.001)
+            if (Math.Abs(loop.GetExactLength()) < 0.001)
                 throw new ArgumentException("Degenerate polygon.");
             return loop;
         }
