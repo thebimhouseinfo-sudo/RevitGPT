@@ -6,7 +6,7 @@ const DIAGNOSTIC = new Set([
 const MODEL_READS = new Set([
   "revit_list_view_filters", "revit_get_annotation", "revit_list_sheets", "revit_list_sheet_viewports",
   "revit_list_schedules", "revit_get_schedule",
-  "revit_get_selection",
+  "revit_get_active_view", "revit_get_selection",
   "revit_query_elements", "revit_get_view_properties", "revit_list_views", "revit_list_levels", "revit_list_elements",
   "revit_count_elements", "revit_group_elements",
   "revit_inspect_family_instance", "revit_get_categories", "revit_get_geometry_summary", "revit_get_element_relationships", "revit_get_parameters", "revit_list_parameters", "revit_query_spatial_and_warnings", "revit_get_element", "revit_list_families", "revit_list_family_types",
