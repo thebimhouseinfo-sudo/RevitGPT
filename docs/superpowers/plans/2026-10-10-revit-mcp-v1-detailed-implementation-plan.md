@@ -319,14 +319,14 @@ B11 — First certified operation: set_parameter:
 Suggested files: ParameterWriteHandler.cs, services/mep_service.py or dedicated parameter service, tools/mep_tools.py and tests.
 Acceptance: R4 positive + negative + rollback + duplicate/replay + restart/timeout evidence. Only revit_set_parameter can become READY when all gates pass.
 
-B12 — Non-destructive placement and movement:
-- Graduate revit_move_element and revit_place_family_instance individually, then bounded bulk parameter updates; resolve family/type/level/place mode, host/face requirements and coordinate units before mutation.
+B12 — Family placement and MEP placement (B12D covers general drawing and transforms):
+- Graduate revit_move_element and revit_place_family_instance individually; the bounded parameter batch/copy belongs to B11P. Resolve family/type/level/place mode, host/face requirements and coordinate units before mutation.
 - Validate Move with dependent elements, constraints, pinned, group membership and postcondition geometry. Validate placement with hosted/nonhosted symbols, symbol activation, level, orientation and requested offsets.
 - Extend to revit_create_duct and revit_create_pipe only after validated MEP systems/type IDs, connectors, sizes and regeneration; fail safely for incompatible systems.
 Acceptance: separate host evidence, readback and rollback for EACH newly READY action; no all-write blanket transition.
 
-B13 — Annotations and destructive delete:
-- Graduate text note, detail line, tag, dimension and spot elevation with valid view plane, reference/leader/style/type requirements and host readback. Specialized cases can remain BLOCKED when not reliably supported.
+B13 — Annotations and destructive delete (sub-batches B13A/B13X):
+- Implement the mandatory CORE create/get/edit/reposition text note, detail line, tag, dimension and supported spot elevation cases from section 4A, with valid view plane, reference/leader/style/type requirements and host readback. Unsupported specialized overloads may remain BLOCKED with explicit reasons; a missing CORE supported use case blocks V1.
 - Implement delete dependency/cascade preview in a rolled-back transaction or other safe validated mechanism; show expected removals and require fresh explicit specific approval. Verify dependent set after commit.
 - Ensure cross-model, linked and ambiguous bulk selections refuse safely. No broad "delete all matching" without bounded reviewed target IDs.
 Acceptance: each READY tool has real-host positive/negative/rollback/readback evidence. Delete requires cascade preview + approval + no unaccounted removal.
@@ -341,8 +341,8 @@ B14 — Documentation read inventory:
 - Avoid overly broad one-shot output; use aggregation and pagination.
 Acceptance: UI schedule/room/sheet data matches host fixture with units and scope.
 
-B15 — Curated read/write authoring:
-- Prioritize view/filter/template edits, view/sheet creation and placement, tags/dimensions where validated, bounded bulk edits; do NOT enable all because CP3 write core exists.
+B15 — Required CORE view/sheet/schedule authoring (B14V/B15S):
+- Implement the CORE view/filter/template properties, sheet creation/viewport placement and schedule field/filter/sort operations from section 4A, plus the selected ADVANCED view-filter actions. Existing B13A owns tag/note/dimension lifecycle. Each action still requires its own risk/host proof; CP3 write core does not automatically enable every tool.
 - Reuse B10 coordinator, no independent transaction implementations. Verify browser/UI panel and model binding unchanged.
 Acceptance: each implemented new mutation independently approved with host transaction and readback tests.
 
@@ -352,7 +352,7 @@ B16 — Workflow integration boundary:
 - Do not add run-any-Python or run-any-Dynamo endpoint.
 Acceptance: safe discovery does not bypass actual authorization; jobs/knowledge remain separate, existing registry tests pass.
 
-MCP-4 GATE: prioritized everyday BIM capabilities have real-host evidence; unsupported items remain listed BLOCKED/PENDING with explicit reasons, not silently deferred as READY.
+MCP-4 GATE: every CORE view/annotation/sheet/schedule presentation capability and the six selected ADVANCED actions relevant to MCP-4 have real-host PASS evidence, and B16D .dyn import has verified MANUAL/no-run evidence. Unsupported subtypes remain explicitly BLOCKED, but unsupported entire CORE/A* rows prevent V1 release.
 
 ### MCP-5 — Reliability, latency, hardening and release (B17–B19)
 
@@ -369,7 +369,7 @@ B18 — Recovery and safety regression:
 Acceptance: no cross-model disclosure/mutation, no unsafe retry, correct recovery states and no hidden duplicate operation.
 
 B19 — Evidence-driven release:
-- Produce release manifest with commit, 23-tool gap closure, added tool contracts, per-tool READY/HOST_TESTED/BLOCKED, tests, mock vs live distinctions, durations, installation version, installed host check, release change diff and rollback plan.
+- Produce release manifest with commit, truthful 23-tool baseline audit AND every CORE/A* target capability row, sub-action readiness, E01–E09 host verification, tests, mock vs live distinctions, durations, installation version, installed host check, release change diff and rollback plan.
 - Independent Tester reviews live screenshots/logs/model readback and Reviewer reviews BOTH source and tests. Native DLL updates require new immutable install version and reopen Revit for host smoke.
 - Run two-tier gates: offline CI then Windows Revit 2024 live host. A disconnected host is TEST_BLOCKED, never PASS.
 - Release to main ONLY after all V1 exit criteria, review approval and user-directed release choice. Retain official installed product rollback support.
@@ -407,15 +407,23 @@ Do not use optimistic "mock transaction committed" assertions to prove a native 
 | B04 | native ParameterReadHandler, element_service.py, element_tools.py | typed parameter UI readback |
 | B05 | native ElementQuery/AggregateHandler, element_service.py | aggregate equals Revit counts; >5k |
 | B06 | native relationship/link/geometry reads | R2 linked constraints and units |
+| B06S | Native UiSelectionAndViewHandler; Python ui_tools/services; Node UI_ACTION policy | R5 selection/show/zoom/activate/temp isolate; R2 A/B mismatch |
 | B07 | native ConnectorReadHandler, mep_service.py, mep_tools.py | connector positive/negative host fixtures |
 | B08 | native MEP graph/system handlers | real systems and bounded traversal |
 | B09 | MEP summaries, quantity service | equipment/duct/pipe reconciled |
 | B10 | model-authority.mjs, index.mjs, native WriteCoordinator, BridgeHttpProtocol.cs, bridge.py | security/replay/UNKNOWN/rollback |
 | B11 | native ParameterWriteHandler, Python service and tool | first safely enabled write |
+| B11P | native multi-parameter batch/map; Python typed tool contract | R4 preview/clear/copy, atomic rollback and per-ID readback |
 | B12 | native movement/placement/duct/pipe handlers | each action separately certified |
+| B12D | native drawing/transform API handlers, validated geometry profiles | R7 wall/floor/ceiling/grid/curves and transform readback |
 | B13 | native annotation/delete handlers | view correctness, cascade preview |
+| B13A/B13X | tag/note/leader editing, batch tags and deletion coordinator | R5 annotation references and R4 cascaded delete proof |
 | B14–B16 | new ViewsSchedules/Docs handlers and registry metadata | schedule/room/sheet truth and read/write separation |
+| B14V | native view properties/crop/overrides/template/filter handler | R5 view formatting screenshot and API readback |
+| B15S | native sheet/viewport/schedule handlers | R5 sheet/schedule positive/negative E2E |
+| B16D | narrow DynamoRevit .dyn-only load adapter and staged path validation | R6 manual/no-run sentinel and package/version failsafe |
 | B17–B19 | Node/Python/native traces, CI and release scripts | latency, recovery and real host release gate |
+| B18W | nine user-workflow E2E test packs and fixtures | E01–E09 Revit host evidence |
 
 Naming of NEW files and NEW tool names is proposed, not frozen until MCP-0 schema review. Maintain compatibility with the existing public 23-tool surface.
 
@@ -451,10 +459,10 @@ Necessary V1 outcomes:
 - 23 baseline tools fully and honestly classified, with no declared-but-untracked capabilities;
 - fast placed-instance count/group-by and parameter reads cross-checked against live Revit 2024;
 - proven connectors/actual MEP systems and export-ready MEP quantities with explicit units and completeness;
-- at least one host-certified parameter mutation plus additional individually certified common writes; unsupported advanced/deletion operations may remain BLOCKED with named owner/reason;
+- ALL CORE and six selected ADVANCED* groups from section 4A are implemented and HOST_TESTED/READY for their declared supported Revit 2024 subtypes, including guarded delete and annotation edits; unsupported API variants outside those supported cases remain explicit and never substitute for missing mandatory groups;
 - secure per-operation write authorization, no cross-model writes, verified rollback and no blind retry after ambiguous timeout;
-- enough documentation primitives for common architectural/MEP tasks; Registry does not claim unsupported tools READY;
-- correlated performance/recovery evidence and working installed UI/binding with no regression;
+- complete CORE Selection/UI, drawing, view formatting, sheets, schedules, tags/annotations, parameter batch workflows and MEP read coverage; Dynamo .dyn import must prove LOAD-without-RUN; Registry reflects per-action host verification and never claims unsupported tools READY;
+- E01–E09 live Revit 2024 workflows PASS with before/after proof, negative controls, trace and screenshots where required; correlated performance/recovery evidence and working installed UI/binding show no regression;
 - independent Tester and Reviewer verification including live Revit readback; release rollback ready.
 
 HOLD before enabling first mutation: B10 review and host security proof.
@@ -469,6 +477,6 @@ Start B00/B01 under MCP-0, in that order:
 2. Build two matrices: truthful CURRENT 23-tool source-to-native state, and full TARGET CORE + six ADVANCED* rows in §4A; missing tools stay PLANNED/BLOCKED until host evidence.
 3. Fix inaccurate existing tool descriptions; write negative controls distinguishing fake-bridge responses and native implementation.
 4. Run full offline regression; request real Revit 2024 host access only for B02, with no write operations.
-5. Record Reviewer verdict on the MCP-0 evidence before MCP-1 feature work.
+5. Review the current revision-2 plan against all nine CR findings before implementation; then freeze the CORE/A* tool contracts, U/W/X/L enforcement and R5/R6/R7 fixtures in MCP-0. Record Reviewer verdict on MCP-0 evidence before MCP-1 feature work.
 
 This plan is a planning document only. No source runtime functionality, installation, binding or production RVT is modified by its creation.
