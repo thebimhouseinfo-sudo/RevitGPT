@@ -205,11 +205,9 @@ def register(mcp) -> None:
         The operation is wrapped in a Revit transaction.
         Read-only parameters will raise an error.
         """
+        # Never coerce a text Mark or identifier (e.g. "0012") into a float.
+        # Native checks exact StorageType and rejects incompatible values.
         converted = value
-        try:
-            converted = float(value)
-        except (ValueError, TypeError):
-            pass
         return set_element_parameter(
             element_id=element_id,
             parameter=parameter,
@@ -221,6 +219,8 @@ def register(mcp) -> None:
     def revit_delete_elements(
         element_ids: list[str],
         document_id: str = None,
+        confirm: bool = False,
+        acknowledged_affected_ids: list[str] = None,
     ) -> dict:
         """Delete one or more elements from the model.
 
@@ -228,11 +228,14 @@ def register(mcp) -> None:
             element_ids: List of element IDs to delete (as strings).
             document_id: Optional document ID. Uses active document if not provided.
 
-        Returns a report with matched, deleted, and error counts plus details.
-        The operation is wrapped in a Revit transaction.
-        If any element fails, the transaction still commits for successful deletes.
+        Default is a rollback-based impact preview; no element is committed.
+        To commit, explicitly set confirm=True and provide the exact affected
+        IDs from preview. A separate operation-scoped Native grant is mandatory.
+        All-or-nothing transaction: no partial commits.
         """
-        return delete(element_ids=element_ids, document_id=document_id)
+        return delete(element_ids=element_ids, document_id=document_id,
+                      confirm=confirm,
+                      acknowledged_affected_ids=acknowledged_affected_ids)
 
     @mcp.tool()
     def revit_move_element(
