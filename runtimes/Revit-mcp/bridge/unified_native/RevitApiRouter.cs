@@ -86,6 +86,7 @@ namespace RevitGPT.Native
                 if (path == "/view/properties") return GetViewProperties(doc, payload);
                 if (path == "/view/filters") return NativeViewFilters.List(doc, payload);
                 if (path == "/view/create") return NativeViewCreate.Execute(doc, payload);
+                if (path == "/dynamo/load") return NativeDynamoLoad.Execute(app, payload);
                 if (path == "/view/filter/write") return NativeViewFilters.Write(doc, payload);
                 if (path == "/sheets") return NativeSheets.List(doc);
                 if (path == "/sheet/viewports") return NativeSheets.Viewports(doc, payload);
