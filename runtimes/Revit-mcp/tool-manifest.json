@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 54,
+  "entry_count": 55,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -1203,6 +1203,28 @@
       "execution": "revitgpt_call",
       "mode": "ui_action",
       "risk": "medium",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_trace_mep_system",
+      "name": "revit_trace_mep_system",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.family",
+      "title": "trace MEP connections",
+      "summary": "Cycle-safe bounded BFS from MEP connector owners.",
+      "when_to_use": "Inspect connected/disconnected MEP topology.",
+      "tags": [
+        "mep",
+        "systems"
+      ],
+      "source_tool": "revit_trace_mep_system",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
