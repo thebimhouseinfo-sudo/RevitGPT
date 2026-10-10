@@ -77,6 +77,11 @@ jobs:
         run: |
           node scripts/test-revit-fake-cli.mjs
 
+      - name: Check Direct/Reasoning Custom Jobs are local-only
+        shell: pwsh
+        run: |
+          node scripts/test-custom-job-local-storage.mjs
+
       - name: Simulate Windows bootstrap paths with spaces
         shell: pwsh
         run: |
