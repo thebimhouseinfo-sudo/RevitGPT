@@ -24,14 +24,20 @@ def register(mcp) -> None:
         return list_view_filters(view_id, document_id)
 
     @mcp.tool()
-    def revit_manage_view_filters(view_id: str, filter_id: str, action: str,
-                                  visible: bool = None, document_id: str = None) -> dict:
-        """Attach/remove/show/hide an existing Revit ParameterFilterElement.
+    def revit_manage_view_filters(view_id: str, action: str,
+                                  filter_id: str = None,
+                                  visible: bool = None,
+                                  document_id: str = None,
+                                  name: str = None, bip: str = None,
+                                  value: str = None,
+                                  category_ids: list[str] = None) -> dict:
+        """Attach/remove/toggle an existing filter, or create string-equals BIP filter.
 
-        Creating/editing rule definitions is NOT supported by this handler.
-        Requires exact Native approval on a disposable test RVT.
+        Only bounded BuiltInParameter text equality is supported for creation.
+        Requires exact Native approval on a disposable Revit test model.
         """
-        return manage_view_filters(view_id, filter_id, action, visible, document_id)
+        return manage_view_filters(view_id, filter_id, action, visible,
+                                   document_id, name, bip, value, category_ids)
 
     @mcp.tool()
     def revit_list_views(document_id: str = None) -> list[dict]:
