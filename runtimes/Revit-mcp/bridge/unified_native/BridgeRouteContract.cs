@@ -25,6 +25,7 @@ namespace RevitGPT.Native
             "POST /ui/view/activate",
             "POST /element",
             "POST /element/connectors",
+            "POST /mep/systems",
             "POST /families",
             "POST /family/types",
             "POST /system/types",
