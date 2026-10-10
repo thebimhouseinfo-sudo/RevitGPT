@@ -87,6 +87,7 @@ namespace RevitGPT.Native
                 if (path == "/sheets") return NativeSheets.List(doc);
                 if (path == "/sheet/viewports") return NativeSheets.Viewports(doc, payload);
                 if (path == "/sheet/write") return NativeSheets.Write(doc, payload);
+                if (path == "/view/format") return NativeViewFormatting.Execute(doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
