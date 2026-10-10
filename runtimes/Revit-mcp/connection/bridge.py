@@ -294,6 +294,20 @@ def get_view_properties(view_id: str, document_id: str | None = None) -> dict:
     return _send_request("/view/properties", payload=payload, method="POST")["data"]
 
 
+def get_mep_quantities(mode: str = "all", category: str | None = None,
+                       document_id: str | None = None) -> dict:
+    if mode not in ("all", "equipment"):
+        raise ValueError("mode must be all or equipment")
+    payload = {"mode": mode}
+    if category is not None:
+        if not isinstance(category, str) or not category.strip() or len(category) > 128:
+            raise ValueError("category filter invalid")
+        payload["category"] = category
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/mep/quantities", payload=payload, method="POST")["data"]
+
+
 def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> list[dict]:
     if kind is not None and kind not in ("duct", "pipe"):
         raise ValueError("kind must be duct or pipe")
