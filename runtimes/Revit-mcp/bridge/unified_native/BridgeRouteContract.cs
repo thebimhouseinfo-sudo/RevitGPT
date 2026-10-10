@@ -18,6 +18,7 @@ namespace RevitGPT.Native
             "POST /views",
             "POST /levels",
             "POST /elements",
+            "POST /elements/query",
             "POST /elements/aggregate",
             "POST /ui/selection",
             "POST /ui/selection/set",
