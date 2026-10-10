@@ -1,10 +1,22 @@
 """Element MCP tools."""
 
 from services.element_service import count_or_group_elements, get_element_by_id, list_elements
-from connection.bridge import get_spatial_warnings
+from connection.bridge import get_spatial_warnings, get_element_parameters
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_get_parameters(element_id: str, document_id: str = None,
+                             include_type: bool = True) -> dict:
+        """Inspect all instance and optionally type parameter metadata for one Revit element."""
+        return get_element_parameters(element_id, document_id, include_type)
+
+    @mcp.tool()
+    def revit_list_parameters(element_id: str, document_id: str = None,
+                              include_type: bool = True) -> dict:
+        """List exact instance/type parameter names and identifiers without guessing duplicates."""
+        return get_element_parameters(element_id, document_id, include_type)
+
     @mcp.tool()
     def revit_query_spatial_and_warnings(document_id: str = None,
                                          include_warnings: bool = True) -> dict:

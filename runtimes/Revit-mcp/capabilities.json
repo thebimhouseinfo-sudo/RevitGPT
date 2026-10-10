@@ -879,6 +879,48 @@
           }
         }
       }
+    },
+    {
+      "id": "revit_get_parameters",
+      "description": "Read all parameters of an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_list_parameters",
+      "description": "Read all parameters of an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
     }
   ]
 }

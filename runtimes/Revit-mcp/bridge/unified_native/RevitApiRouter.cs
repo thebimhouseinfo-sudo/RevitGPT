@@ -86,6 +86,7 @@ namespace RevitGPT.Native
                 if (path == "/elements") return Elements(doc, payload);
                 if (path == "/elements/aggregate") return AggregateElements(doc, payload);
                 if (path == "/element") return Element(doc, payload);
+                if (path == "/element/parameters") return AllParameters(doc, payload);
                 if (path == "/families")
                 {
                     var category = Token(payload, "category");
@@ -370,6 +371,42 @@ namespace RevitGPT.Native
                 complete = true,
                 scope = viewId.HasValue ? "view_visible" : "document_placed_instances",
                 view_id = viewId?.ToString(CultureInfo.InvariantCulture)
+            });
+        }
+
+        private static string AllParameters(Document doc, JObject payload)
+        {
+            long? rawId = LongNumber(payload, "element_id");
+            if (!rawId.HasValue || rawId.Value <= 0) return Error(400, "element_id required.");
+            Element element = doc.GetElement(new ElementId(rawId.Value));
+            if (element == null) return Error(404, "Element not found.");
+            bool includeType = payload.Value<bool?>("include_type") ?? true;
+            var output = new List<object>();
+            Element typeOwner = null;
+            if (includeType)
+            {
+                ElementId typeId = element.GetTypeId();
+                if (typeId != null && typeId != ElementId.InvalidElementId)
+                    typeOwner = doc.GetElement(typeId);
+            }
+            var owners = new List<Tuple<Element, string>> {
+                Tuple.Create(element, "instance") };
+            if (typeOwner != null && typeOwner.Id != element.Id)
+                owners.Add(Tuple.Create(typeOwner, "type"));
+            foreach (var ownerScope in owners)
+                foreach (Parameter parameter in ownerScope.Item1.Parameters)
+                {
+                    if (output.Count >= 256)
+                        return Error(413, "More than 256 parameters; no truncated result.");
+                    output.Add(new {
+                        name = parameter.Definition?.Name ?? "",
+                        scope = ownerScope.Item2,
+                        metadata = ParameterInfo(parameter, ownerScope.Item2, ownerScope.Item1)
+                    });
+                }
+            return Data(new {
+                element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                parameters = output, complete = true
             });
         }
 

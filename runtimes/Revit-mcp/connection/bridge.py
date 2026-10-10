@@ -329,6 +329,18 @@ def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> 
     return _send_request("/mep/systems", payload=payload, method="POST")["data"]
 
 
+def get_element_parameters(element_id: str, document_id: str | None = None,
+                           include_type: bool = True) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
+        raise ValueError("element_id must be a positive ElementId string")
+    if not isinstance(include_type, bool):
+        raise ValueError("include_type must be bool")
+    payload = {"element_id": element_id, "include_type": include_type}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/element/parameters", payload=payload, method="POST")["data"]
+
+
 def get_element_connectors(element_id: str, document_id: str | None = None) -> list[dict]:
     payload: dict[str, Any] = {"element_id": element_id}
     if document_id:

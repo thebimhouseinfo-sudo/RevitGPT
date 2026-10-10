@@ -156,6 +156,20 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("if (connectors.Count >= 256)", code)
         self.assertIn("reference.Owner?.Id.Value", code)
 
+    @patch.object(bridge, "_send_request", return_value={"data": {
+        "element_id": "42", "parameters": [], "complete": True}})
+    def test_all_parameter_names_metadata(self, send):
+        data = bridge.get_element_parameters("42", include_type=True)
+        self.assertTrue(data["complete"])
+        send.assert_called_once_with("/element/parameters", payload={
+            "element_id": "42", "include_type": True}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_all_parameter_bad_id_fails(self, send):
+        with self.assertRaises(ValueError):
+            bridge.get_element_parameters("-10")
+        send.assert_not_called()
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)
