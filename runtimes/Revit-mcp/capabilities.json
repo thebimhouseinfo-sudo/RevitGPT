@@ -1525,7 +1525,7 @@
     },
     {
       "id": "revit_create_or_duplicate_view",
-      "description": "Create plan/3D view or duplicate existing view.",
+      "description": "Create Revit floor/ceiling plan, isometric 3D, section, or duplicate.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1535,7 +1535,8 @@
               "floor_plan",
               "ceiling_plan",
               "isometric_3d",
-              "duplicate"
+              "duplicate",
+              "section"
             ]
           },
           "name": {
@@ -1552,6 +1553,9 @@
           },
           "document_id": {
             "type": "string"
+          },
+          "section_box": {
+            "type": "object"
           }
         },
         "required": [
