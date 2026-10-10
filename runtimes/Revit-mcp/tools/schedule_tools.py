@@ -14,7 +14,13 @@ def register(mcp) -> None:
         return get_schedule(schedule_id, document_id)
 
     @mcp.tool()
-    def revit_update_schedule(schedule_id: str, action: str, field_id: str,
-                              document_id: str = None) -> dict:
-        """Hide/show a schedule field, transaction-backed and Native approved."""
-        return update_schedule(schedule_id, action, field_id, document_id)
+    def revit_update_schedule(schedule_id: str, action: str,
+                              field_id: str = None,
+                              document_id: str = None,
+                              value: str = None) -> dict:
+        """Hide/show fields, add string equality filters and sort fields, or clear.
+
+        Native write approval and Revit Transaction required. Arbitrary schedule
+        cell writing is unsupported.
+        """
+        return update_schedule(schedule_id, action, field_id, document_id, value)
