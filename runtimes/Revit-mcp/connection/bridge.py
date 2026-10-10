@@ -264,6 +264,15 @@ def get_element(
     return result.get("data", result)
 
 
+def get_view_properties(view_id: str, document_id: str | None = None) -> dict:
+    if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) < 1:
+        raise ValueError("view_id must be a positive ElementId string")
+    payload = {"view_id": view_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/view/properties", payload=payload, method="POST")["data"]
+
+
 def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> list[dict]:
     if kind is not None and kind not in ("duct", "pipe"):
         raise ValueError("kind must be duct or pipe")
