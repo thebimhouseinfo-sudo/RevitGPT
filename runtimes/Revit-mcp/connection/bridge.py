@@ -299,6 +299,36 @@ def get_element(
     return result.get("data", result)
 
 
+def list_view_filters(view_id: str, document_id: str | None = None) -> dict:
+    if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) <= 0:
+        raise ValueError("Valid view_id required")
+    payload = {"view_id": view_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/view/filters", payload=payload, method="POST")["data"]
+
+
+def manage_view_filters(view_id: str, filter_id: str, action: str,
+                        visible: bool | None = None,
+                        document_id: str | None = None) -> dict:
+    if action not in ("apply", "remove", "visibility"):
+        raise ValueError("Invalid filter action")
+    for identifier in (view_id, filter_id):
+        if not isinstance(identifier, str) or not identifier.isdecimal() or int(identifier) <= 0:
+            raise ValueError("Valid view/filter IDs required")
+    payload = {"view_id": view_id, "filter_id": filter_id, "action": action}
+    if action == "visibility":
+        if type(visible) is not bool:
+            raise ValueError("visibility requires boolean")
+        payload["visible"] = visible
+    elif visible is not None:
+        raise ValueError("visible only allowed for visibility action")
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/view/filter/write", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def get_view_properties(view_id: str, document_id: str | None = None) -> dict:
     if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) < 1:
         raise ValueError("view_id must be a positive ElementId string")
