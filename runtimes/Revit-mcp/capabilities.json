@@ -1071,6 +1071,34 @@
           "element_ids"
         ]
       }
+    },
+    {
+      "id": "revit_create_architecture",
+      "description": "Create simple wall, grid, level, model line.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "wall",
+              "level",
+              "grid",
+              "model_line"
+            ]
+          },
+          "properties": {
+            "type": "object"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "properties"
+        ]
+      }
     }
   ]
 }
