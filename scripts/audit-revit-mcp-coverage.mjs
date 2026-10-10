@@ -81,7 +81,7 @@ const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 const quoted = s => JSON.stringify(s);
 const pathFromRoute = route => route.split(" ")[1];
 
-export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource }) {
+export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource }) {
   expect(Array.isArray(manifest.entries) && Array.isArray(capabilities.tools), "bad tool manifest/capabilities");
   const registered = toolSources.flatMap(({ file, content }) => [...content.matchAll(/@mcp\.tool\(\)\s*def\s+(revit_[A-Za-z0-9_]+)\s*\(/g)]
     .map(x => ({ name: x[1], file })));
@@ -104,13 +104,14 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     expect(routeDeclarations.includes(listed), "missing native route contract: " + listed);
     expect(bridgeSource.includes(quoted(pathFromRoute(listed))), "missing Python bridge consumer: " + listed);
   }
-  const hasWriteGuard = nativeSource.includes("if (BridgeHttpProtocol.IsWrite(path))") &&
-    nativeSource.includes("writeAuthority.DenialOrConsume(") &&
-    writeAuthoritySource.includes("ApproveFromNativePane(") &&
-    writeAuthoritySource.includes("IsDisposableFixture(doc)") &&
-    writeAuthoritySource.includes("_pending = null; // consume BEFORE Revit API execution") &&
-    paneSource.includes("_writeAuthority.ApproveFromNativePane(_binding.Current)");
-  expect(hasWriteGuard, "native one-time fixture write grant missing or bypassed");
+  const hasBoundModelGuard = nativeSource.includes('binding.ReadDenial(Token(payload, "document_id"))') &&
+    nativeSource.includes('if (denial != null) return Error(409, denial);') &&
+    nativeSource.includes('var doc = FindDocument(app, payload);') &&
+    nativeSource.includes('if (doc == null) return Error(404, "Target Revit document is not open.");') &&
+    !nativeSource.includes("writeAuthority.DenialOrConsume(") &&
+    !paneSource.includes("Approve Write") &&
+    nodeSource.includes('"revit_delete_elements"');
+  expect(hasBoundModelGuard, "bound-model enforcement missing from native write route");
   const hasConnectors = nativeSource.includes('if (path == "/element/connectors") return Connectors(doc, payload);') &&
     nativeSource.includes("private static string Connectors(Document doc, JObject payload)") &&
     nativeSource.includes("foreach (Connector connector in manager.Connectors)");
@@ -144,7 +145,7 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')'));
     expect(nativePresent, "Native write/read operation handler not implemented: " + entry.name);
     expect(nativePresent, "declared tool has no native operation handler: " + entry.name);
-    expect(isWrite ? entry.mode === "write_approval_required" && entry.status === "implemented_unverified"
+    expect(isWrite ? entry.mode === "write_bound_model" && entry.status === "implemented_unverified"
       : (entry.mode === "read_only" || entry.mode === "ui_action"), "registry access status mismatch: " + entry.name);
     expect(isWrite || nodeSource.includes(quoted(entry.name)), "read/UI tool absent in Node admission: " + entry.name);
     return {
@@ -152,9 +153,9 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       declared_mode: entry.mode, registry_status: entry.status,
       http_routes: route, native_route_registered: true,
       native_handler_observed: nativePresent,
-      native_write_guard_active: isWrite && hasWriteGuard,
+      bound_model_guard_active: hasBoundModelGuard,
       classification: isWrite ? "WRITE_IMPLEMENTED_UNVERIFIED" : "PARTIAL",
-      reason: isWrite ? "Handler exists; one-time Native-pane approval and disposable fixture required; no live host proof."
+      reason: isWrite ? "Handler exists; WRITE dispatched for bound/current model; no live host proof."
          : isConnector ? "Native connector reader added; still requires live Revit host evidence."
         : entry.name === "revit_get_element" || entry.name === "revit_list_elements"
           ? "Native read exists; promised parameters are not fully serialized. No live-host proof."
@@ -178,14 +179,13 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
 
 export async function loadSources(base = root) {
   const read = p => fs.readFile(path.join(base, p), "utf8");
-  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, paneSource, ...sources] = await Promise.all([
+  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeOperationsSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource, paneSource, ...sources] = await Promise.all([
     read(rt + "/tool-manifest.json"), read(rt + "/capabilities.json"),
     read(rt + "/bridge/unified_native/RevitApiRouter.cs"),
     read(rt + "/bridge/unified_native/BridgeRouteContract.cs"),
     read(rt + "/connection/bridge.py"), read("src/model-authority.mjs"),
     read(rt + "/main.py"),
     read("docs/superpowers/plans/2026-10-10-revit-mcp-v1-detailed-implementation-plan.md"),
-    read(rt + "/bridge/unified_native/NativeWriteAuthority.cs"),
     read(rt + "/bridge/unified_native/NativeWriteOperations.cs"),
     read(rt + "/bridge/unified_native/NativeTransforms.cs"),
     read(rt + "/bridge/unified_native/NativeArchitecture.cs"),
@@ -204,7 +204,7 @@ export async function loadSources(base = root) {
   ]);
   return { manifest: JSON.parse(manifest), capabilities: JSON.parse(capabilities),
     nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource,
-    writeAuthoritySource, writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource,
+    writeOperationsSource, paneSource, nativeTransformsSource, nativeArchitectureSource, nativeBatchTagsSource, nativeViewFiltersSource, nativeViewCreateSource, nativeDynamoSource, nativeElementQuerySource, nativeSheetsSource, nativeViewFormattingSource, nativeSlabSource, nativeSchedulesSource, nativeAnnotationEditSource,
     toolSources: pythonToolFiles.map((file, i) => ({file, content: sources[i]})) };
 }
 
