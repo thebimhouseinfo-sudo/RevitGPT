@@ -599,6 +599,19 @@ def delete_elements(
     return result.get("data", result)
 
 
+def format_view(view_id: str, action: str, properties: dict,
+                document_id: str | None = None) -> dict:
+    if action not in ("properties", "crop", "template", "visibility", "graphics"):
+        raise ValueError("Unsupported view formatting action")
+    if not isinstance(properties, dict) or len(properties) > 20:
+        raise ValueError("View properties must be a bounded object")
+    payload = {"view_id": view_id, "action": action, **properties}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/view/format", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def list_sheets(document_id: str | None = None) -> list[dict]:
     payload = {"document_id": document_id} if document_id else {}
     return _send_request("/sheets", payload=payload, method="POST")["data"]
