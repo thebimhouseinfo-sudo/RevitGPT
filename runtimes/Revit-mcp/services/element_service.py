@@ -24,6 +24,10 @@ def list_elements(
     )
 
 
-def get_element_by_id(element_id: str, document_id: str | None = None) -> dict:
-    """Get a single element by its ID."""
-    return get_element(element_id, document_id)
+def get_element_by_id(
+    element_id: str,
+    document_id: str | None = None,
+    parameters: list[str] | None = None,
+) -> dict:
+    """Get one element and at most 16 specifically requested instance/type parameters."""
+    return get_element(element_id, document_id, parameters=parameters)
