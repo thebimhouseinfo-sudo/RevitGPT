@@ -1408,6 +1408,24 @@
           "action"
         ]
       }
+    },
+    {
+      "id": "revit_get_annotation",
+      "description": "Read exact Revit annotation details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
     }
   ]
 }
