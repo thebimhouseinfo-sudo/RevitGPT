@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 40,
+  "entry_count": 41,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -489,6 +489,29 @@
         "aggregate"
       ],
       "source_tool": "revit_group_elements",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_inspect_family_instance",
+      "name": "revit_inspect_family_instance",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.element",
+      "title": "inspect family instance",
+      "summary": "Inspect host, family/type, level and MEP connector metadata.",
+      "when_to_use": "Trace equipment hosting and family/type relationships without modifying model.",
+      "tags": [
+        "element",
+        "inspect",
+        "detail"
+      ],
+      "source_tool": "revit_inspect_family_instance",
       "execution": "revitgpt_call",
       "mode": "read_only",
       "risk": "low",

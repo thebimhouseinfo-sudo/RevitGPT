@@ -1,9 +1,15 @@
 """Family and type discovery MCP tools."""
 
 from services.family_service import list_families, list_family_types, list_system_types
+from connection.bridge import inspect_element
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_inspect_family_instance(element_id: str, document_id: str = None) -> dict:
+        """Inspect placed family host, type, level, parent and MEP connector count."""
+        return inspect_element(element_id, "family", document_id)
+
     @mcp.tool()
     def revit_list_families(
         category: str = None,

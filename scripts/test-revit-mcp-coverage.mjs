@@ -3,8 +3,8 @@ import { auditSources, loadSources } from "./audit-revit-mcp-coverage.mjs";
 
 const baseline = await loadSources();
 const audit = auditSources(baseline);
-assert.equal(audit.summary.declared_tools, 40);
-assert.deepEqual(audit.summary.classification_counts, { BLOCKED:11, PARTIAL:29 });
+assert.equal(audit.summary.declared_tools, 41);
+assert.deepEqual(audit.summary.classification_counts, { BLOCKED:11, PARTIAL:30 });
 assert.equal(audit.summary.required_core_groups,39);
 assert.equal(audit.summary.required_advanced_groups,6);
 assert.equal(audit.summary.host_ready,0);

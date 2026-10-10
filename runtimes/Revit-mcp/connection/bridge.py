@@ -345,8 +345,8 @@ def inspect_element(element_id: str, aspect: str,
                     document_id: str | None = None) -> dict:
     if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
         raise ValueError("element_id must be positive ElementId string")
-    if aspect not in ("geometry", "relationships"):
-        raise ValueError("aspect must be geometry or relationships")
+    if aspect not in ("geometry", "relationships", "family"):
+        raise ValueError("aspect must be geometry, relationships or family")
     payload = {"element_id": element_id, "aspect": aspect}
     if document_id:
         payload["document_id"] = document_id

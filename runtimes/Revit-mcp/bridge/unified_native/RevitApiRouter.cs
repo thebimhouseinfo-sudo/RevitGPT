@@ -402,8 +402,8 @@ namespace RevitGPT.Native
             if (!rawId.HasValue || rawId.Value <= 0)
                 return Error(400, "element_id required.");
             string aspect = Token(payload, "aspect");
-            if (aspect != "geometry" && aspect != "relationships")
-                return Error(400, "aspect must be geometry or relationships.");
+            if (aspect != "geometry" && aspect != "relationships" && aspect != "family")
+                return Error(400, "aspect must be geometry, relationships or family.");
             Element e = doc.GetElement(new ElementId(rawId.Value));
             if (e == null) return Error(404, "Element not found.");
             if (aspect == "geometry")
@@ -424,6 +424,24 @@ namespace RevitGPT.Native
                         coordinate_space = "bounding_box_local"
                     },
                     location = ElementInfo(e), complete = true
+                });
+            }
+            if (aspect == "family")
+            {
+                var instance = e as FamilyInstance;
+                if (instance == null) return Error(400, "Element is not a FamilyInstance.");
+                var manager = instance.MEPModel?.ConnectorManager;
+                return Data(new {
+                    id = instance.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    family_name = instance.Symbol?.Family?.Name,
+                    type_name = instance.Symbol?.Name,
+                    type_id = instance.GetTypeId().Value.ToString(CultureInfo.InvariantCulture),
+                    host_id = instance.Host?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    super_component_id = instance.SuperComponent?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    level_id = instance.LevelId == ElementId.InvalidElementId ? null :
+                        instance.LevelId.Value.ToString(CultureInfo.InvariantCulture),
+                    connector_count = manager == null ? (int?)null : manager.Connectors.Size,
+                    has_mep_model = instance.MEPModel != null, complete = true
                 });
             }
             var familyInstance = e as FamilyInstance;

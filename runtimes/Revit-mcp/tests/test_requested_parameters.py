@@ -195,6 +195,13 @@ class SelectedParameterBridgeTests(unittest.TestCase):
             bridge.get_categories(name_contains="")
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"id": "42", "family_name": "FCU"}})
+    def test_family_instance_inspection(self, send):
+        data = bridge.inspect_element("42", "family")
+        self.assertEqual(data["family_name"], "FCU")
+        send.assert_called_once_with("/element/inspect", payload={
+            "element_id": "42", "aspect": "family"}, method="POST")
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)
