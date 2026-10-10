@@ -1099,6 +1099,60 @@
           "properties"
         ]
       }
+    },
+    {
+      "id": "revit_batch_set_parameters",
+      "description": "Atomic parameter batch/copy; Native approval required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array"
+          },
+          "source_element_id": {
+            "type": "string"
+          },
+          "target_element_ids": {
+            "type": "array"
+          },
+          "mappings": {
+            "type": "array"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_copy_parameters",
+      "description": "Atomic parameter batch/copy; Native approval required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array"
+          },
+          "source_element_id": {
+            "type": "string"
+          },
+          "target_element_ids": {
+            "type": "array"
+          },
+          "mappings": {
+            "type": "array"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
     }
   ]
 }
