@@ -332,6 +332,18 @@ def get_mep_quantities(mode: str = "all", category: str | None = None,
     return _send_request("/mep/quantities", payload=payload, method="POST")["data"]
 
 
+def trace_mep_system(element_id: str, max_nodes: int = 100, max_depth: int = 6,
+                     document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) <= 0:
+        raise ValueError("Valid root MEP element ID required")
+    if type(max_nodes) is not int or not 1 <= max_nodes <= 250 or type(max_depth) is not int or not 0 <= max_depth <= 12:
+        raise ValueError("Invalid MEP graph bounds")
+    payload = {"element_id": element_id, "max_nodes": max_nodes, "max_depth": max_depth}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/mep/trace", payload=payload, method="POST")["data"]
+
+
 def get_mep_systems(kind: str | None = None, document_id: str | None = None) -> list[dict]:
     if kind is not None and kind not in ("duct", "pipe"):
         raise ValueError("kind must be duct or pipe")
