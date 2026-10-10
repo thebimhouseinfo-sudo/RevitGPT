@@ -13,7 +13,7 @@ namespace RevitGPT.Native
 {
     // All methods in this class must execute ONLY inside ExternalEvent.Execute.
     // Write handlers may execute only after one-shot Native-pane approval
-    // on an explicitly disposable fixture model. Production writes remain denied.
+    // on an explicitly allowlisted local test model. Production writes remain denied.
     public static class RevitApiRouter
     {
         public static string Execute(UIApplication app, string method, string path, string body,
@@ -26,7 +26,7 @@ namespace RevitGPT.Native
                 if (path == "/health")
                     return Data(new { status = "ok", host = "unified-native-preview",
                         revit_available = true, version = "0.1.0-preview",
-                        mutations_ready = false, write_fixture_approval_supported = true });
+                        mutations_ready = false, write_test_model_approval_supported = true, write_fixture_approval_supported = true });
                 var payload = String.IsNullOrWhiteSpace(body) ? new JObject() : JObject.Parse(body);
                 if (path == "/documents")
                     return Data(app.Application.Documents.Cast<Document>().Select(DocumentInfo).ToList());
