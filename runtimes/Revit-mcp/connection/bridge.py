@@ -299,6 +299,35 @@ def get_element(
     return result.get("data", result)
 
 
+def create_or_duplicate_view(action: str, name: str | None = None,
+                             level_id: str | None = None,
+                             source_view_id: str | None = None,
+                             view_family_type_id: str | None = None,
+                             document_id: str | None = None) -> dict:
+    if action not in ("floor_plan", "ceiling_plan", "isometric_3d", "duplicate"):
+        raise ValueError("Unsupported view creation action")
+    values = {"level_id": level_id, "source_view_id": source_view_id,
+              "view_family_type_id": view_family_type_id}
+    for key, value in values.items():
+        if value is not None and (not isinstance(value, str) or
+                                  not value.isdecimal() or int(value) <= 0):
+            raise ValueError("Invalid " + key)
+    if action == "duplicate" and source_view_id is None:
+        raise ValueError("source_view_id required for duplicate")
+    if action in ("floor_plan", "ceiling_plan") and level_id is None:
+        raise ValueError("level_id required for plan creation")
+    if name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 128):
+        raise ValueError("Invalid view name")
+    payload = {"action": action}
+    payload.update({key: value for key, value in values.items() if value is not None})
+    if name is not None:
+        payload["name"] = name
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/view/create", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def list_view_filters(view_id: str, document_id: str | None = None) -> dict:
     if not isinstance(view_id, str) or not view_id.isdecimal() or int(view_id) <= 0:
         raise ValueError("Valid view_id required")
