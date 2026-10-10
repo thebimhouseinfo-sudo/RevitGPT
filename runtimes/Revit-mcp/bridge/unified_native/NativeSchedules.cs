@@ -67,7 +67,9 @@ namespace RevitGPT.Native
                     id = schedule.Id.Value.ToString(CultureInfo.InvariantCulture),
                     name = schedule.Name, fields, rows,
                     complete = true, row_count = rowCount,
-                    column_count = columnCount
+                    column_count = columnCount,
+                    filter_count = definition.GetFilterCount(),
+                    sort_count = definition.GetSortGroupFieldCount()
                 });
             }
             catch (ArgumentException e) { return Error(400, e.Message); }
@@ -78,20 +80,54 @@ namespace RevitGPT.Native
             {
                 ViewSchedule schedule = Get(d, p);
                 string action = p.Value<string>("action");
-                if (action != "hide_field" && action != "show_field")
-                    return Error(400, "Only hide_field/show_field supported in this handler.");
-                int id;
-                if (!Int32.TryParse(p.Value<string>("field_id"), out id) || id < 0)
-                    return Error(400, "field_id required.");
+                if (action != "hide_field" && action != "show_field" &&
+                    action != "add_filter_equals" && action != "clear_filters" &&
+                    action != "add_sort" && action != "clear_sorts")
+                    return Error(400, "Unsupported schedule update action.");
                 var def = schedule.Definition;
-                ScheduleField field = def.GetField(new ScheduleFieldId(id));
-                if (field == null) return Error(404, "Schedule field missing.");
+                bool usesField = action == "hide_field" || action == "show_field" ||
+                    action == "add_filter_equals" || action == "add_sort";
+                ScheduleField field = null;
+                if (usesField)
+                {
+                    int id;
+                    if (!Int32.TryParse(p.Value<string>("field_id"), NumberStyles.None,
+                        CultureInfo.InvariantCulture, out id) || id < 0)
+                        return Error(400, "field_id required.");
+                    field = def.GetField(new ScheduleFieldId(id));
+                    if (field == null) return Error(404, "Schedule field missing.");
+                }
+                string filterValue = null;
+                if (action == "add_filter_equals")
+                {
+                    if (p["value"]?.Type != JTokenType.String)
+                        return Error(400, "String equality filter requires text value.");
+                    filterValue = p.Value<string>("value");
+                    if (filterValue.Length > 256)
+                        return Error(413, "Filter string exceeds limit.");
+                }
                 using (var tx = new Transaction(d, "RevitGPT Schedule Field"))
                 {
                     tx.Start();
                     try
                     {
-                        field.IsHidden = action == "hide_field";
+                        if (action == "hide_field") field.IsHidden = true;
+                        if (action == "show_field") field.IsHidden = false;
+                        if (action == "add_filter_equals")
+                        {
+                            if (def.GetFilterCount() >= 32)
+                                throw new InvalidOperationException("Schedule has too many filters.");
+                            def.AddFilter(new ScheduleFilter(
+                                field.FieldId, ScheduleFilterType.Equal, filterValue));
+                        }
+                        if (action == "clear_filters") def.ClearFilters();
+                        if (action == "add_sort")
+                        {
+                            if (def.GetSortGroupFieldCount() >= 16)
+                                throw new InvalidOperationException("Schedule has too many sorts.");
+                            def.AddSortGroupField(new ScheduleSortGroupField(field.FieldId));
+                        }
+                        if (action == "clear_sorts") def.ClearSortGroupFields();
                         if (tx.Commit() != TransactionStatus.Committed)
                             return Error(500, "Schedule transaction did not commit.");
                     }
@@ -104,8 +140,11 @@ namespace RevitGPT.Native
                 return Data(new {
                     transaction = "committed", action,
                     schedule_id = schedule.Id.Value.ToString(CultureInfo.InvariantCulture),
-                    field_id = field.FieldId.IntegerValue.ToString(CultureInfo.InvariantCulture),
-                    hidden = field.IsHidden
+                    field_id = field == null ? null :
+                        field.FieldId.IntegerValue.ToString(CultureInfo.InvariantCulture),
+                    hidden = field == null ? (bool?)null : field.IsHidden,
+                    filter_count = def.GetFilterCount(),
+                    sort_count = def.GetSortGroupFieldCount()
                 });
             }
             catch (ArgumentException e) { return Error(400, e.Message); }
