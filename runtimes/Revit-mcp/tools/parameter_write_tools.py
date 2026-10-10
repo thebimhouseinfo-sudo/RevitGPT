@@ -10,7 +10,7 @@ def register(mcp) -> None:
         """Atomic bounded SET/SKIP parameter operations with preview by default.
 
         Specify element_id, parameter exact selector, op, typed value.
-        A commit requires one-time approval in the native RevitGPT panel.
+        A commit requires the target model to be current and bound.
         """
         return batch_set_parameters(operations, dry_run, document_id)
 
