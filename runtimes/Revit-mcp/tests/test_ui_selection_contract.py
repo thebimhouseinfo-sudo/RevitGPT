@@ -35,11 +35,27 @@ class UiSelectionContractTests(unittest.TestCase):
             bridge.show_elements([])
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"active_view_id": "17"}})
+    def test_activate_valid_view(self, send):
+        self.assertEqual(bridge.activate_view("17")["active_view_id"], "17")
+        send.assert_called_once_with("/ui/view/activate",
+            payload={"view_id": "17"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_reject_invalid_view_id(self, send):
+        for invalid in ("", "0", "-2", "ab", None, 17):
+            with self.subTest(view_id=invalid):
+                with self.assertRaises(ValueError):
+                    bridge.activate_view(invalid)
+        send.assert_not_called()
+
     def test_native_exact_binding_and_ui_guard(self):
         code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)
         self.assertIn("uidoc.Selection.SetElementIds(ids)", code)
         self.assertIn("uidoc.ShowElements(ids)", code)
+        self.assertIn("uidoc.ActiveView = view", code)
+        self.assertIn("Bound document must be active before switching views.", code)
         self.assertIn("Object.ReferenceEquals(uidoc.Document, doc)", code)
         self.assertIn("activeView.Id", code)
         self.assertIn("input.Count > 500", code)
