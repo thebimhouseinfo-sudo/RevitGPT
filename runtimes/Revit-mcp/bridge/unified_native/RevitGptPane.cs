@@ -81,7 +81,7 @@ namespace RevitGPT.Native
             _approveWrite = new Button {
                 Content = "Approve Write", IsEnabled = false,
                 Visibility = Visibility.Collapsed,
-                ToolTip = "Approve exactly one pending write on a disposable fixture model",
+                ToolTip = "Approve one exact pending write on an explicitly allowed local test RVT",
                 Padding = new Thickness(7, 3, 7, 3),
                 Margin = new Thickness(2, 0, 2, 0)
             };
