@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rt = "runtimes/Revit-mcp";
 export const pythonToolFiles = [
   "runtime_tools.py", "document_tools.py", "view_tools.py", "element_tools.py",
-  "family_tools.py", "mep_tools.py", "annotation_tools.py", "ui_tools.py", "transform_tools.py", "architecture_tools.py"
+  "family_tools.py", "mep_tools.py", "annotation_tools.py", "ui_tools.py", "transform_tools.py", "architecture_tools.py", "parameter_write_tools.py"
 ];
 export const routeMap = Object.freeze({
   revit_get_runtime_info: ["GET /health", "GET /document/active", "GET /documents"],
@@ -44,6 +44,8 @@ export const routeMap = Object.freeze({
   revit_create_duct: ["POST /create/duct"],
   revit_create_pipe: ["POST /create/pipe"],
   revit_set_parameter: ["POST /parameter/set"],
+  revit_batch_set_parameters: ["POST /parameter/batch"],
+  revit_copy_parameters: ["POST /parameter/copy"],
   revit_delete_elements: ["POST /delete"],
   revit_move_element: ["POST /move"],
   revit_transform_elements: ["POST /transform"],
