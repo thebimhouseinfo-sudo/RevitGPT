@@ -765,6 +765,15 @@ def move_element(
     return result.get("data", result)
 
 
+def get_annotation(element_id: str, document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) <= 0:
+        raise ValueError("Valid annotation element ID required")
+    payload = {"element_id": element_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/annotation/get", payload=payload, method="POST")["data"]
+
+
 def get_annotations(
     view_id: str,
     annotation_type: str | None = None,
