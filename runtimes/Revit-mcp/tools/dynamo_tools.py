@@ -7,8 +7,8 @@ def register(mcp) -> None:
     def revit_load_dyn_file(path: str, document_id: str = None) -> dict:
         """Open a locally staged .dyn graph in Dynamo MANUAL mode, never RUN.
 
-        Requires file preflight and a one-shot native approval on a disposable
-        Revit fixture. Unsupported nodes/packages/host API fail closed.
+        Requires file preflight on the current bound Revit model.
+        Unsupported nodes/packages/host API fail closed.
         Report LOADED_MANUAL_HOST_UNVERIFIED until real no-side-effect HAT proof.
         """
         return load_dyn_file(path, document_id)
