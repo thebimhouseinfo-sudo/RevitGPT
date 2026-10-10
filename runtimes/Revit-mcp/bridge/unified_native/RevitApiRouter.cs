@@ -146,6 +146,7 @@ namespace RevitGPT.Native
                 if (path == "/parameter/set") return SetParameter(doc, payload);
                 if (path == "/move") return MoveElement(doc, payload);
                 if (path == "/delete") return DeleteElements(doc, payload);
+                if (path == "/transform") return NativeTransforms.Execute(doc, payload);
                 if (path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                     path == "/annotation/text" || path == "/annotation/detail_line")
                     return NativeWriteOperations.Execute(doc, path, payload);
