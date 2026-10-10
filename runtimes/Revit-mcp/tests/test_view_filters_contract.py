@@ -22,6 +22,19 @@ class FilterContracts(unittest.TestCase):
             payload={"view_id": "15", "filter_id": "44", "action": "apply"},
             method="POST", timeout=bridge.WRITE_TIMEOUT)
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"filter_id": "88"}})
+    def test_create_string_rule(self, request):
+        result = bridge.manage_view_filters("15", None, "create_text_equals",
+            name="FCU only", bip="ALL_MODEL_MARK", value="FCU",
+            category_ids=["-2001140"], visible=True)
+        self.assertEqual(result["filter_id"], "88")
+        request.assert_called_once_with("/view/filter/write", payload={
+            "view_id": "15", "action": "create_text_equals",
+            "name": "FCU only", "bip": "ALL_MODEL_MARK",
+            "value": "FCU", "category_ids": ["-2001140"],
+            "visible": True
+        }, method="POST", timeout=bridge.WRITE_TIMEOUT)
+
     @patch.object(bridge, "_send_request")
     def test_invalid_requests_never_sent(self, request):
         for args in (("0","15","apply"),("15","0","apply"),
@@ -39,6 +52,8 @@ class FilterContracts(unittest.TestCase):
         self.assertIn("view.GetFilters()", native)
         self.assertIn("tx.RollBack()", native)
         self.assertIn("view.SetFilterVisibility(", native)
+        self.assertIn("ParameterFilterRuleFactory.CreateEqualsRule(", native)
+        self.assertIn("ParameterFilterElement.Create(", native)
         self.assertIn('path == "/view/filter/write"', proto)
 
 
