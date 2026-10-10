@@ -1,8 +1,8 @@
 """Element MCP tools."""
 
 from services.element_service import count_or_group_elements, get_element_by_id, list_elements
-from connection.bridge import query_elements,
-     get_spatial_warnings, get_element_parameters, inspect_element, get_categories
+from connection.bridge import (query_elements, get_spatial_warnings,
+    get_element_parameters, inspect_element, get_categories)
 
 
 def register(mcp) -> None:
