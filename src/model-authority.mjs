@@ -4,7 +4,7 @@ const DIAGNOSTIC = new Set([
   "revit_get_runtime_info", "revit_get_active_document", "revit_list_documents"
 ]);
 const MODEL_READS = new Set([
-  "revit_list_sheets", "revit_list_sheet_viewports",
+  "revit_get_annotation", "revit_list_sheets", "revit_list_sheet_viewports",
   "revit_list_schedules", "revit_get_schedule",
   "revit_get_selection",
   "revit_get_view_properties", "revit_list_views", "revit_list_levels", "revit_list_elements",
