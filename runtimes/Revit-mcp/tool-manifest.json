@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 60,
+  "entry_count": 61,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -211,6 +211,30 @@
         "duct"
       ],
       "source_tool": "revit_create_duct",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_create_or_duplicate_view",
+      "name": "revit_create_or_duplicate_view",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "create or duplicate view",
+      "summary": "Create supported plan/3D view or duplicate existing, with transaction and strict native approval.",
+      "when_to_use": "Create or duplicate a simple Revit view.",
+      "tags": [
+        "transform",
+        "copy",
+        "rotate",
+        "type"
+      ],
+      "source_tool": "revit_create_or_duplicate_view",
       "execution": "revitgpt_call",
       "mode": "write_approval_required",
       "risk": "blocked",
