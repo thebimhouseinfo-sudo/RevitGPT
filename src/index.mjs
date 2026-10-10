@@ -89,7 +89,7 @@ async function bridgeHealth() {
 
 function createServer(sessionKey) {
   // Each tool request may be routed through a new/recovered MCP transport.
-  // Read permission comes from native binding on THIS request, not a
+  // Model operation permission comes from native binding on THIS request, not a
   // previously executed revitgpt_admission call in another server instance.
   const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
   const server = new McpServer(
@@ -98,14 +98,14 @@ function createServer(sessionKey) {
       instructions: [
         "RevitGPT P1 bootstrap surface.",
         "Bare @rg may call revitgpt_admission for an explicit status/connection report.",
-        "An explicit read tool call also initializes the full Revit MCP if Revit and the native bridge are ready.",
+        "An explicit model tool call initializes the full Revit MCP when Revit and the native bridge are ready.",
         "Revit being ON by itself must not auto-start the full Revit MCP.",
         "With exactly one open project, Revit binds it automatically. On multiple projects, use Bind Current only to switch models.",
-        "Each read verifies native model binding directly and requires the bound model to be active.",
+        "Each model operation, including writes, verifies native binding and requires the bound model to be active.",
         "P2E removed revitgpt_pair_panel and revitgpt_lease_bound_model. These old commands MUST NOT be used, even if an old connector description mentions them.",
         "To count Levels use revitgpt_call with name='revit_list_levels' and arguments={}. No manual pairing or lease.",
         "CadGPT-style fake CLI commands: rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Route command text through revitgpt_command or revitgpt_call with name='rg/...'. CLI is discovery ONLY.",
-        "Never assume active tab is model authority; native writes remain disabled."
+        "Never assume active tab alone is model authority; writes require exact bound/current model identity."
       ].join("\n")
     }
   );
@@ -233,7 +233,7 @@ function createServer(sessionKey) {
     "revitgpt_binding_status",
     {
       title: "RevitGPT Bound Project Status",
-      description: "Inspect read-only bound project; no pairing or manual lease needed.",
+      description: "Inspect the current bound project for read and write operations; no pairing or manual lease needed.",
       inputSchema: {}
     },
     async () => {
@@ -254,7 +254,7 @@ function createServer(sessionKey) {
     },
     async () => {
       // Explicit list request may initialize the runtime, but never
-      // binds a model or allows a write.
+      // changes the selected model binding.
       const tools = await ensureExplicitReadReady();
       return {
         content: [{ type: "text", text: tools.map((tool) => tool.name).join("\n") }],
@@ -273,7 +273,7 @@ function createServer(sessionKey) {
     "revitgpt_call",
     {
       title: "Call Revit MCP Tool",
-      description: "READ-ONLY Revit tools, plus fake CLI discovery commands rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge and rg/help in the name field (arguments={}). To list Levels: name='revit_list_levels'. No manual Pair/lease, writes blocked.",
+      description: "Call Revit MCP READ, UI or WRITE tools on the explicitly bound active model. For Levels: name='revit_list_levels'; for supported writes select the relevant revit_* tool. No manual Pair/lease or per-write approval. Fake CLI discovery commands rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge and rg/help use arguments={}.",
       inputSchema: {
         name: z.string().min(1),
         arguments: z.record(z.string(), z.unknown()).optional()
@@ -293,7 +293,7 @@ function createServer(sessionKey) {
         return command;
       }
       // Old connector catalogues may advertise retired P2D controls.
-      // Only return read-only migration instructions, NEVER mint a lease.
+      // Only return migration instructions, NEVER mint a lease.
       const retired = await handleRetiredPanelCommand(name, args,
         () => fetchNativeBindingStatus(BRIDGE_URL));
       if (retired) {
