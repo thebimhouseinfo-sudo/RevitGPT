@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 55,
+  "entry_count": 56,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -1246,6 +1246,30 @@
         "type"
       ],
       "source_tool": "revit_transform_elements",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_update_annotation",
+      "name": "revit_update_annotation",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.annotation",
+      "title": "update annotation",
+      "summary": "Edit TextNote text or IndependentTag leader and head position in place.",
+      "when_to_use": "Change annotations without delete/recreate.",
+      "tags": [
+        "annotation",
+        "revit",
+        "create",
+        "tag"
+      ],
+      "source_tool": "revit_update_annotation",
       "execution": "revitgpt_call",
       "mode": "write_approval_required",
       "risk": "blocked",
