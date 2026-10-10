@@ -60,7 +60,7 @@ const same = (a, b) => JSON.stringify(sorted(a)) === JSON.stringify(sorted(b));
 const quoted = s => JSON.stringify(s);
 const pathFromRoute = route => route.split(" ")[1];
 
-export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource }) {
+export function auditSources({ manifest, capabilities, toolSources, mainSource, nativeSource, routesSource, bridgeSource, nodeSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource }) {
   expect(Array.isArray(manifest.entries) && Array.isArray(capabilities.tools), "bad tool manifest/capabilities");
   const registered = toolSources.flatMap(({ file, content }) => [...content.matchAll(/@mcp\.tool\(\)\s*def\s+(revit_[A-Za-z0-9_]+)\s*\(/g)]
     .map(x => ({ name: x[1], file })));
@@ -84,8 +84,12 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     expect(bridgeSource.includes(quoted(pathFromRoute(listed))), "missing Python bridge consumer: " + listed);
   }
   const hasWriteGuard = nativeSource.includes("if (BridgeHttpProtocol.IsWrite(path))") &&
-    nativeSource.includes("Native write route not yet validated;");
-  expect(hasWriteGuard, "native write guard removed: require a separately reviewed write audit");
+    nativeSource.includes("writeAuthority.DenialOrConsume(") &&
+    writeAuthoritySource.includes("ApproveFromNativePane(") &&
+    writeAuthoritySource.includes("IsDisposableFixture(doc)") &&
+    writeAuthoritySource.includes("_pending = null; // consume BEFORE Revit API execution") &&
+    paneSource.includes("_writeAuthority.ApproveFromNativePane(_binding.Current)");
+  expect(hasWriteGuard, "native one-time fixture write grant missing or bypassed");
   const hasConnectors = nativeSource.includes('if (path == "/element/connectors") return Connectors(doc, payload);') &&
     nativeSource.includes("private static string Connectors(Document doc, JObject payload)") &&
     nativeSource.includes("foreach (Connector connector in manager.Connectors)");
@@ -98,9 +102,12 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     const route = routeMap[entry.name];
     const isWrite = Boolean(entry.mutates_model);
     const isConnector = entry.name === "revit_get_connectors";
-    const nativePresent = route.some(r => nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')'));
-    expect(isWrite || isConnector || nativePresent, "read tool has no native handler: " + entry.name);
-    expect(isWrite ? entry.mode === "disabled_mutation" && entry.status === "not_enabled"
+    const nativePresent = route.some(r =>
+      nativeSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')') ||
+      writeOperationsSource.includes('if (path == ' + quoted(pathFromRoute(r)) + ')'));
+    expect(nativePresent, "Native write/read operation handler not implemented: " + entry.name);
+    expect(nativePresent, "declared tool has no native operation handler: " + entry.name);
+    expect(isWrite ? entry.mode === "write_approval_required" && entry.status === "implemented_unverified"
       : (entry.mode === "read_only" || entry.mode === "ui_action"), "registry access status mismatch: " + entry.name);
     expect(isWrite || nodeSource.includes(quoted(entry.name)), "read/UI tool absent in Node admission: " + entry.name);
     return {
@@ -109,8 +116,8 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
       http_routes: route, native_route_registered: true,
       native_handler_observed: nativePresent,
       native_write_guard_active: isWrite && hasWriteGuard,
-      classification: isWrite ? "BLOCKED" : "PARTIAL",
-      reason: isWrite ? "Native HTTP 501 for all write routes; Node mutation gate active."
+      classification: isWrite ? "WRITE_IMPLEMENTED_UNVERIFIED" : "PARTIAL",
+      reason: isWrite ? "Handler exists; one-time Native-pane approval and disposable fixture required; no live host proof."
          : isConnector ? "Native connector reader added; still requires live Revit host evidence."
         : entry.name === "revit_get_element" || entry.name === "revit_list_elements"
           ? "Native read exists; promised parameters are not fully serialized. No live-host proof."
@@ -119,7 +126,8 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     };
   });
   const counts = toolRows.reduce((acc,x) => { acc[x.classification] = (acc[x.classification] || 0) + 1; return acc; }, {});
-  expect(counts.BLOCKED === 11 && counts.PARTIAL === 31, "baseline classifications changed; require reviewed update");
+  expect(counts.WRITE_IMPLEMENTED_UNVERIFIED === 11 && counts.PARTIAL === 31,
+    "implementation counts changed; require reviewed update");
   return { schema_version: 1, audit_type: "SOURCE_STATIC_ONLY", host_verified: false,
     warning: "Neither mock HTTP, declared tool, route nor built DLL proves real Revit functionality.",
     summary: { declared_tools: names.length, classification_counts: counts,
@@ -130,17 +138,21 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
 
 export async function loadSources(base = root) {
   const read = p => fs.readFile(path.join(base, p), "utf8");
-  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, ...sources] = await Promise.all([
+  const [manifest, capabilities, nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource, writeAuthoritySource, writeOperationsSource, paneSource, ...sources] = await Promise.all([
     read(rt + "/tool-manifest.json"), read(rt + "/capabilities.json"),
     read(rt + "/bridge/unified_native/RevitApiRouter.cs"),
     read(rt + "/bridge/unified_native/BridgeRouteContract.cs"),
     read(rt + "/connection/bridge.py"), read("src/model-authority.mjs"),
     read(rt + "/main.py"),
     read("docs/superpowers/plans/2026-10-10-revit-mcp-v1-detailed-implementation-plan.md"),
+    read(rt + "/bridge/unified_native/NativeWriteAuthority.cs"),
+    read(rt + "/bridge/unified_native/NativeWriteOperations.cs"),
+    read(rt + "/bridge/unified_native/RevitGptPane.cs"),
     ...pythonToolFiles.map(x => read(rt + "/tools/" + x))
   ]);
   return { manifest: JSON.parse(manifest), capabilities: JSON.parse(capabilities),
     nativeSource, routesSource, bridgeSource, nodeSource, mainSource, planSource,
+    writeAuthoritySource, writeOperationsSource, paneSource,
     toolSources: pythonToolFiles.map((file, i) => ({file, content: sources[i]})) };
 }
 
