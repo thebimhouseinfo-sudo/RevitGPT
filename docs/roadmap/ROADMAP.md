@@ -12,6 +12,22 @@ The previous P1B implementation sequence and E-PY-as-a-global-development-blocke
 
 **Next execution order:** (1) inventory and gap matrix CadGPT ↔ RevitGPT with code references; (2) one small offline Brain/Job/Registry/Knowledge integration slice at a time; (3) offline CI and review; (4) consolidated host acceptance when Human is available. Do not add commits solely to advance milestone counters.
 
+## Delivery split — HUMAN 2026-10-11
+
+Revit MCP is a **continuous capability-development stream**, not a one-time all-tools-complete milestone: implement tools, validate offline, test against a real Revit host when Human is available, fix defects and expand coverage over time. Do not block independent product framework work on MCP host acceptance. Per-tool readiness must distinguish static/offline checks from real Revit evidence.
+
+Other subsystems must reach explicit bounded deliverables rather than remaining perpetually in planning:
+
+- **FULL product runtime:** Brain/admission, session and primary-model authority, tool leasing, lifecycle and diagnostics.
+- **FULL Job Runtime:** Direct/Reasoning Jobs, ordered steps, interruption/resume, borrowed capabilities and result/data ownership.
+- **FULL Registry and Workspace:** internal/user capability registration, discovery, path and mutation guards, drafts, promotion and readback.
+- **FULL Knowledge framework:** source-of-truth organization, reader/writer, one-turn interruption, provenance/conflict rules; subject matter accumulates over time.
+- **FULL Dynamo Writer framework:** draft/create/edit, dependency/version/static graph validation, library/promotion workflow; node catalogs and templates grow incrementally, with real execution tested separately.
+- **FULL native panel framework:** pairing, model-binding UX, state indicators, recovery and lifecycle behavior, subject to later real-host acceptance.
+- **CONTINUOUS Revit MCP:** native bridge and Revit API tools remain independently test/fix/extend; no artificial completion gate for the entire tool catalog.
+
+Delivery terminology: FULL means implementation and applicable offline tests are complete, **not** a claim of real-host PASS. Real Revit acceptance is recorded separately, by subsystem/tool, in a consolidated Human test round. Avoid empty commits and avoid modifying main, deploying or mutating real RVT models without explicit authorization.
+
 ## Planning rule
 
 Every architectural claim must be tagged by provenance:
