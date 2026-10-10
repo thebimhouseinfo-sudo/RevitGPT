@@ -28,11 +28,13 @@ Other subsystems must reach explicit bounded deliverables rather than remaining 
 
 Delivery terminology: FULL means implementation and applicable offline tests are complete, **not** a claim of real-host PASS. Real Revit acceptance is recorded separately, by subsystem/tool, in a consolidated Human test round. Avoid empty commits and avoid modifying main, deploying or mutating real RVT models without explicit authorization.
 
-## Dynamo knowledge sourcing — HUMAN 2026-10-11
+## Dynamo knowledge sourcing — HUMAN 2026-10-11 (revised)
 
-Dynamo Coder Knowledge must be built **source-first**, using existing official Dynamo/Autodesk documentation rather than re-authoring speculative material. Primary reference entry points: Dynamo Primer (https://primer.dynamobim.org/), Dynamo BIM (https://dynamobim.org/), Dynamo Developer Resources (https://developer.dynamobim.org/) and Autodesk Revit/Dynamo documentation. Record source URL, product/version scope, retrieval date, provenance and applicability in a curated local knowledge index. Do not bulk-copy copyrighted documentation: maintain concise summaries, references, permitted examples and validated technical contracts. RevitAPIDocs is a useful independent/community API reference, not Autodesk's official publication.
+**Do not crawl, bulk-download, mirror or build a local Dynamo documentation corpus.** Dynamo Writer is a FULL coder skill whose technical lookups use **on-demand web search restricted to an allowlist of trustworthy domains**: `primer.dynamobim.org`, `developer.dynamobim.org`, `dynamobim.org`, and relevant official Autodesk documentation under `autodesk.com` / `help.autodesk.com`. Do not treat community sites as official evidence. Keep local coder knowledge minimal: allowed sources, search/verification procedure, supported host-version context, and internal tested examples/contracts.
 
-For FULL coder readiness, distinguish end-user tutorials from implementation-critical graph serialization, node/port/connector IDs, DesignScript, Revit API integration, package dependencies and version compatibility. Where documentation is incomplete, derive only from explicitly licensed/reference implementations and tested fixtures; mark unknowns and add negative controls. Working/domain knowledge remains continuous and separate.
+For each unfamiliar node, port, graph serialization detail, DesignScript/API behavior or package dependency, search the allowlisted documentation as needed, check compatibility with the actual Revit/Dynamo version and cite the source in development evidence. If authoritative evidence is unavailable, explicitly mark it UNKNOWN, request a tested sample or a host check, and **never fabricate** a node, package, port, signature or API contract. Static/fixture validation and negative controls are still required; web evidence is not proof of live Revit execution. FULL means the authoring/editing/validation workflow works end to end, not that every page has been indexed offline.
+
+Working/domain knowledge remains an independently evolving long-term capability.
 
 ## Planning rule
 
