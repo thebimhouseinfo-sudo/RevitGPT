@@ -10,6 +10,13 @@ PROJECT = BASE / "bridge" / "unified_native" / "RevitGPT.Native.csproj"
 
 
 class HostPreviewTests(unittest.TestCase):
+    def assert_startup_one_shot_guard(self, source):
+        body = source.split("private void TryShowInitialPane", 1)[1].split(
+            "private void DisposeBridge", 1)[0]
+        guard = "if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;"
+        self.assertIn(guard, body)
+        self.assertLess(body.index(guard), body.index("pane.Show();"))
+
     def test_startup_nonblocking_and_native_only(self):
         source = HOST.read_text(encoding="utf-8")
         self.assertIn("app.Idling += OnFirstIdle", source)
@@ -20,9 +27,14 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn("bool shownAfter = pane.IsShown();", source)
         self.assertIn("_paneStartup.ReportShown();", source)
         self.assertIn("if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;", source)
-        # Negative control: losing the pending guard must fail.
+        # Check the guard before Show, then prove the same assertion rejects
+        # a plausible regression which drops the one-shot pending condition.
+        self.assert_startup_one_shot_guard(source)
         guard = "if (!_paneRegistered || !_initialPaneShowPending || !_paneStartup.Pending) return;"
-        self.assertNotIn(guard, source.replace(guard, "if (false) return;", 1))
+        mutant = source.replace(guard, "if (!_paneRegistered) return;", 1)
+        self.assertNotEqual(source, mutant)
+        with self.assertRaises(AssertionError):
+            self.assert_startup_one_shot_guard(mutant)
         self.assertIn("NativePaneStartupPolicy.MaximumAttempts", source)
         self.assertIn("if (!projectReady)", source)
         self.assertIn("!active.IsFamilyDocument && !active.IsLinked", source)
