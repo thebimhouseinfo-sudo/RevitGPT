@@ -11,7 +11,7 @@ const MODEL_READS = new Set([
   "revit_list_system_types", "revit_get_connectors", "revit_list_annotations"
 ]);
 
-const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements"]);
+const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements", "revit_activate_view"]);
 
 // The control plane, never WebView, reads native model selection.
 // Every model read checks current binding. Native write routes remain 501.
