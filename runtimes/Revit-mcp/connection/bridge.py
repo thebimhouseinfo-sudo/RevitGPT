@@ -168,23 +168,41 @@ def get_elements(
         payload["type"] = type_name
     if view_id:
         payload["view_id"] = view_id
-    if parameters:
-        payload["parameters"] = parameters
+    if parameters is not None:
+        payload["parameters"] = _validated_parameter_names(parameters)
 
     result = _send_request("/elements", payload=payload, method="POST")
     return result.get("data", [])
+
+
+def _validated_parameter_names(names: list[str]) -> list[str]:
+    """Fail before transport on oversized or ambiguous exact-name requests."""
+    if not isinstance(names, list) or len(names) > 16:
+        raise ValueError("parameters must be a list of at most 16 names")
+    found: set[str] = set()
+    for name in names:
+        if not isinstance(name, str) or not name or len(name) > 128 or name != name.strip():
+            raise ValueError("invalid parameter name")
+        folded = name.casefold()
+        if folded in found:
+            raise ValueError("duplicate parameter name")
+        found.add(folded)
+    return names
 
 
 def get_element(
     element_id: str,
     document_id: str | None = None,
     include_connectors: bool = False,
+    parameters: list[str] | None = None,
 ) -> dict:
     payload: dict[str, Any] = {"element_id": element_id}
     if document_id:
         payload["document_id"] = document_id
     if include_connectors:
         payload["include_connectors"] = True
+    if parameters is not None:
+        payload["parameters"] = _validated_parameter_names(parameters)
     result = _send_request("/element", payload=payload, method="POST")
     return result.get("data", result)
 
