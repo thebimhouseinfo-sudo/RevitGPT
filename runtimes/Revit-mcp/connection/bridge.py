@@ -572,6 +572,39 @@ def delete_elements(
     return result.get("data", result)
 
 
+def transform_elements(action: str, element_ids: list[str], *,
+                       dx: float = 0, dy: float = 0, dz: float = 0,
+                       axis_start: dict | None = None, axis_end: dict | None = None,
+                       angle: float | None = None, new_type_id: str | None = None,
+                       document_id: str | None = None) -> dict:
+    if action not in ("copy", "rotate", "change_type"):
+        raise ValueError("Invalid transform action")
+    if not isinstance(element_ids, list) or not 1 <= len(element_ids) <= 50 or any(
+        not isinstance(i, str) or not i.isdecimal() or int(i) < 1 for i in element_ids
+    ) or len(set(element_ids)) != len(element_ids):
+        raise ValueError("Transform requires 1..50 distinct positive IDs")
+    payload = {"action": action, "element_ids": element_ids}
+    if action == "copy":
+        payload.update({"dx": dx, "dy": dy, "dz": dz})
+    elif action == "rotate":
+        for prefix, obj in (("axis_start_", axis_start), ("axis_end_", axis_end)):
+            if not isinstance(obj, dict) or any(
+                k not in obj or type(obj[k]) not in (float, int) for k in ("x", "y", "z")
+            ):
+                raise ValueError("Axis requires numeric XYZ endpoints")
+            payload.update({prefix + k: obj[k] for k in ("x", "y", "z")})
+        if type(angle) not in (float, int):
+            raise ValueError("Numeric rotation angle required")
+        payload["angle"] = angle
+    else:
+        if not isinstance(new_type_id, str) or not new_type_id.isdecimal() or int(new_type_id) < 1:
+            raise ValueError("Valid new_type_id required")
+        payload["new_type_id"] = new_type_id
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/transform", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def move_element(
     element_id: str,
     dx: float = 0,
