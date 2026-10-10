@@ -48,9 +48,49 @@ class SelectedParameterBridgeTests(unittest.TestCase):
                     bridge.get_element("42", parameters=names)
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"id": "42"}})
+    def test_identifier_selectors_forward_unchanged(self, send):
+        selectors = ["guid:12345678-1234-1234-1234-1234567890ab",
+                     "bip:ALL_MODEL_MARK"]
+        bridge.get_element("42", parameters=selectors)
+        self.assertEqual(send.call_args.kwargs["payload"]["parameters"], selectors)
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"count": 5010,
+        "complete": True, "groups": []}})
+    def test_aggregate_count_avoids_element_list(self, send):
+        count = bridge.aggregate_elements(category="Mechanical Equipment")
+        self.assertEqual(count["count"], 5010)
+        send.assert_called_once_with("/elements/aggregate",
+            payload={"category": "Mechanical Equipment"}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"count": 22,
+        "complete": True, "groups": [{"key": "FCU", "count": 22}]}})
+    def test_aggregate_group_selector(self, send):
+        grouped = bridge.aggregate_elements(group_by="family", category="Mechanical Equipment")
+        self.assertEqual(grouped["groups"][0]["count"], 22)
+        self.assertEqual(send.call_args.kwargs["payload"]["group_by"], "family")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_aggregate_group_fails_before_transport(self, send):
+        with self.assertRaises(ValueError):
+            bridge.aggregate_elements(group_by="arbitrary_parameter")
+        send.assert_not_called()
+
+    def test_native_aggregate_is_bounded_and_read_only(self):
+        code = NATIVE.read_text(encoding="utf-8")
+        self.assertIn('path == "/elements/aggregate"', code)
+        self.assertIn("WhereElementIsNotElementType()", code)
+        self.assertIn("if (counts.Count >= 500)", code)
+        self.assertIn("complete = true", code)
+        self.assertIn('if (BridgeHttpProtocol.IsWrite(path))', code)
+
     def test_native_read_is_selected_and_bounded(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("RequestedParameters(payload)", code)
+        self.assertIn("ResolveParameters(element, name)", code)
+        self.assertIn("ResolveParameters(typeElement, name)", code)
+        self.assertIn("Guid.TryParseExact(selector.Substring(5)", code)
+        self.assertIn("Enum.TryParse<BuiltInParameter>", code)
         self.assertIn("ElementInfo(el, requestedParameters)", code)
         self.assertIn("ElementInfo(item, RequestedParameters(payload))", code)
         self.assertIn("RequestedParameterValues(element, requestedParameters)", code)
