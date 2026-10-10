@@ -1,6 +1,7 @@
 """Annotation MCP tools for Revit."""
 
 from connection.bridge import update_annotation
+from connection.bridge import get_annotation
 from services.annotation_service import (
     add_detail_line,
     add_dimension,
@@ -12,6 +13,11 @@ from services.annotation_service import (
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_get_annotation(element_id: str, document_id: str = None) -> dict:
+        """Read exact text/tag/dimension annotation by element ID, no mutation."""
+        return get_annotation(element_id, document_id)
+
     @mcp.tool()
     def revit_update_annotation(element_id: str, action: str,
                                 text: str = None, has_leader: bool = None,
