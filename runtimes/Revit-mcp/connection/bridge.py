@@ -282,7 +282,8 @@ def temporary_visibility(mode: str, element_ids: list[str] | None = None,
         payload["view_id"] = view_id
     if document_id:
         payload["document_id"] = document_id
-    return _send_request("/ui/visibility/temporary", payload=payload, method="POST")["data"]
+    return _send_request("/ui/visibility/temporary", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
 
 
 def get_active_view(document_id: str | None = None) -> dict:
