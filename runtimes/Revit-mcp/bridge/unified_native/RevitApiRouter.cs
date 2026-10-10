@@ -71,6 +71,7 @@ namespace RevitGPT.Native
                 if (path == "/ui/selection") return Selection(app, doc);
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
                 if (path == "/ui/show") return ShowElements(app, doc, payload);
+                if (path == "/ui/view/activate") return ActivateView(app, doc, payload);
                 if (path == "/views")
                     return Data(new FilteredElementCollector(doc).OfClass(typeof(View))
                         .Cast<View>().Where(x => !x.IsTemplate)
@@ -192,6 +193,22 @@ namespace RevitGPT.Native
             uidoc.ShowElements(ids);
             return Data(new { shown = ids.Count, active_view_id =
                 uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture) });
+        }
+
+        private static string ActivateView(UIApplication app, Document doc, JObject payload)
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc == null || !Object.ReferenceEquals(uidoc.Document, doc))
+                return Error(409, "Bound document must be active before switching views.");
+            long? viewId = LongNumber(payload, "view_id");
+            if (!viewId.HasValue || viewId.Value <= 0)
+                return Error(400, "Valid view_id required.");
+            View view = doc.GetElement(new ElementId(viewId.Value)) as View;
+            if (view == null || view.IsTemplate || view.ViewType == ViewType.Schedule)
+                return Error(400, "View does not support UI activation.");
+            uidoc.ActiveView = view;
+            return Data(new { active_view_id = uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture),
+                view_name = uidoc.ActiveView.Name });
         }
 
         private static object DocumentInfo(Document doc)
