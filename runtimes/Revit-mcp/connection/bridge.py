@@ -682,11 +682,24 @@ def get_schedule(schedule_id: str, document_id: str | None = None) -> dict:
     return _send_request("/schedule/get", payload=payload, method="POST")["data"]
 
 
-def update_schedule(schedule_id: str, action: str, field_id: str,
-                    document_id: str | None = None) -> dict:
-    if action not in ("hide_field", "show_field"):
+def update_schedule(schedule_id: str, action: str, field_id: str | None = None,
+                    document_id: str | None = None, value: str | None = None) -> dict:
+    if action not in ("hide_field", "show_field", "add_filter_equals",
+                      "clear_filters", "add_sort", "clear_sorts"):
         raise ValueError("Unsupported schedule action")
-    payload = {"schedule_id": schedule_id, "action": action, "field_id": field_id}
+    needs_field = action in ("hide_field", "show_field", "add_filter_equals", "add_sort")
+    if needs_field and (not isinstance(field_id, str) or
+                        not field_id.isdecimal()):
+        raise ValueError("Valid field_id required")
+    if action == "add_filter_equals" and (not isinstance(value, str) or len(value) > 256):
+        raise ValueError("String filter value required")
+    if action != "add_filter_equals" and value is not None:
+        raise ValueError("value is only valid for add_filter_equals")
+    payload = {"schedule_id": schedule_id, "action": action}
+    if needs_field:
+        payload["field_id"] = field_id
+    if action == "add_filter_equals":
+        payload["value"] = value
     if document_id:
         payload["document_id"] = document_id
     return _send_request("/schedule/update", payload=payload, method="POST",
