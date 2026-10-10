@@ -1,8 +1,18 @@
 """Bound model Revit UI selection/navigation, no document writes."""
-from connection.bridge import activate_view, get_selection, set_selection, show_elements, temporary_visibility, select_related
+from connection.bridge import activate_view, get_active_view, get_selection, set_selection, show_elements, temporary_visibility, select_related
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_get_active_view(document_id: str = None) -> dict:
+        """Read the actual active Revit UI tab/view in the currently bound model.
+
+        Returns view_id, view_name, view_type and temporary visibility state.
+        Use before a view-specific action when the user says 'current view'.
+        Never guess the view from the last created/duplicated view.
+        """
+        return get_active_view(document_id=document_id)
+
     @mcp.tool()
     def revit_get_selection(document_id: str = None) -> dict:
         """Read selected element IDs in the currently active bound Revit model."""
