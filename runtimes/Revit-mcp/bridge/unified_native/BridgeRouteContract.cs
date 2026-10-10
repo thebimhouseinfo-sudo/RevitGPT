@@ -37,6 +37,7 @@ namespace RevitGPT.Native
             "POST /sheets",
             "POST /sheet/viewports",
             "POST /sheet/write",
+            "POST /view/format",
             "POST /families",
             "POST /family/types",
             "POST /system/types",
