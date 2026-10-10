@@ -22,7 +22,7 @@ const MODEL_WRITES = new Set([
 ]);
 
 // The control plane, never WebView, reads native model selection.
-// Every model operation checks binding. Native remains the sole issuer of one-shot write grants.
+// Every model operation checks binding, including writes.
 export async function fetchNativeBindingStatus(baseUrl, {
   fetchImpl = fetch, idFactory = randomUUID, timeoutMs = 2500
 } = {}) {
@@ -66,7 +66,7 @@ export class SessionModelAuthority {
     this.lease = null;
   }
   summary() {
-    return this.lease ? { ...this.lease, permission: "native_approval_required_for_writes" } : null;
+    return this.lease ? { ...this.lease, permission: "read_write_bound_model" } : null;
   }
   async leaseCurrent() {
     this.lease = null; // If re-lease fails, old authority cannot survive.
@@ -80,7 +80,7 @@ export class SessionModelAuthority {
     if (input === null || typeof input !== "object" || Array.isArray(input))
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
     // Every session is restricted to the ONE bound model. The Node layer may
-    // forward write INTENT, but CANNOT approve or authorize native writes.
+    // dispatch model writes only with the current binding snapshot.
     // Switching to another tab or closing the bound model fails closed.
     let snapshot;
     try {
