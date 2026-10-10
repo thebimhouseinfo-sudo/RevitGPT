@@ -1508,6 +1508,42 @@
           "action"
         ]
       }
+    },
+    {
+      "id": "revit_create_or_duplicate_view",
+      "description": "Create plan/3D view or duplicate existing view.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "floor_plan",
+              "ceiling_plan",
+              "isometric_3d",
+              "duplicate"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "source_view_id": {
+            "type": "string"
+          },
+          "view_family_type_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
     }
   ]
 }
