@@ -599,6 +599,29 @@ def delete_elements(
     return result.get("data", result)
 
 
+def list_schedules(document_id: str | None = None) -> list[dict]:
+    payload = {"document_id": document_id} if document_id else {}
+    return _send_request("/schedules", payload=payload, method="POST")["data"]
+
+
+def get_schedule(schedule_id: str, document_id: str | None = None) -> dict:
+    payload = {"schedule_id": schedule_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/schedule/get", payload=payload, method="POST")["data"]
+
+
+def update_schedule(schedule_id: str, action: str, field_id: str,
+                    document_id: str | None = None) -> dict:
+    if action not in ("hide_field", "show_field"):
+        raise ValueError("Unsupported schedule action")
+    payload = {"schedule_id": schedule_id, "action": action, "field_id": field_id}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/schedule/update", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def create_slab(kind: str, level_id: str, type_id: str,
                 vertices: list[dict], document_id: str | None = None) -> dict:
     if kind not in ("floor", "ceiling") or not isinstance(vertices, list) or not 3 <= len(vertices) <= 24:
