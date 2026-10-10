@@ -20,7 +20,7 @@ def register(mcp) -> None:
                               value: str = None) -> dict:
         """Hide/show fields, add string equality filters and sort fields, or clear.
 
-        Native write approval and Revit Transaction required. Arbitrary schedule
+        Bound-model validation and Revit Transaction required. Arbitrary schedule
         cell writing is unsupported.
         """
         return update_schedule(schedule_id, action, field_id, document_id, value)
