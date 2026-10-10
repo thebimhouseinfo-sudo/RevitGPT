@@ -35,12 +35,20 @@ def register(mcp) -> None:
         return activate_view(view_id, document_id=document_id)
     @mcp.tool()
     def revit_temporary_visibility(mode: str, element_ids: list[str] = None,
-                                   document_id: str = None) -> dict:
-        """Temporarily hide/isolate selected elements or reset in current bound view.
+                                   document_id: str = None, view_id: str = None,
+                                   category: str = None) -> dict:
+        """Temporarily hide/isolate elements in the ACTUAL active Revit view, or reset.
 
-        Revit uses a Transaction even though no persistent view design is intended.
+        Use category="duct" for ducts, duct fittings, duct accessories and flex
+        ducts visible in the current view; category="pipe" similarly for pipes.
+        Alternatively supply element_ids. These are mutually exclusive.
+        view_id is optional; when supplied it MUST match the current active view
+        (409 on tab switch), preventing changes to an unintended view.
+        No model deletion; a Revit Transaction changes temporary view state.
+        For persistent view visibility use revit_format_view instead.
         """
-        return temporary_visibility(mode, element_ids, document_id)
+        return temporary_visibility(mode, element_ids, document_id,
+                                    view_id=view_id, category=category)
     @mcp.tool()
     def revit_select_related(element_id: str, relation: str, apply: bool = False,
                              document_id: str = None) -> dict:
