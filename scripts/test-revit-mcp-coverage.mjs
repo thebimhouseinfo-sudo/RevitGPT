@@ -22,8 +22,8 @@ assert.throws(()=>auditSources(mutation({capabilities:{...baseline.capabilities,
 assert.throws(()=>auditSources(mutation({routesSource:baseline.routesSource.replace(
   '"POST \/element\/connectors"', '"POST \/element\/connector-removed"')})), /missing native route contract/);
 assert.throws(()=>auditSources(mutation({nativeSource:baseline.nativeSource.replace(
-  "writeAuthority.DenialOrConsume(", "UNSAFE_WRITE_BYPASS(")})),
-  /native one-time fixture write grant missing/);
+  'binding.ReadDenial(Token(payload, "document_id"))', "null")})),
+  /bound-model enforcement missing/);
 const connectorControl = baseline.nativeSource.replaceAll(
   "foreach (Connector connector in manager.Connectors)", "/* connector collector disabled */");
 assert.notEqual(connectorControl, baseline.nativeSource, "negative control did not change connector reader");
@@ -34,4 +34,4 @@ assert.notEqual(reducedPlan, baseline.planSource, "negative control did not chan
 assert.equal((reducedPlan.match(/^\| ADVANCED\* \|/gm) || []).length, 5);
 assert.throws(()=>auditSources(mutation({planSource:reducedPlan})),
   /selected ADVANCED capability target matrix changed/);
-console.log("[PASS] MCP-0 source-only tool audit and negative drift/stub/write controls.");
+console.log("[PASS] MCP-0 source-only tool audit and negative drift/stub/binding controls.");
