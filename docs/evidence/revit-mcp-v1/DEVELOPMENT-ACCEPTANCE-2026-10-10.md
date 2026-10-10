@@ -33,3 +33,11 @@ RevitGPT is the main workspace and coordinating brain. Revit MCP is its independ
 - DEVELOPMENT CHECKPOINT: **PASS_RETEST_REQUIRED** (owner accepted).
 - LIVE HOST E01–E09: **PENDING**.
 - MCP V1 RELEASE / MAIN MERGE: **NOT AUTHORIZED BY THIS DECISION**.
+
+## Approved local test-model WRITE access (2026-10-10)
+
+WRITE tool dispatch is no longer limited to the managed fixtures directory. A local, saved, non-linked, non-family, non-workshared RVT may be opted into testing using an exact-path allowlist at `%LOCALAPPDATA%\\RevitGPT\\config\\write-test-models.txt` (one absolute RVT file path per line). The pre-existing fixture root remains accepted. UNC paths and reparse-point traversal are refused. Native WPF **Approve Write** remains compulsory per exact operation; the caller stages and resubmits that same request after confirmation. Re-binding or request modification invalidates authorization.
+
+This expands test coverage; it is **not** a read-only bypass for arbitrary production models, nor proof that all write handlers pass host tests. Test only disposable copies; do not add client/production RVT paths to the allowlist. Remove an RVT from the allowlist after testing. A changed Native binary requires Revit to be closed and an immutable-version add-in upgrade under the existing installer protocol.
+
+Separate roadmap work (Knowledge Writer, Job Runtime, Dynamo Writer) continues in normal future development turns. ChatGPT text conversations do not by themselves execute unattended background development.
