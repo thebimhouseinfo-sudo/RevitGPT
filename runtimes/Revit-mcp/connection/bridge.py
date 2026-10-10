@@ -779,6 +779,39 @@ def get_annotations(
     return result.get("data", [])
 
 
+def update_annotation(element_id: str, action: str, *,
+                      text: str | None = None, has_leader: bool | None = None,
+                      position: dict | None = None, document_id: str | None = None) -> dict:
+    if not isinstance(element_id, str) or not element_id.isdecimal() or int(element_id) < 1:
+        raise ValueError("element_id must be a positive numeric string")
+    if action not in ("text", "tag"):
+        raise ValueError("action must be text or tag")
+    payload = {"element_id": element_id, "action": action}
+    if action == "text":
+        if not isinstance(text, str) or not text.strip() or len(text) > 32768:
+            raise ValueError("text required")
+        if has_leader is not None or position is not None:
+            raise ValueError("text update cannot update leader or position")
+        payload["text"] = text
+    else:
+        if text is not None or (has_leader is None and position is None):
+            raise ValueError("tag update requires leader or position")
+        if has_leader is not None:
+            if not isinstance(has_leader, bool):
+                raise ValueError("has_leader must be boolean")
+            payload["has_leader"] = has_leader
+        if position is not None:
+            if not isinstance(position, dict) or set(position) != {"x", "y", "z"} or any(
+                type(position[k]) not in (int, float) for k in ("x", "y", "z")
+            ):
+                raise ValueError("position requires complete numeric XYZ")
+            payload.update(position)
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/annotation/update", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT)["data"]
+
+
 def create_text_note(
     view_id: str,
     text: str,
