@@ -1,5 +1,6 @@
 """Annotation MCP tools for Revit."""
 
+from connection.bridge import update_annotation
 from services.annotation_service import (
     add_detail_line,
     add_dimension,
@@ -11,6 +12,18 @@ from services.annotation_service import (
 
 
 def register(mcp) -> None:
+    @mcp.tool()
+    def revit_update_annotation(element_id: str, action: str,
+                                text: str = None, has_leader: bool = None,
+                                position: dict = None,
+                                document_id: str = None) -> dict:
+        """Edit TextNote text or IndependentTag leader/head in place.
+
+        Requires exact Native one-shot approval on disposable fixture.
+        """
+        return update_annotation(element_id, action, text=text,
+            has_leader=has_leader, position=position, document_id=document_id)
+
     @mcp.tool()
     def revit_list_annotations(
         view_id: str,
