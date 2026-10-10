@@ -106,6 +106,7 @@ namespace RevitGPT.Native
                         .Cast<Level>().Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, elevation = x.Elevation }).ToList());
                 if (path == "/elements") return Elements(doc, payload);
+                if (path == "/elements/query") return NativeElementQuery.Execute(doc, payload);
                 if (path == "/elements/aggregate") return AggregateElements(doc, payload);
                 if (path == "/element") return Element(doc, payload);
                 if (path == "/element/parameters") return AllParameters(doc, payload);
