@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 57,
+  "entry_count": 58,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -42,6 +42,30 @@
         "parameter"
       ],
       "source_tool": "revit_batch_set_parameters",
+      "execution": "revitgpt_call",
+      "mode": "write_approval_required",
+      "risk": "blocked",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_batch_tag",
+      "name": "revit_batch_tag",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.annotation",
+      "title": "batch tag",
+      "summary": "Create 1..50 category tags atomically for currently untagged elements in one view.",
+      "when_to_use": "Tag many distinct elements with Native approved write and duplicate prevention.",
+      "tags": [
+        "annotation",
+        "revit",
+        "create",
+        "tag"
+      ],
+      "source_tool": "revit_batch_tag",
       "execution": "revitgpt_call",
       "mode": "write_approval_required",
       "risk": "blocked",
