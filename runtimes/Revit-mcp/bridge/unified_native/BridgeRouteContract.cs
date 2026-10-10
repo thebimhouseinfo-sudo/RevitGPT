@@ -64,7 +64,6 @@ namespace RevitGPT.Native
             "POST /annotations",
             "POST /annotation/batch-tag",
             "POST /annotation/get",
-            "POST /annotation/get",
             "POST /annotation/update",
             "POST /annotation/text",
             "POST /annotation/tag",
