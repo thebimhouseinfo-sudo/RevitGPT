@@ -69,6 +69,27 @@ class UiSelectionContractTests(unittest.TestCase):
             bridge.set_selection(["15"], mode="clear")
         send.assert_not_called()
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"mode": "isolate", "count": 1}})
+    def test_temporary_isolate_transport(self, send):
+        self.assertEqual(bridge.temporary_visibility("isolate", ["42"])["count"], 1)
+        send.assert_called_once_with("/ui/visibility/temporary",
+            payload={"mode": "isolate", "element_ids": ["42"]}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"mode": "reset", "count": 0}})
+    def test_temporary_reset_empty_target(self, send):
+        self.assertEqual(bridge.temporary_visibility("reset")["count"], 0)
+        send.assert_called_once_with("/ui/visibility/temporary",
+            payload={"mode": "reset", "element_ids": []}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_visibility_never_sends(self, send):
+        for mode, ids in (("flip", ["42"]), ("hide", []),
+                          ("isolate", None), ("reset", ["42"])):
+            with self.subTest(mode=mode, ids=ids):
+                with self.assertRaises(ValueError):
+                    bridge.temporary_visibility(mode, ids)
+        send.assert_not_called()
+
     def test_native_exact_binding_and_ui_guard(self):
         code = (BASE/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         self.assertIn("binding.ReadDenial(Token(payload, \"document_id\"))", code)
