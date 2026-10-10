@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 29,
+  "entry_count": 30,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -516,6 +516,28 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "read_only_available",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_list_mep_systems",
+      "name": "revit_list_mep_systems",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.family",
+      "title": "list MEP system instances",
+      "summary": "Read MechanicalSystem/PipingSystem instances and member counts, not system types.",
+      "when_to_use": "Identify actual systems in currently bound Revit model.",
+      "tags": [
+        "mep",
+        "systems"
+      ],
+      "source_tool": "revit_list_mep_systems",
+      "execution": "revitgpt_call",
+      "mode": "read_only",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "pending_native_fixture",
       "schema_source": "live_mcp_tools_list"
     },
     {
