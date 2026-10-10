@@ -124,8 +124,7 @@ namespace RevitGPT.Native
                     return Data(types);
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
-                if (path == "/element/connectors")
-                    return Error(501, "Connectors require an explicit Revit API readback fixture.");
+                if (path == "/element/connectors") return Connectors(doc, payload);
                 return Error(501, "Native route is not implemented: " + path);
             }
             catch (JsonException) { return Error(400, "Invalid JSON payload."); }
@@ -324,6 +323,60 @@ namespace RevitGPT.Native
             if (payload.Value<bool?>("include_connectors") == true)
                 return Error(501, "Connector readback has not passed host verification.");
             return Data(ElementInfo(item, RequestedParameters(payload)));
+        }
+
+        private static string Connectors(Document doc, JObject payload)
+        {
+            long? rawId = LongNumber(payload, "element_id");
+            if (!rawId.HasValue || rawId.Value <= 0)
+                return Error(400, "element_id required.");
+            var owner = doc.GetElement(new ElementId(rawId.Value));
+            if (owner == null) return Error(404, "Connector owner not found.");
+
+            ConnectorManager manager = null;
+            var instance = owner as FamilyInstance;
+            if (instance != null) manager = instance.MEPModel?.ConnectorManager;
+            var curve = owner as MEPCurve;
+            if (curve != null) manager = curve.ConnectorManager;
+            if (manager == null) return Data(new {
+                owner_element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                supported = false, connectors = new object[0], complete = true
+            });
+
+            var connectors = new List<object>();
+            foreach (Connector connector in manager.Connectors)
+            {
+                if (connectors.Count >= 256)
+                    return Error(413, "More than 256 connectors; result refused without truncation.");
+                var references = new List<object>();
+                foreach (Connector reference in connector.AllRefs)
+                {
+                    if (references.Count >= 256)
+                        return Error(413, "More than 256 connector references; result refused.");
+                    // AllRefs includes logical and self-references; preserve owner IDs
+                    // for deterministic downstream interpretation instead of guessing.
+                    references.Add(new {
+                        owner_element_id = reference.Owner?.Id.Value.ToString(CultureInfo.InvariantCulture),
+                        connector_id = reference.Id,
+                        connector_type = reference.ConnectorType.ToString(),
+                        domain = reference.Domain.ToString()
+                    });
+                }
+                var xyz = connector.Origin;
+                connectors.Add(new {
+                    id = connector.Id,
+                    connector_type = connector.ConnectorType.ToString(),
+                    domain = connector.Domain.ToString(),
+                    is_connected = connector.IsConnected,
+                    coordinate = new { x = xyz.X, y = xyz.Y, z = xyz.Z },
+                    coordinate_unit = "revit_internal_feet",
+                    references
+                });
+            }
+            return Data(new {
+                owner_element_id = rawId.Value.ToString(CultureInfo.InvariantCulture),
+                supported = true, connectors, complete = true
+            });
         }
 
         private static string Annotations(Document doc, JObject payload)
