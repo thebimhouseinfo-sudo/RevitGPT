@@ -147,6 +147,7 @@ namespace RevitGPT.Native
                     return Data(types);
                 }
                 if (path == "/annotations") return Annotations(doc, payload);
+                if (path == "/annotation/batch-tag") return NativeBatchTags.Execute(doc, payload);
                 if (path == "/annotation/get") return GetAnnotation(doc, payload);
                 if (path == "/annotation/get") return ReadAnnotation(doc, payload);
                 if (path == "/annotation/update") return NativeAnnotationEdit.Execute(doc, payload);
