@@ -57,7 +57,7 @@
       "registry": "internal",
       "class": "revit.annotation",
       "title": "create detail line",
-      "summary": "Create a detail line annotation in a view. Detail lines are view-specific and do not affect the model geometry. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the detail line in. start_x: Start point X coordin",
+      "summary": "Create a detail line annotation in a view. Detail lines are view-specific and do not affect the model geometry. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the detail line in. start_x: Start point X coordin Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "annotation",
@@ -68,11 +68,11 @@
       ],
       "source_tool": "revit_create_detail_line",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -82,7 +82,7 @@
       "registry": "internal",
       "class": "revit.annotation",
       "title": "create dimension",
-      "summary": "Create a dimension annotation between elements. Args: view_id: The view ID to place the dimension in. references: List of element references to dimension. Each reference should be a dict with \"element_id\" key. At least 2 references required. dimensio",
+      "summary": "Create a dimension annotation between elements. Args: view_id: The view ID to place the dimension in. references: List of element references to dimension. Each reference should be a dict with \"element_id\" key. At least 2 references required. dimensio Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "annotation",
@@ -92,11 +92,11 @@
       ],
       "source_tool": "revit_create_dimension",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -106,7 +106,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "create duct",
-      "summary": "Create a duct run between two points. All coordinates and dimensions are in Revit internal units (feet). Args: start_x: Start X coordinate in feet. start_y: Start Y coordinate in feet. start_z: Start Z coordinate in feet. end_x: End X coordinate in f",
+      "summary": "Create a duct run between two points. All coordinates and dimensions are in Revit internal units (feet). Args: start_x: Start X coordinate in feet. start_y: Start Y coordinate in feet. start_z: Start Z coordinate in feet. end_x: End X coordinate in f Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -116,11 +116,11 @@
       ],
       "source_tool": "revit_create_duct",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -130,7 +130,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "create pipe",
-      "summary": "Create a pipe run between two points. All coordinates and dimensions are in Revit internal units (feet). Args: start_x: Start X coordinate in feet. start_y: Start Y coordinate in feet. start_z: Start Z coordinate in feet. end_x: End X coordinate in f",
+      "summary": "Create a pipe run between two points. All coordinates and dimensions are in Revit internal units (feet). Args: start_x: Start X coordinate in feet. start_y: Start Y coordinate in feet. start_z: Start Z coordinate in feet. end_x: End X coordinate in f Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -140,11 +140,11 @@
       ],
       "source_tool": "revit_create_pipe",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -154,7 +154,7 @@
       "registry": "internal",
       "class": "revit.annotation",
       "title": "create spot elevation",
-      "summary": "Create a spot elevation annotation on an element. Spot elevations display the elevation at a specific point on an element. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the spot elevation in. element_id: The ",
+      "summary": "Create a spot elevation annotation on an element. Spot elevations display the elevation at a specific point on an element. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the spot elevation in. element_id: The  Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "annotation",
@@ -165,11 +165,11 @@
       ],
       "source_tool": "revit_create_spot_elevation",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -179,7 +179,7 @@
       "registry": "internal",
       "class": "revit.annotation",
       "title": "create tag",
-      "summary": "Create a tag annotation for an MEP element. Tags display parameter values from the tagged element (e.g., duct size, pipe diameter, equipment name). All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the tag in. el",
+      "summary": "Create a tag annotation for an MEP element. Tags display parameter values from the tagged element (e.g., duct size, pipe diameter, equipment name). All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the tag in. el Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "annotation",
@@ -189,11 +189,11 @@
       ],
       "source_tool": "revit_create_tag",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -203,7 +203,7 @@
       "registry": "internal",
       "class": "revit.annotation",
       "title": "create text note",
-      "summary": "Create a text note annotation in a view. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the text note in. text: The text content to display. x: X coordinate in feet. y: Y coordinate in feet. z: Z coordinate in",
+      "summary": "Create a text note annotation in a view. All coordinates are in Revit internal units (feet). Args: view_id: The view ID to place the text note in. text: The text content to display. x: X coordinate in feet. y: Y coordinate in feet. z: Z coordinate in Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "annotation",
@@ -214,11 +214,11 @@
       ],
       "source_tool": "revit_create_text_note",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -228,7 +228,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "delete elements",
-      "summary": "Delete one or more elements from the model. Args: element_ids: List of element IDs to delete (as strings). document_id: Optional document ID. Uses active document if not provided. Returns a report with matched, deleted, and error counts plus details.",
+      "summary": "Delete one or more elements from the model. Args: element_ids: List of element IDs to delete (as strings). document_id: Optional document ID. Uses active document if not provided. Returns a report with matched, deleted, and error counts plus details. Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -238,11 +238,11 @@
       ],
       "source_tool": "revit_delete_elements",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -752,7 +752,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "move element",
-      "summary": "Move an element by offset or to an absolute position. All coordinates are in Revit internal units (feet). Use dx/dy/dz for relative movement, or x/y/z for absolute position. If x/y/z are provided, dx/dy/dz are ignored. Args: element_id: The Revit ele",
+      "summary": "Move an element by offset or to an absolute position. All coordinates are in Revit internal units (feet). Use dx/dy/dz for relative movement, or x/y/z for absolute position. If x/y/z are provided, dx/dy/dz are ignored. Args: element_id: The Revit ele Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -762,11 +762,11 @@
       ],
       "source_tool": "revit_move_element",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -776,7 +776,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "place family instance",
-      "summary": "Place a family instance (MEP equipment, fixture, etc.) in the model. All coordinates are in Revit internal units (feet). Args: family: Family name (e.g., \"AHU\", \"FCU\", \"Sink\"). type: Type name within the family (e.g., \"AHU-01\", \"36x24\"). x: X coordin",
+      "summary": "Place a family instance (MEP equipment, fixture, etc.) in the model. All coordinates are in Revit internal units (feet). Args: family: Family name (e.g., \"AHU\", \"FCU\", \"Sink\"). type: Type name within the family (e.g., \"AHU-01\", \"36x24\"). x: X coordin Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -787,11 +787,11 @@
       ],
       "source_tool": "revit_place_family_instance",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
@@ -872,7 +872,7 @@
       "registry": "internal",
       "class": "revit.mep",
       "title": "set parameter",
-      "summary": "Set a parameter value on an element. Args: element_id: The Revit element ID (as string). parameter: Parameter name (e.g., \"Width\", \"Height\", \"Diameter\", \"Comments\"). value: New value. String for text, number for numeric, element ID string for element",
+      "summary": "Set a parameter value on an element. Args: element_id: The Revit element ID (as string). parameter: Parameter name (e.g., \"Width\", \"Height\", \"Diameter\", \"Comments\"). value: New value. String for text, number for numeric, element ID string for element Requires a native one-shot confirmation on a disposable fixture until final HAT; no production write enabled.",
       "when_to_use": "Write capability is not yet enabled; discover only and do not execute.",
       "tags": [
         "mep",
@@ -882,11 +882,11 @@
       ],
       "source_tool": "revit_set_parameter",
       "execution": "revitgpt_call",
-      "mode": "disabled_mutation",
+      "mode": "write_approval_required",
       "risk": "blocked",
       "mutates_model": true,
       "semantic_status": "curated",
-      "status": "not_enabled",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
