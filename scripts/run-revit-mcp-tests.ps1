@@ -10,6 +10,7 @@ $offlineTests = @(
     "test_real_connection_gate.py",
     "test_native_route_contract.py",
     "test_requested_parameters.py",
+    "test_ui_selection_contract.py",
     "test_native_host_preview.py",
     "test_native_pane_shell.py"
 )
