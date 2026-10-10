@@ -14,7 +14,7 @@ def register(mcp) -> None:
                                        section_box: dict = None) -> dict:
         """Create floor/ceiling plan, 3D isometric, section, or duplicate existing view.
 
-        Simple Revit 2024 supported cases only; needs exact Native write approval.
+        Simple Revit 2024 supported cases on the current bound model.
         """
         return create_or_duplicate_view(action, name, level_id, source_view_id,
                                         view_family_type_id, document_id, section_box)
@@ -35,7 +35,7 @@ def register(mcp) -> None:
         """Attach/remove/toggle an existing filter, or create string-equals BIP filter.
 
         Only bounded BuiltInParameter text equality is supported for creation.
-        Requires exact Native approval on a disposable Revit test model.
+        Requires a current bound Revit model.
         """
         return manage_view_filters(view_id, filter_id, action, visible,
                                    document_id, name, bip, value, category_ids)
