@@ -41,6 +41,8 @@ namespace RevitGPT.Native
             "POST /create/duct",
             "POST /create/pipe",
             "POST /parameter/set",
+            "POST /parameter/batch",
+            "POST /parameter/copy",
             "POST /delete",
             "POST /move",
             "POST /transform",
