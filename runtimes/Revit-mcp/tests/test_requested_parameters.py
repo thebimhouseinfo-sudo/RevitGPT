@@ -117,6 +117,26 @@ class SelectedParameterBridgeTests(unittest.TestCase):
         self.assertIn("OfClass(typeof(PipingSystem))", code)
         self.assertIn("member_count = sys.Elements.Size", code)
 
+    @patch.object(bridge, "_send_request", return_value={"data": {"total_instances": 10, "groups": []}})
+    def test_mep_quantities_transport(self, send):
+        report = bridge.get_mep_quantities(category="Ducts")
+        self.assertEqual(report["total_instances"], 10)
+        send.assert_called_once_with("/mep/quantities",
+            payload={"mode": "all", "category": "Ducts"}, method="POST")
+
+    @patch.object(bridge, "_send_request")
+    def test_mep_quantities_bad_mode_rejected(self, send):
+        with self.assertRaises(ValueError):
+            bridge.get_mep_quantities(mode="untrusted")
+        send.assert_not_called()
+
+    def test_mep_quantities_explicit_length_coverage(self):
+        code = NATIVE.read_text(encoding="utf-8")
+        self.assertIn("private static string MepQuantities(Document doc, JObject payload)", code)
+        self.assertIn("length_measured_count = x.MeasuredCount", code)
+        self.assertIn("total_length_internal_feet = x.LengthFeet", code)
+        self.assertIn('length_unit = "revit_internal_feet"', code)
+
     def test_connector_handler_still_requires_host_qa(self):
         code = NATIVE.read_text(encoding="utf-8")
         self.assertIn("private static string Connectors(Document doc, JObject payload)", code)
