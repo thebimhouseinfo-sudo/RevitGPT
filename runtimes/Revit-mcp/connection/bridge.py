@@ -213,6 +213,31 @@ def aggregate_elements(
     return result.get("data", result)
 
 
+def get_selection(document_id: str | None = None) -> dict:
+    payload = {"document_id": document_id} if document_id else {}
+    return _send_request("/ui/selection", payload=payload, method="POST")["data"]
+
+
+def _valid_ui_ids(element_ids: list[str], allow_empty: bool = True) -> list[str]:
+    if not isinstance(element_ids, list) or len(element_ids) > 500 or (not allow_empty and not element_ids):
+        raise ValueError("element_ids must be a bounded list")
+    if any(not isinstance(i, str) or not i.isdecimal() or int(i) < 1 for i in element_ids) or len(set(element_ids)) != len(element_ids):
+        raise ValueError("element_ids contain invalid or duplicate IDs")
+    return element_ids
+
+
+def set_selection(element_ids: list[str], document_id: str | None = None) -> dict:
+    payload = {"element_ids": _valid_ui_ids(element_ids)}
+    if document_id: payload["document_id"] = document_id
+    return _send_request("/ui/selection/set", payload=payload, method="POST")["data"]
+
+
+def show_elements(element_ids: list[str], document_id: str | None = None) -> dict:
+    payload = {"element_ids": _valid_ui_ids(element_ids, allow_empty=False)}
+    if document_id: payload["document_id"] = document_id
+    return _send_request("/ui/show", payload=payload, method="POST")["data"]
+
+
 def get_element(
     element_id: str,
     document_id: str | None = None,
