@@ -1,4 +1,4 @@
-"""Typed architectural creation; all mutations require exact native approval."""
+"""Typed architectural creation on the current bound Revit model."""
 from connection.bridge import create_architecture
 
 
@@ -9,6 +9,6 @@ def register(mcp) -> None:
         """Create wall, level, grid or model line in Revit internal feet.
 
         Supported simple geometry only; unsupported shapes are refused.
-        Native permits one-time approved edits to disposable fixtures only.
+        Revit API operations target the currently bound active model.
         """
         return create_architecture(action, properties, document_id)
