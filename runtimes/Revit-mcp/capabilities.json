@@ -4,58 +4,110 @@
   "status": "annotation-tools",
   "tools": [
     {
-      "id": "revit_get_runtime_info",
-      "description": "Report Revit bridge availability and runtime readiness.",
-      "input_schema": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "id": "revit_get_active_document",
-      "description": "Get metadata about the active Revit document.",
-      "input_schema": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "id": "revit_list_documents",
-      "description": "List all open Revit documents.",
-      "input_schema": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "id": "revit_list_views",
-      "description": "List views in a Revit document.",
+      "id": "revit_activate_view",
+      "description": "Activate a view in currently bound Revit model.",
       "input_schema": {
         "type": "object",
         "properties": {
+          "view_id": {
+            "type": "string"
+          },
           "document_id": {
-            "type": "string",
-            "description": "Optional document ID"
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_batch_set_parameters",
+      "description": "Atomic parameter batch/copy; Native approval required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array"
+          },
+          "source_element_id": {
+            "type": "string"
+          },
+          "target_element_ids": {
+            "type": "array"
+          },
+          "mappings": {
+            "type": "array"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
           }
         }
       }
     },
     {
-      "id": "revit_list_levels",
-      "description": "List levels in a Revit document.",
+      "id": "revit_batch_tag",
+      "description": "Atomic category batch tags.",
       "input_schema": {
         "type": "object",
         "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          },
+          "has_leader": {
+            "type": "boolean"
+          },
           "document_id": {
-            "type": "string",
-            "description": "Optional document ID"
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id",
+          "element_ids"
+        ]
+      }
+    },
+    {
+      "id": "revit_copy_parameters",
+      "description": "Atomic parameter batch/copy; Native approval required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array"
+          },
+          "source_element_id": {
+            "type": "string"
+          },
+          "target_element_ids": {
+            "type": "array"
+          },
+          "mappings": {
+            "type": "array"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
           }
         }
       }
     },
     {
-      "id": "revit_list_elements",
-      "description": "List elements with optional filters.",
+      "id": "revit_count_elements",
+      "description": "Count placed Revit elements.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -76,94 +128,99 @@
           },
           "view_id": {
             "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_create_architecture",
+      "description": "Create simple wall, grid, level, model line.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "wall",
+              "level",
+              "grid",
+              "model_line"
+            ]
           },
-          "parameters": {
+          "properties": {
+            "type": "object"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "properties"
+        ]
+      }
+    },
+    {
+      "id": "revit_create_detail_line",
+      "description": "Create a detail line annotation in a view.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "start_x": {
+            "type": "number"
+          },
+          "start_y": {
+            "type": "number"
+          },
+          "start_z": {
+            "type": "number"
+          },
+          "end_x": {
+            "type": "number"
+          },
+          "end_y": {
+            "type": "number"
+          },
+          "end_z": {
+            "type": "number"
+          },
+          "line_style": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id",
+          "start_x",
+          "start_y",
+          "start_z",
+          "end_x",
+          "end_y",
+          "end_z"
+        ]
+      }
+    },
+    {
+      "id": "revit_create_dimension",
+      "description": "Create a dimension annotation between elements.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "references": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "object"
             }
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_get_element",
-      "description": "Get a single element by ID.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
           },
-          "document_id": {
-            "type": "string"
-          },
-          "include_connectors": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_families",
-      "description": "List families loaded in the project, optionally filtered by MEP category.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "category": {
-            "type": "string",
-            "description": "MEP category filter"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_list_family_types",
-      "description": "List family types (symbols), optionally filtered by family or category.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "family": {
-            "type": "string"
-          },
-          "category": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_list_system_types",
-      "description": "List MEP system types, optionally filtered by classification.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "classification": {
-            "type": "string",
-            "description": "e.g. SupplyAir, DomesticColdWater"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_get_connectors",
-      "description": "Get MEP connectors of an element.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
+          "dimension_type": {
             "type": "string"
           },
           "document_id": {
@@ -171,46 +228,8 @@
           }
         },
         "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_place_family_instance",
-      "description": "Place a family instance (MEP equipment, fixture) in the model.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "family": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "x": {
-            "type": "number"
-          },
-          "y": {
-            "type": "number"
-          },
-          "z": {
-            "type": "number"
-          },
-          "level_id": {
-            "type": "string"
-          },
-          "rotation": {
-            "type": "number"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "family",
-          "type",
-          "x",
-          "y"
+          "view_id",
+          "references"
         ]
       }
     },
@@ -268,6 +287,46 @@
       }
     },
     {
+      "id": "revit_create_or_duplicate_view",
+      "description": "Create Revit floor/ceiling plan, isometric 3D, section, or duplicate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "floor_plan",
+              "ceiling_plan",
+              "isometric_3d",
+              "duplicate",
+              "section"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "source_view_id": {
+            "type": "string"
+          },
+          "view_family_type_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "section_box": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
       "id": "revit_create_pipe",
       "description": "Create a pipe run between two points.",
       "input_schema": {
@@ -318,210 +377,39 @@
       }
     },
     {
-      "id": "revit_set_parameter",
-      "description": "Set a parameter value on an element.",
+      "id": "revit_create_slab",
+      "description": "Create a simple horizontal floor or ceiling.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "parameter": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id",
-          "parameter",
-          "value"
-        ]
-      }
-    },
-    {
-      "id": "revit_delete_elements",
-      "description": "Delete one or more elements from the model.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_ids"
-        ]
-      }
-    },
-    {
-      "id": "revit_move_element",
-      "description": "Move an element by offset or to an absolute position.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "dx": {
-            "type": "number"
-          },
-          "dy": {
-            "type": "number"
-          },
-          "dz": {
-            "type": "number"
-          },
-          "x": {
-            "type": "number"
-          },
-          "y": {
-            "type": "number"
-          },
-          "z": {
-            "type": "number"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_annotations",
-      "description": "List annotations in a specific view.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "annotation_type": {
+          "kind": {
             "type": "string",
-            "description": "text, tag, dimension, spot_elevation, detail_line"
+            "enum": [
+              "floor",
+              "ceiling"
+            ]
           },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_create_text_note",
-      "description": "Create a text note annotation in a view.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
+          "level_id": {
             "type": "string"
           },
-          "text": {
+          "type_id": {
             "type": "string"
           },
-          "x": {
-            "type": "number"
-          },
-          "y": {
-            "type": "number"
-          },
-          "z": {
-            "type": "number"
-          },
-          "text_type": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id",
-          "text",
-          "x",
-          "y"
-        ]
-      }
-    },
-    {
-      "id": "revit_create_tag",
-      "description": "Create a tag annotation for an MEP element.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "element_id": {
-            "type": "string"
-          },
-          "x": {
-            "type": "number"
-          },
-          "y": {
-            "type": "number"
-          },
-          "z": {
-            "type": "number"
-          },
-          "tag_type": {
-            "type": "string"
-          },
-          "has_leader": {
-            "type": "boolean"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id",
-          "element_id",
-          "x",
-          "y"
-        ]
-      }
-    },
-    {
-      "id": "revit_create_dimension",
-      "description": "Create a dimension annotation between elements.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "references": {
+          "vertices": {
             "type": "array",
             "items": {
               "type": "object"
             }
           },
-          "dimension_type": {
-            "type": "string"
-          },
           "document_id": {
             "type": "string"
           }
         },
         "required": [
-          "view_id",
-          "references"
+          "kind",
+          "level_id",
+          "type_id",
+          "vertices"
         ]
       }
     },
@@ -587,33 +475,66 @@
       }
     },
     {
-      "id": "revit_create_detail_line",
-      "description": "Create a detail line annotation in a view.",
+      "id": "revit_create_tag",
+      "description": "Create a tag annotation for an MEP element.",
       "input_schema": {
         "type": "object",
         "properties": {
           "view_id": {
             "type": "string"
           },
-          "start_x": {
+          "element_id": {
+            "type": "string"
+          },
+          "x": {
             "type": "number"
           },
-          "start_y": {
+          "y": {
             "type": "number"
           },
-          "start_z": {
+          "z": {
             "type": "number"
           },
-          "end_x": {
+          "tag_type": {
+            "type": "string"
+          },
+          "has_leader": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id",
+          "element_id",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "id": "revit_create_text_note",
+      "description": "Create a text note annotation in a view.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "x": {
             "type": "number"
           },
-          "end_y": {
+          "y": {
             "type": "number"
           },
-          "end_z": {
+          "z": {
             "type": "number"
           },
-          "line_style": {
+          "text_type": {
             "type": "string"
           },
           "document_id": {
@@ -622,40 +543,273 @@
         },
         "required": [
           "view_id",
-          "start_x",
-          "start_y",
-          "start_z",
-          "end_x",
-          "end_y",
-          "end_z"
+          "text",
+          "x",
+          "y"
         ]
       }
     },
     {
-      "id": "revit_count_elements",
-      "description": "Count placed Revit elements.",
+      "id": "revit_delete_elements",
+      "description": "Delete one or more elements from the model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_ids"
+        ]
+      }
+    },
+    {
+      "id": "revit_format_view",
+      "description": "Persistent view formatting with exact Native approval.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "properties",
+              "crop",
+              "template",
+              "visibility",
+              "graphics"
+            ]
+          },
+          "properties": {
+            "type": "object"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id",
+          "action",
+          "properties"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_active_document",
+      "description": "Get metadata about the active Revit document.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "revit_get_active_view",
+      "description": "Read the exact current active Revit view/tab in the bound model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Optional bound document ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_get_annotation",
+      "description": "Read exact Revit annotation details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_categories",
+      "description": "List document Revit categories and IDs.",
       "input_schema": {
         "type": "object",
         "properties": {
           "document_id": {
             "type": "string"
           },
-          "category": {
-            "type": "string"
-          },
-          "class_name": {
-            "type": "string"
-          },
-          "family": {
-            "type": "string"
-          },
-          "type_name": {
-            "type": "string"
-          },
-          "view_id": {
+          "name_contains": {
             "type": "string"
           }
         }
+      }
+    },
+    {
+      "id": "revit_get_connectors",
+      "description": "Get MEP connectors of an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_element",
+      "description": "Get a single element by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_connectors": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_element_relationships",
+      "description": "Read Revit element geometry/relationship metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_geometry_summary",
+      "description": "Read Revit element geometry/relationship metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_parameters",
+      "description": "Read all parameters of an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_get_runtime_info",
+      "description": "Report Revit bridge availability and runtime readiness.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "revit_get_schedule",
+      "description": "Revit schedule operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "field_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_get_selection",
+      "description": "Revit UI selection or zoom (not persistent model edit).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_get_view_properties",
+      "description": "Read view properties in bound Revit model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id"
+        ]
       }
     },
     {
@@ -698,15 +852,564 @@
       }
     },
     {
-      "id": "revit_get_selection",
-      "description": "Revit UI selection or zoom (not persistent model edit).",
+      "id": "revit_inspect_family_instance",
+      "description": "Inspect Revit placed family instance metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_list_annotations",
+      "description": "List annotations in a specific view.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "annotation_type": {
+            "type": "string",
+            "description": "text, tag, dimension, spot_elevation, detail_line"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_list_documents",
+      "description": "List all open Revit documents.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "revit_list_elements",
+      "description": "List elements with optional filters.",
       "input_schema": {
         "type": "object",
         "properties": {
           "document_id": {
             "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "view_id": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
+      }
+    },
+    {
+      "id": "revit_list_families",
+      "description": "List families loaded in the project, optionally filtered by MEP category.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "MEP category filter"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_family_types",
+      "description": "List family types (symbols), optionally filtered by family or category.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "family": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_levels",
+      "description": "List levels in a Revit document.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Optional document ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_mep_systems",
+      "description": "List actual MEP system instances.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "duct",
+              "pipe"
+            ]
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_parameters",
+      "description": "Read all parameters of an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "include_type": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_list_schedules",
+      "description": "Revit schedule operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "schedule_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "field_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_sheet_viewports",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_sheets",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_system_types",
+      "description": "List MEP system types, optionally filtered by classification.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "classification": {
+            "type": "string",
+            "description": "e.g. SupplyAir, DomesticColdWater"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_list_view_filters",
+      "description": "List attached view filters",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "view_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_list_views",
+      "description": "List views in a Revit document.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "Optional document ID"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_load_dyn_file",
+      "description": "Load staged Dynamo graph in forced manual non-executing mode; host QA pending.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      }
+    },
+    {
+      "id": "revit_manage_sheet",
+      "description": "Revit sheet or viewport operation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object"
+          },
+          "sheet_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_manage_view_filters",
+      "description": "Manage existing filters and create bounded built-in text equality rules.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "view_id": {
+            "type": "string"
+          },
+          "filter_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply",
+              "remove",
+              "visibility"
+            ]
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "bip": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "category_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "view_id",
+          "action"
+        ]
+      }
+    },
+    {
+      "id": "revit_move_element",
+      "description": "Move an element by offset or to an absolute position.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "dx": {
+            "type": "number"
+          },
+          "dy": {
+            "type": "number"
+          },
+          "dz": {
+            "type": "number"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id"
+        ]
+      }
+    },
+    {
+      "id": "revit_place_family_instance",
+      "description": "Place a family instance (MEP equipment, fixture) in the model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "family": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "z": {
+            "type": "number"
+          },
+          "level_id": {
+            "type": "string"
+          },
+          "rotation": {
+            "type": "number"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "type",
+          "x",
+          "y"
+        ]
+      }
+    },
+    {
+      "id": "revit_quantity_takeoff",
+      "description": "revit_quantity_takeoff in bound Revit model.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_query_elements",
+      "description": "Bounded element query with typed parameter predicates.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "class_name": {
+            "type": "string"
+          },
+          "predicate": {
+            "type": "object"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "after_id": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_query_spatial_and_warnings",
+      "description": "Read rooms, MEP spaces, grids, and Revit model warnings.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string"
+          },
+          "include_warnings": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "id": "revit_select_related",
+      "description": "Preview/select related elements by host or connector relations.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "host",
+              "hosted",
+              "connected"
+            ]
+          },
+          "apply": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "relation"
+        ]
+      }
+    },
+    {
+      "id": "revit_set_parameter",
+      "description": "Set a parameter value on an element.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "element_id": {
+            "type": "string"
+          },
+          "parameter": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "document_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "element_id",
+          "parameter",
+          "value"
+        ]
       }
     },
     {
@@ -754,58 +1457,15 @@
       }
     },
     {
-      "id": "revit_activate_view",
-      "description": "Activate a view in currently bound Revit model.",
+      "id": "revit_summarize_equipment",
+      "description": "revit_summarize_equipment in bound Revit model.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_mep_systems",
-      "description": "List actual MEP system instances.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "duct",
-              "pipe"
-            ]
-          },
           "document_id": {
             "type": "string"
           }
         }
-      }
-    },
-    {
-      "id": "revit_get_view_properties",
-      "description": "Read view properties in bound Revit model.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id"
-        ]
       }
     },
     {
@@ -839,97 +1499,19 @@
       }
     },
     {
-      "id": "revit_quantity_takeoff",
-      "description": "revit_quantity_takeoff in bound Revit model.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "category": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_summarize_equipment",
-      "description": "revit_summarize_equipment in bound Revit model.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_query_spatial_and_warnings",
-      "description": "Read rooms, MEP spaces, grids, and Revit model warnings.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "document_id": {
-            "type": "string"
-          },
-          "include_warnings": {
-            "type": "boolean"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_get_parameters",
-      "description": "Read all parameters of an element.",
+      "id": "revit_trace_mep_system",
+      "description": "Bounded Revit MEP connectivity trace.",
       "input_schema": {
         "type": "object",
         "properties": {
           "element_id": {
             "type": "string"
           },
-          "document_id": {
-            "type": "string"
+          "max_nodes": {
+            "type": "integer"
           },
-          "include_type": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_parameters",
-      "description": "Read all parameters of an element.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          },
-          "include_type": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_get_geometry_summary",
-      "description": "Read Revit element geometry/relationship metadata.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
+          "max_depth": {
+            "type": "integer"
           },
           "document_id": {
             "type": "string"
@@ -937,87 +1519,6 @@
         },
         "required": [
           "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_get_element_relationships",
-      "description": "Read Revit element geometry/relationship metadata.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_get_categories",
-      "description": "List document Revit categories and IDs.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "document_id": {
-            "type": "string"
-          },
-          "name_contains": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_inspect_family_instance",
-      "description": "Inspect Revit placed family instance metadata.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_select_related",
-      "description": "Preview/select related elements by host or connector relations.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "relation": {
-            "type": "string",
-            "enum": [
-              "host",
-              "hosted",
-              "connected"
-            ]
-          },
-          "apply": {
-            "type": "boolean"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id",
-          "relation"
         ]
       }
     },
@@ -1073,308 +1574,6 @@
       }
     },
     {
-      "id": "revit_create_architecture",
-      "description": "Create simple wall, grid, level, model line.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "wall",
-              "level",
-              "grid",
-              "model_line"
-            ]
-          },
-          "properties": {
-            "type": "object"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "action",
-          "properties"
-        ]
-      }
-    },
-    {
-      "id": "revit_batch_set_parameters",
-      "description": "Atomic parameter batch/copy; Native approval required.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "operations": {
-            "type": "array"
-          },
-          "source_element_id": {
-            "type": "string"
-          },
-          "target_element_ids": {
-            "type": "array"
-          },
-          "mappings": {
-            "type": "array"
-          },
-          "dry_run": {
-            "type": "boolean"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_copy_parameters",
-      "description": "Atomic parameter batch/copy; Native approval required.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "operations": {
-            "type": "array"
-          },
-          "source_element_id": {
-            "type": "string"
-          },
-          "target_element_ids": {
-            "type": "array"
-          },
-          "mappings": {
-            "type": "array"
-          },
-          "dry_run": {
-            "type": "boolean"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_list_sheets",
-      "description": "Revit sheet or viewport operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "properties": {
-            "type": "object"
-          },
-          "sheet_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_list_sheet_viewports",
-      "description": "Revit sheet or viewport operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "properties": {
-            "type": "object"
-          },
-          "sheet_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_manage_sheet",
-      "description": "Revit sheet or viewport operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "properties": {
-            "type": "object"
-          },
-          "sheet_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_format_view",
-      "description": "Persistent view formatting with exact Native approval.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "properties",
-              "crop",
-              "template",
-              "visibility",
-              "graphics"
-            ]
-          },
-          "properties": {
-            "type": "object"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id",
-          "action",
-          "properties"
-        ]
-      }
-    },
-    {
-      "id": "revit_create_slab",
-      "description": "Create a simple horizontal floor or ceiling.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "floor",
-              "ceiling"
-            ]
-          },
-          "level_id": {
-            "type": "string"
-          },
-          "type_id": {
-            "type": "string"
-          },
-          "vertices": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "level_id",
-          "type_id",
-          "vertices"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_schedules",
-      "description": "Revit schedule operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "schedule_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string"
-          },
-          "field_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_get_schedule",
-      "description": "Revit schedule operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "schedule_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string"
-          },
-          "field_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_update_schedule",
-      "description": "Revit schedule operation.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "schedule_id": {
-            "type": "string"
-          },
-          "action": {
-            "type": "string"
-          },
-          "field_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    {
-      "id": "revit_trace_mep_system",
-      "description": "Bounded Revit MEP connectivity trace.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "max_nodes": {
-            "type": "integer"
-          },
-          "max_depth": {
-            "type": "integer"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
       "id": "revit_update_annotation",
       "description": "Edit text note or tag in place with Native one-shot approval.",
       "input_schema": {
@@ -1410,204 +1609,18 @@
       }
     },
     {
-      "id": "revit_get_annotation",
-      "description": "Read exact Revit annotation details.",
+      "id": "revit_update_schedule",
+      "description": "Revit schedule operation.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "element_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "element_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_batch_tag",
-      "description": "Atomic category batch tags.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "element_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "minItems": 1,
-            "maxItems": 50
-          },
-          "has_leader": {
-            "type": "boolean"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id",
-          "element_ids"
-        ]
-      }
-    },
-    {
-      "id": "revit_list_view_filters",
-      "description": "List attached view filters",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "view_id"
-        ]
-      }
-    },
-    {
-      "id": "revit_manage_view_filters",
-      "description": "Manage existing filters and create bounded built-in text equality rules.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "view_id": {
-            "type": "string"
-          },
-          "filter_id": {
+          "schedule_id": {
             "type": "string"
           },
           "action": {
-            "type": "string",
-            "enum": [
-              "apply",
-              "remove",
-              "visibility"
-            ]
-          },
-          "visible": {
-            "type": "boolean"
-          },
-          "document_id": {
             "type": "string"
           },
-          "name": {
-            "type": "string"
-          },
-          "bip": {
-            "type": "string"
-          },
-          "value": {
-            "type": "string"
-          },
-          "category_ids": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "view_id",
-          "action"
-        ]
-      }
-    },
-    {
-      "id": "revit_create_or_duplicate_view",
-      "description": "Create Revit floor/ceiling plan, isometric 3D, section, or duplicate.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "floor_plan",
-              "ceiling_plan",
-              "isometric_3d",
-              "duplicate",
-              "section"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "level_id": {
-            "type": "string"
-          },
-          "source_view_id": {
-            "type": "string"
-          },
-          "view_family_type_id": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          },
-          "section_box": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "action"
-        ]
-      }
-    },
-    {
-      "id": "revit_load_dyn_file",
-      "description": "Load staged Dynamo graph in forced manual non-executing mode; host QA pending.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string"
-          },
-          "document_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "path"
-        ]
-      }
-    },
-    {
-      "id": "revit_query_elements",
-      "description": "Bounded element query with typed parameter predicates.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "category": {
-            "type": "string"
-          },
-          "family": {
-            "type": "string"
-          },
-          "type_name": {
-            "type": "string"
-          },
-          "class_name": {
-            "type": "string"
-          },
-          "predicate": {
-            "type": "object"
-          },
-          "page_size": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 200
-          },
-          "after_id": {
+          "field_id": {
             "type": "string"
           },
           "document_id": {
