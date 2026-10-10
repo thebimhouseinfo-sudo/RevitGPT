@@ -1,4 +1,4 @@
-"""Bound Revit transforms; Native-only approval controls transaction commits."""
+"""Bound Revit transforms execute in native Revit Transactions."""
 from connection.bridge import transform_elements
 
 
@@ -14,7 +14,7 @@ def register(mcp) -> None:
         """Copy/rotate/change type for 1..50 elements atomically.
 
         Coordinates use Revit internal feet; rotation angle in radians.
-        Only Native can approve one exact write on a disposable fixture.
+        Writes require the current bound-model identity.
         """
         return transform_elements(
             action, element_ids, dx=dx, dy=dy, dz=dz,
