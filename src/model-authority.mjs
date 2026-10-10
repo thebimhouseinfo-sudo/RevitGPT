@@ -7,7 +7,7 @@ const MODEL_READS = new Set([
   "revit_get_selection",
   "revit_get_view_properties", "revit_list_views", "revit_list_levels", "revit_list_elements",
   "revit_count_elements", "revit_group_elements",
-  "revit_get_element", "revit_list_families", "revit_list_family_types",
+  "revit_query_spatial_and_warnings", "revit_get_element", "revit_list_families", "revit_list_family_types",
   "revit_list_system_types", "revit_list_mep_systems", "revit_quantity_takeoff", "revit_summarize_equipment", "revit_get_connectors", "revit_list_annotations"
 ]);
 
