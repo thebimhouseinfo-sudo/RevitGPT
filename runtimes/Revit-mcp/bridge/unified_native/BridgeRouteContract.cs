@@ -43,6 +43,7 @@ namespace RevitGPT.Native
             "POST /parameter/set",
             "POST /delete",
             "POST /move",
+            "POST /transform",
             "POST /annotations",
             "POST /annotation/text",
             "POST /annotation/tag",
