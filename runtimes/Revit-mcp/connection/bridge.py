@@ -282,6 +282,40 @@ def activate_view(view_id: str, document_id: str | None = None) -> dict:
     return _send_request("/ui/view/activate", payload=payload, method="POST")["data"]
 
 
+def query_elements(category: str | None = None,
+                   family: str | None = None,
+                   type_name: str | None = None,
+                   class_name: str | None = None,
+                   predicate: dict | None = None,
+                   page_size: int = 100,
+                   after_id: str | None = None,
+                   document_id: str | None = None) -> dict:
+    if type(page_size) is not int or not 1 <= page_size <= 200:
+        raise ValueError("page_size must be 1..200")
+    if after_id is not None and (not isinstance(after_id, str) or
+                                 not after_id.isdecimal() or int(after_id) <= 0):
+        raise ValueError("after_id must be a positive ElementId string")
+    for name in (category, family, type_name, class_name):
+        if name is not None and (not isinstance(name, str) or not name.strip() or len(name) > 128):
+            raise ValueError("Invalid element filter")
+    if predicate is not None:
+        if not isinstance(predicate, dict) or predicate.get("operator") not in ("equals", "contains"):
+            raise ValueError("Predicate must use equals or contains")
+        if not isinstance(predicate.get("parameter"), str) or not predicate["parameter"].strip():
+            raise ValueError("Exact predicate parameter selector required")
+        if "value" not in predicate or predicate["value"] is None:
+            raise ValueError("Typed predicate value required")
+    payload = {"page_size": page_size}
+    for key, value in (("category", category), ("family", family),
+                       ("type", type_name), ("class", class_name),
+                       ("predicate", predicate), ("after_id", after_id)):
+        if value is not None:
+            payload[key] = value
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/elements/query", payload=payload, method="POST")["data"]
+
+
 def get_element(
     element_id: str,
     document_id: str | None = None,
