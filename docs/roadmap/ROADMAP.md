@@ -324,3 +324,48 @@ Revit turns OFF after activation
 ```
 
 Revit process state is lifecycle authority. @rg / admission is the activation trigger.
+
+
+## R4.3 — Audit-first implementation plan (PROPOSED, 2026-10-11)
+
+**Authority and precedence.** This section is the latest proposed implementation sequence and supersedes the historical "Current immediate action", P1B milestone ordering, E1/E-PY global gate, and any earlier R3/R4 execution ordering in this document. It does **not** supersede the canonical `docs/architecture/AUTHORITY_LIFECYCLE.md`, explicit Human architecture decisions, safety restrictions, or existing evidence. This is a source roadmap proposal, **not** a durable GSA Job planning revision, Reviewer PASS, or permission to execute real-host tests. Project GSA handle: `P-7B89`. Working repository: `thebimhouseinfo-sudo/RevitGPT`; working branch: `work/J-AFC4-p1-revit-mcp-bootstrap`. Do not change main, merge, deploy, install, run destructive tests, or mutate real RVT models without separate authorization.
+
+### Goal and acceptance terminology
+
+Build bounded, complete offline-verifiable RevitGPT Brain, Job Runtime, Registry/Workspace, Knowledge Manager, Dynamo Writer and native Panel foundations; keep Revit MCP a separate continuous tool-development stream. For every bounded deliverable track `IMPLEMENTED`, `OFFLINE_VERIFIED`, `HOST_VERIFIED` and `RELEASE_READY` separately, with exact source revision and evidence. No offline check implies Revit host acceptance. No status can be inferred from a prior commit's CI.
+
+### Phase 0 — mandatory evidence and GSA reconciliation (read-only)
+
+**R4-A0: reconcile P1B and authority.** Resolve the *current* work-branch HEAD SHA, relevant GitHub Actions run/job/step conclusions and tests actually executed. Read the GSA Project manifest, repository registry, every affected P1B/R4 Job's exact record, planning revision, Run, Verification and pending execution cursor. Build a row per Job: current state, source SHA, retained evidence, `KEEP / REVALIDATE / REPLACE / HUMAN_DECISION`, rationale, dependent Jobs and cursor disposition. A superseded roadmap sequence does not automatically transition any durable Job. Unknown or unavailable records stay UNKNOWN. No Job transitions, cursor settlement or replacement creation until GSA's reviewed plan-change protocol authorizes it.
+
+**R4-A1: L0/L1 brownfield gap matrix.** Inventory the actual work-branch tree, CI workflow(s), build/test commands, docs, source and test entry points; then inspect the relevant callers/consumers for Brain, Registry, Jobs, Knowledge, Dynamo, Panel and Revit MCP. Compare the canonical RevitGPT contracts with CadGPT *patterns* (read-only reference, not wholesale cloning). For each candidate capability record `CANONICAL / LEGACY / ACCIDENTAL / INCORRECT / UNKNOWN`, `KEEP / ADAPT / REPLACE / MISSING`, exact file/function/test references, ownership, dependency, negative control, host requirement and evidence gap. Inspect Project repository registry and cross-repo impact; require Human confirmation if a missing dependent repo materially changes scope. Do not invent file paths or assume `npm test` exists: derive commands from checked-in workflows/config.
+
+**Phase 0 completion gate:** a revision-bound A0 disposition matrix and A1 gap matrix with current source evidence, bounded Job packs, declared working repo, explicit non-goals, dependency graph, test checkpoints, rollback and Human gates. Planner revises the proposed topology; independent Reviewer examines the exact durable GSA planning revision. Only a recorded, read-back `PASS` permits READY/dispatch, following GSA governance. If records cannot be accessed, report the specific evidence blocker; never fabricate PASS or commit a meaningless milestone.
+
+### Phase 1 — finite implementation Job packs (created only for confirmed gaps)
+
+Each Job is a separate finite change set; split further if its source/test ownership is too broad. **Shared template:** one named owner and one working repository, bounded source paths discovered in A1, objective and non-goals, source revision, prerequisites, acceptance checklist, regression and negative-control fixtures, diff review, exact GitHub CI evidence, rollback plan, and `OFFLINE_VERIFIED` vs `HOST_VERIFIED` status. Do not pre-mark an unimplemented capability as missing.
+
+| Pack | Bounded outcome | Offline acceptance / negative control | Dependencies |
+| --- | --- | --- | --- |
+| A2 Brain + authority | Admission, logical session, one-primary-model binding, leases and diagnostics across browser/add-in modes | Lifecycle table fixture coverage; expired browser lease, invalid pairing, mismatched active model, failed atomic rebind must not transfer authority | A0/A1, canonical lifecycle |
+| A3 Registry + managed Workspace | Internal/user capability discovery, AppData draft/checkout/promotion, canonical-path mutation guard and hash readback | Invalid paths, symlink/reparse escapes, stale hash and cross-owner writes rejected; existing entries preserved | A0/A1; Brain interface |
+| A4 Direct/Reasoning Job Runtime | Ordered steps, interruption/resume, bounded retries, borrowed tools and per-Job raw/result ownership | Restart/checkpoint and stale-cursor fixtures; borrowed tool output remains owned by lending Job; no cross-Job write | A3 and Brain authority interface |
+| A5 Knowledge Manager + one-turn Writer | Provenance-aware reader/writer; global vs model/project scope; single-turn interrupt/resume | Conflict remains draft; model observation not silently globalized; interrupted Job resumes unchanged | A4 and A3 |
+| B1 Dynamo Core Coding Knowledge | Minimal mandatory version-aware local invariants and tested fixtures; approved-domain on-demand references, no bulk corpus | Unknown node/port/package/version flagged; official-source provenance; no fabricated signature | A0/A1 |
+| B2 Dynamo author/edit | Create and minimally edit complete .dyn graphs, preserve IDs/connectors, explicit dependencies and version context | New/edit graph fixtures, malformed JSON, missing port/node, identity regression and dependency negative controls | B1 and A3 draft interface |
+| B3 Dynamo dynamic Job reuse | Parameterized graphs, static validators, review/promotion/rollback and Job integration | Dynamic graph fixtures, package-missing and rollback controls; no implicit graph execution | B2 and A4 |
+| C1 Panel state/UX contract | Pairing, mismatch indicator, intentional Lease + Bind Current, lifecycle/recovery UI contract | Host-independent state machine and failure/recovery tests; panel never becomes authority | A0/A1, Brain authority interface |
+| C2 Native Panel integration | Implement bounded pairing/rebind/recovery gaps in existing add-in without installer or real Revit mutation | Mock bridge/panel regression, transport failure and tab-switch negative controls; host behavior marked UNVERIFIED | C1; bridge interface |
+| D1 Internal MCP Coder | Limited coding surface `runtimes/Revit-mcp/**`, controlled registry metadata only after evidence | Canonical-path/reparse escape, out-of-scope write, stale registry hash denied | A3 registry interface |
+| D2 Revit MCP tool groups (continuous) | Implement/test bounded read, selection, parameters, draw, views, annotations, tags and .dyn LOAD-only capabilities by group | Per-tool offline fixtures and status; host acceptance tracked individually, no global all-tools gate | Existing native bridge, per-tool contracts |
+
+### Dependencies, topology and Human gates
+
+After Phase 0, B1, C1 and appropriate D2 offline tool slices may run independently; A2/A3 interface contracts should be stable before A4/A5/D1; B2/B3 follow their stated inputs. Never serialize independent work solely to match a milestone order. Brain owns authority, Registry and Job orchestration; native Revit MCP alone never grants model authority; Panel is UI only. Dynamo authoring is separate from LOAD-only and from authorized execution. Borrowing another Job's tool does not transfer ownership of files it produces.
+
+**Host gate:** group Revit UI-thread/ExternalEvent, model identity across tab/view churn, pairing/rebind, live parameters and element mutations, Dynamo execution, add-in recovery and installer acceptance into a later Human-controlled host round. Never label these PASS on mock/static tests. **Release gate:** independent review, regression, rollback, real-host evidence where applicable and explicit Human approval before main/production. No automatic deploy or merge.
+
+### Review-loop policy
+
+Planner → independent Reviewer → Planner fixes actionable findings → Reviewer rechecks the new exact revision, repeating within bounded progress limits. `CHANGES_REQUIRED` is an internal loop outcome, not a request that Human fix the plan. CR is a separate Human-invoked independent review after the planning review has actually PASSed. If the required GSA durable records, authority or source evidence are missing, mark BLOCKED with the exact missing input rather than claiming Reviewer PASS. Do not claim that opening an ephemeral role session constitutes a persisted Verification.
