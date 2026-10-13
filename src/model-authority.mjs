@@ -14,6 +14,14 @@ const MODEL_READS = new Set([
 ]);
 
 const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements", "revit_activate_view", "revit_temporary_visibility", "revit_select_related"]);
+// These tools depend on UIApplication.ActiveUIDocument, not merely the bound
+// Document. They must reject a different active tab; document-scoped reads
+// and model writes can still target the verified bound Document safely.
+const UI_SCOPED_READS = new Set(["revit_get_active_view", "revit_get_selection"]);
+const UI_SCOPED_WRITES = new Set(["revit_load_dyn_file"]);
+export function requiresActiveBoundModel(name) {
+  return UI_ACTIONS.has(name) || UI_SCOPED_READS.has(name) || UI_SCOPED_WRITES.has(name);
+}
 const MODEL_WRITES = new Set([
   "revit_load_dyn_file", "revit_create_or_duplicate_view", "revit_manage_view_filters", "revit_batch_tag", "revit_update_annotation", "revit_update_schedule", "revit_create_slab", "revit_format_view", "revit_manage_sheet", "revit_batch_set_parameters", "revit_copy_parameters", "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
   "revit_set_parameter", "revit_delete_elements", "revit_move_element",
@@ -55,17 +63,22 @@ export async function fetchNativeBindingStatus(baseUrl, {
   } finally { clearTimeout(timer); }
 }
 
-function currentBinding(snapshot) {
+function currentBinding(snapshot, requireActive = false) {
   if (!snapshot || typeof snapshot !== "object" ||
       typeof snapshot.host_instance_id !== "string" ||
       !/^[0-9a-f]{32}$/i.test(snapshot.host_instance_id) ||
       !Number.isSafeInteger(snapshot.revision) || snapshot.revision < 1 ||
       typeof snapshot.bound_id !== "string" || !snapshot.bound_id.trim() ||
-      typeof snapshot.active_id !== "string" || !snapshot.active_id.trim()) {
+      typeof snapshot.active_id !== "string") {
     throw new Error("NATIVE_BINDING_INVALID_RESPONSE");
   }
-  if (snapshot.status !== "BOUND_CURRENT" || snapshot.active_id !== snapshot.bound_id)
+  // A different active view/model is NOT a different primary binding.
+  // Native must still verify the exact bound Document in ExternalEvent.
+  if (!["BOUND_CURRENT", "BOUND_OTHER_ACTIVE"].includes(snapshot.status))
     throw new Error("MODEL_BINDING_NOT_CURRENT: " + String(snapshot.status ?? "UNKNOWN"));
+  if (requireActive &&
+      (snapshot.status !== "BOUND_CURRENT" || snapshot.active_id !== snapshot.bound_id))
+    throw new Error("MODEL_BINDING_NOT_CURRENT: " + String(snapshot.status));
   return {
     host_instance_id: snapshot.host_instance_id,
     revision: snapshot.revision,
@@ -96,10 +109,10 @@ export class SessionModelAuthority {
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
     // Every session is restricted to the ONE bound model. The Node layer may
     // dispatch model writes only with the current binding snapshot.
-    // Switching to another tab or closing the bound model fails closed.
+    // Closing the bound model fails closed; tab change denies UI-scoped work only.
     let snapshot;
     try {
-      snapshot = currentBinding(await this.readStatus());
+      snapshot = currentBinding(await this.readStatus(), requiresActiveBoundModel(name));
     } catch(error) {
       this.lease = null;
       throw error;
