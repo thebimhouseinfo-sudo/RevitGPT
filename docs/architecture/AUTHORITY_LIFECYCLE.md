@@ -1,141 +1,92 @@
-# RevitGPT Authority Lifecycle Contract
+# RevitGPT — Canonical Runtime, Model Authority & Stop Lifecycle
 
-Status: **CANONICAL P0 CONTRACT — J-8A2C rev2**  
-Consumers: `ROADMAP.md`, `DECISION_REGISTER.md`, `RG-CG-ADDIN-PLAN.md`, P2A, E4A, P2B, E4.
+**Status:** **P1 CANONICAL TARGET CONTRACT** (approved Phase Goal, 2026-10-13 Rev9). **Implementation verification: IN PROGRESS; this document does not claim the current runtime already conforms.**
 
-This file is the single source of truth for RevitGPT chat/session/model-authority lifecycle semantics. Other documents should reference this contract instead of restating divergent timeout rules.
+**Applies to:** RevitGPT Brain/control plane, Slim MCP, Native Revit Bridge, Python Revit MCP, transport sessions, dockable panel, SYSTEM tools and future Job Runtime integration.
 
-## 1. Principles
+**Supersedes for P1:** the per-conversation authority and \`BROWSER_TTL=15m\` / \`ADDIN_MANAGED\` expiry mechanism from historical GSA J-8A2C. Preserve prior decision evidence in [archived P0 contract](LEGACY_AUTHORITY_LIFECYCLE_P0.md); this update does **not** mutate or supersede its GSA Job record. The approved Phase Goal and supporting detailed plan are [P1 Stable Runtime & Connection](../roadmap/P1_STABLE_RUNTIME_CONNECTION_PLAN.md). All other living docs must reference this contract for P1 runtime behavior; obsolete sections are historical, not competing requirements.
 
-1. RevitGPT local runtime owns model authority. WebView2, ChatGPT UI state, MCP transport state, cookies, DOM state, and Revit active view/tab never grant authority.
-2. One logical ChatGPT conversation may own one primary Revit model authority at a time.
-3. Browser/plugin sessions and add-in-paired sessions use different lifetime modes.
-4. A transient transport/UI failure must not be interpreted as a model-close or authority-loss event.
-5. Model authority, add-in pair, logical conversation, full Revit MCP runtime, and host process are separate lifecycles.
+## GOAL — fixed P1 authority
 
-## 2. Authority modes
+After explicit **@rg**, RevitGPT remains available and stable until explicit \`rg/stop\` or a genuine host/lifecycle transition. A tool error, timeout, chat inactivity, WebView reload, connector/tunnel replacement or another chat must **not** deactivate healthy shared runtime or discard intentional model binding. The system isolates real failures by layer, never silently replays a side-effect with uncertain outcome, and honors graceful stop by **reporting BUSY and waiting until all accepted work finishes**.
 
-### BROWSER_TTL
+The control plane supports **STANDBY → WORKSPACE_AWAKE → FULLY_AWAKE**, one shared intentional primary bound model and multiple independent chats. Implement P1 connection/lifecycle safety now; full Job Runtime, Dynamo Writer, tool-catalog completeness and cross-process multi-host routing remain outside P1.
 
-Applies to ordinary ChatGPT/browser/plugin usage that is not paired to the Revit add-in.
+## 1. Authority and runtime dimensions
 
-- Idle model-authority timeout: **15 minutes**.
-- A valid user turn in the same bound logical conversation refreshes the 15-minute lease.
-- On expiry the model becomes free; the historical owner has no priority.
-- `rg/stop` releases model authority immediately.
+**Separate state variables, never one connected flag:**
 
-### ADDIN_MANAGED
+- Global **awake intent**, owned by the local control plane/tray, not any chat, token, WebView, cookie or transport.
+- Runtime activation state: \`STANDBY\`, \`WORKSPACE_AWAKE\`, \`FULLY_AWAKE\` (plus \`STOP_PENDING\` during graceful drain).
+- Work safety/reconciliation state: \`CLEAR\`, \`STOP_BLOCKED\`, \`RECOVERY_UNVERIFIED\`, \`NEEDS_RECONCILIATION\`. This may remain unsafe when runtime activation is **STANDBY** after a Windows reboot.
+- Native host identity and bridge availability; Python MCP availability; each MCP transport/session health.
+- Primary bound model identity and Revit active document/view identity (different roles).
+- Accepted work IDs, in-flight/queued operation stage, associated child processes, terminal vs unknown outcome.
 
-Applies only after the Revit add-in successfully pairs its WebView conversation to the logical ChatGPT conversation.
+There is **one global primary bound Revit model per RevitGPT session**, intentionally selected through Native \`Bind Current\`. Different ChatGPT/browser/pane conversations share the same binding but cannot claim individual model ownership, steal binding or force global stop by closing their UI. Switching model or view tabs is observation only, not rebinding. No auto-rebind from active-tab changes.
 
-- RevitGPT idle timeout: **none while the pair is valid**.
-- No synthetic heartbeat or fake activity is required.
-- Wall-clock inactivity, Windows sleep, panel hide/show, MCP transport replacement, or WebView process recreation do not expire the managed session or model authority.
-- A valid pair is an explicit runtime relationship, not an inference from WebView cookies, DOM, login state, or visual presence.
+**Bound document versus active UI:** document-scoped reads/writes target the validated bound Document, independent of active tab when Revit API permits. UI-scoped operations must honor active-UIDocument restrictions and may report only an operation-level mismatch, without releasing global binding or acting on another model. Unknown/ambiguous document identity must fail closed. Verify legacy \`Document.GetHashCode()\` behavior before changing that guard.
 
-## 3. Pairing contract
+**Host identity:** the existing Native Bridge uses a fixed \`127.0.0.1:8765\` listener. P1 supports one authoritative bridge-host process at a time, tracks its identity and rejects stale host/bound model evidence. Another Revit.exe does not inherit the binding. A new native owner after old process exit requires an explicit \`Bind Current\` for model operations. Do not infer bridge identity from “any Revit.exe is running.”
 
-The host-neutral reference is the proven CadGPT pattern:
+## 2. Lifecycle transition contract
 
-1. Add-in calls local `pair/start` and receives a short-lived random `pair_id`.
-2. The next normal user `@rg` admission completes that pending pair using the proven logical `x-openai-session`.
-3. Runtime maps `pair_id -> logical_session_key`.
-4. `isAddinManagedSession(logical_session_key)` is true while a valid pair exists.
-5. Logical-session cleanup, Work/Job idle cleanup, and ADDIN_MANAGED model-authority cleanup must consult that predicate.
-6. The add-in may persist `pair_id` locally for recovery convenience, but persisted pair data is never authority by itself.
+| Starting state | Event | New activation state / mandatory behavior |
+|---|---|---|
+| STANDBY | Windows startup / Revit opens / WebView opens | **STANDBY**; lightweight tray + secure remote admission/control path reachable; do NOT activate workspace/Python MCP |
+| STANDBY | Explicit \`@rg\` | **WORKSPACE_AWAKE** even with Revit absent; SYSTEM/workspace tools become available |
+| WORKSPACE_AWAKE | Revit arrives and valid owned bridge is ready | **FULLY_AWAKE** automatically (once per valid runtime) without second \`@rg\` |
+| FULLY_AWAKE | Revit exits | **WORKSPACE_AWAKE**; disable only Revit-dependent layer; preserve awake intent and SYSTEM workspace |
+| FULLY_AWAKE | Model tab/view changes, chat closes, idle, WebView reload | Stay **FULLY_AWAKE** if host/bridge remain healthy; do not rebind, release binding or global shutdown |
+| WORKSPACE_AWAKE/FULLY_AWAKE | Temporary tunnel/client, bridge, Python or transport fault | Maintain intended awake state; diagnose and repair **only** genuinely failed layer; never auto-replay uncertain writes |
+| WORKSPACE_AWAKE/FULLY_AWAKE | \`rg/stop\` and no accepted active/unknown work | **STANDBY**; clear awake intent; preserve safety evidence |
+| WORKSPACE_AWAKE/FULLY_AWAKE | \`rg/stop\` while accepted work remains | **STOP_PENDING**; promptly report \`BUSY\`, block unrelated new work but permit validated continuations and drain |
+| STOP_PENDING | All pre-fence work + approved continuations known terminal; Native/SYSTEM queues drained | Automatically **STANDBY**; do not require another stop request |
+| STOP_PENDING | Operation incomplete/unknown or external host interruption | **STOP_BLOCKED** safety state with diagnostics; do not claim \`STOPPED\` or cut dependencies required for reconciliation |
+| STOP_PENDING/STOP_BLOCKED | Another \`@rg\` | Return stop/recovery status only; do **not** cancel drain or wake new business work |
+| Same boot/logon | Node/tray crash, transport restart or sleep/wake | Reconstruct valid awake intent and accepted work; recover only failed layers |
+| New boot/logon / Windows restart | Prior awake intent exists | Activation **STANDBY**, no automatic work restart; **retain unresolved Native/SYSTEM journal and separate recovery marker** |
+| STANDBY with unresolved old work | Fresh \`@rg\` | Do not replay old operations or erase uncertainty; restrict conflicting mutations until verified reconciliation |
 
-## 4. Lifecycle state table
+**Important:** Native add-in may initialize its local listener whenever Revit is open. That is not a full Python MCP wake. A local status/health probe does not activate the workspace. Startup requires minimal secure control connectivity so a remote \`@rg\` can wake it.
 
-| Event | BROWSER_TTL | ADDIN_MANAGED | Release scope / rule |
-|---|---|---|---|
-| Valid user turn | Refresh 15m lease if bound | No timeout refresh required | No release |
-| Idle <=15m | No change | No change | No release |
-| Idle >15m | Release model authority | No change | Browser: model authority only |
-| Panel hide/show | N/A | Preserve pair + authority | No release |
-| MCP transport detach/replacement | Reconnect logical chat; lease still follows TTL | Preserve pair + authority | No release from transport event alone |
-| Windows sleep/resume | Wall time may cause browser TTL expiry | Preserve pair + authority | Browser TTL only |
-| WebView crash/recreate | N/A | Preserve pair if server still recognizes it; recreate WebView/profile | No release from WebView failure alone |
-| Active Revit view/tab/model changes | Never auto-rebind | Never auto-rebind | No release; UI may show mismatch |
-| `rg/stop` | Release model authority | Release model authority and foreground execution; keep pair managed | Model authority/work only |
-| Successful Lease + Bind Current | Atomically move authority | Atomically move authority; pair unchanged | Old model authority released only after new bind commits |
-| Failed Lease + Bind Current | Preserve old authority | Preserve old authority + pair | No release |
-| Bound model closes | Release model authority | Release model authority; keep managed pair/chat | Model authority only |
-| Explicit pair release | N/A | Session no longer ADDIN_MANAGED | Release add-in pair + any ADDIN_MANAGED model authority/foreground work that depends on that pair; preserve logical ChatGPT conversation + full Revit MCP runtime |
-| Add-in unload | N/A | Release pair + model authority | Pair + model authority |
-| Revit exits | Release Revit model authority | Release pair + model authority | Host/model authority; WebView profile may remain on disk |
-| Control-plane restart | Drop in-memory browser authority | Old in-memory pair is stale; start a fresh pair/rebind flow | Never interpret elapsed idle as expiry |
-| Missing/deleted/logged-out ChatGPT conversation | New browser admission | Release/abandon stale pair; create fresh conversation/pair | No inherited model authority from WebView state |
-| New conversation after recovery | Normal 0/1/many admission | Normal 0/1/many admission after fresh pair | Strong model identity + current authority rules apply |
+**Administrative scripts:** \`run.bat stop\` explicitly stops owned host processes and may interrupt work; it is **not** \`rg/stop\`. \`run.bat restart\` is deliberate administrative stop→start, returns activation to STANDBY. External OS shutdown/Revit crash cannot promise graceful completion; preserve incident evidence and show true outcome status instead.
 
-## 5. Control-plane restart recovery
+## 3. Work admission and graceful stop
 
-Control-plane state is not required to survive process restart.
+1. All registered tool families (Revit MCP + managed SYSTEM + dev tools when enabled) go through a shared stop-fenced work tracker. Classify effect by reality, including \`READ_ONLY\`, \`UI_SIDE_EFFECT\`, \`MODEL_MUTATION\`, \`SYSTEM_SIDE_EFFECT\`, and \`CONTROL\`. A tool not registered/classified fails closed.
+2. Atomic admission precedes dispatch and durably tracks accepted work ID, work epoch, affected path/document/host, child/continuation identities and outcome evidence. Already accepted SYSTEM and Native queue work counts as busy even if client disconnects.
+3. \`rg/stop\` receives priority **through authenticated MCP-compatible control** and promptly reports \`BUSY/STOP_PENDING\` when the request has reached the control plane. A queued business request in the same MCP transport must not postpone handling \`rg/stop\` indefinitely. Do not bypass session/auth validation.
+4. During STOP_PENDING accept only status/reconciliation and **validated continuation steps belonging to already admitted work IDs**; reject unrelated work (even from the same chat). Future P3 Job owners explicitly register parent ID and terminal completion; P1 does not infer job completion from chat silence.
+5. **Native/side-effect timeout is not cancellation.** A timed-out write/UI change may still execute in Revit. Preserve an operation ID through Node → Python → Native, consult the native dispatcher operation state, do not retry unless authoritative proof confirms nonexecution and the caller explicitly chooses retry.
+6. SYSTEM mutations (file edit/create, library import/registry updates, record append, dev edits, subprocesses) require durable pre/post-state and operation identity. After crash, verify actual filesystem/registry/process state; unexpected or partial outcomes remain unresolved; never auto-replay, auto-rollback or claim graceful completion.
+7. Stop only when all accepted work including continuations/children is known terminal (success, proven failure, or canceled **before execution**) and the relevant underlying queue is drained. \`STOP_BLOCKED\` remains visible on unknown outcomes; a client HTTP error alone is not terminal evidence. A crash-recovered journal must reconcile before stop can finish.
 
-For an add-in that still has a locally saved old `pair_id`:
+**Reboot safety:** activation state and unresolved-work marker are distinct. On Windows restart, start **STANDBY**, do not auto-resume old work; maintain journal and recovery diagnostics independent of fresh \`@rg\`. Do not interpret an old stop-pending intent as permission to silently execute work after reboot.
 
-1. query the new control plane;
-2. if `paired=false`, mark the old pair stale;
-3. preserve the last confirmed model only as local UI/recovery context;
-4. create a new pending pair;
-5. the next valid `@rg` admission completes the new pair;
-6. reacquire the previous model only if E3 strong identity confirms the same eligible open model and it is free;
-7. if the model is owned, absent, or ambiguous, remain unbound/conflict; never force takeover.
+## 4. Failure and timeout contract
 
-## 6. Active-vs-bound model rule
+- Inventory actual client/SDK/tunnel, Node startup & request, Native binding probe, Python bridge read/write, Native HTTP read/write and \`ExternalEvent\` queue/execution timeouts. Do **not** globally remove or increase limits to conceal failures.
+- Existing Native read 2.5s, write 25s, Python bridge read ~3s/write ~30s and Node startup 15s are **baseline values to audit**, not correctness guarantees.
+- UI side effects (select/show/activate, conditional apply-related selection) are not read-only; current \`BridgeHttpProtocol.IsWrite(path)\` underclassifies some routes. Actual route/payload effects decide timeout and uncertainty handling.
+- A normal tool error/timeout never invokes global \`deactivate()\` on an otherwise healthy upstream. Repair process/transport only with evidence of actual failure, bounded retry/backoff and diagnostic report. Never loop through all tools to “reconcile” a side effect.
+- Bridge listener restart must not dispose an active ExternalEvent dispatcher. Revit UI-thread API safety is mandatory.
+- Reclaim dead/superseded MCP transport resources only after terminal in-flight work and verified closure/replacement. Healthy but idle sessions and global workspace/model binding **never** expire because of wall-clock inactivity.
 
-- There is one primary bound model.
-- Revit active view/tab/model is observation only.
-- If viewing model != bound model, surface MISMATCH.
-- The only normal intentional switch is explicit **Lease + Bind Current**.
-- Bind is transactional: validate target -> reserve/acquire -> commit new binding -> release old binding.
-- Any pre-commit failure preserves the previous valid binding.
+## 5. Documentation precedence and historical decisions
 
-## 7. Persistent WebView profile
+1. Approved [P1 plan](../roadmap/P1_STABLE_RUNTIME_CONNECTION_PLAN.md) fixes the Phase Goal/scope/tests. This file defines the **single current target authority/lifecycle contract**. The plan is a scheduled implementation, **not proof of code pass**.
+2. [Decision Register](../roadmap/DECISION_REGISTER.md) records current P1 overrides while retaining historical decision provenance. [Roadmap](../roadmap/ROADMAP.md) retains the older J-8A2C/P1B/E4 wording **as superseded history**; its old TTL, per-chat model lease and immediate rg/stop release do not govern P1.
+3. [Archived authority](LEGACY_AUTHORITY_LIFECYCLE_P0.md) is historical evidence only. Reconcile the old GSA J-8A2C, J-A38C, J-8F46 and related READY/DRAFT jobs by current SHAs/Run/cursor evidence. Do not mutate GSA Job lifecycle as a side-effect of documentation migration.
+4. Fully separate future Job Runtime/Skills, Dynamo Writer authoring, complete MCP tool-catalog development and production licensing are **not** part of this P1 lifecycle implementation.
 
-Use a dedicated persistent WebView2 user-data/profile folder so login/conversation state may survive host restart.
+## 6. Verification and release meaning
 
-This profile is **convenience state only**.
+- **P1-A:** test inventory, source/evidence dispositions and aligned canonical docs; only existing code verification, no false implementation claim.
+- **P1-B:** deterministic awake intent/boot epoch, clean STANDBY and seeded unresolved marker contract; **does not require P1-C journal before B**.
+- **P1-C:** actual request/side-effect journal, failure isolation, Native and SYSTEM crash/timeout tests, simulated Windows reboot with persisted unresolved marker.
+- **P1-D:** authenticated same-session prompt BUSY, stop fence/continuation correctness and all-work drain.
+- **P1-E:** bound model versus active tab, strong Native host identity and wrong-model negative controls.
+- **P1-F:** reuse CI and add only missing negative controls, then **one consolidated human Revit test round** including safe controlled reboot; never claim offline CI establishes Revit API host safety.
 
-- Do not scrape auth tokens/cookies.
-- Do not use DOM selectors as authority.
-- A restored WebView does not imply a valid add-in pair.
-- A missing/deleted/logged-out conversation requires a fresh conversation/pair and normal authority admission.
-
-## 8. Required diagnostics
-
-Expose these dimensions independently:
-
-```text
-Revit process
-bridge
-full Revit MCP
-MCP transport
-logical conversation
-authority mode: BROWSER_TTL | ADDIN_MANAGED
-add-in pair
-candidate models
-bound model
-active/viewing model
-mismatch
-foreground Job
-background Job
-```
-
-Do not collapse these dimensions into one connected/disconnected flag.
-
-## 9. Required acceptance evidence
-
-Before P2B/E4 can pass:
-
-- `ADDIN_MANAGED` remains valid after idle >15m.
-- In the same test, `BROWSER_TTL` expires after >15m idle.
-- Sleep/resume does not expire `ADDIN_MANAGED`.
-- MCP transport replacement does not expire `ADDIN_MANAGED`.
-- WebView recreation does not expire `ADDIN_MANAGED`.
-- Active view/model switching never auto-rebinds.
-- Bind Current rollback preserves old authority on failure.
-- Model close releases model authority but keeps the managed pair.
-- Explicit pair release removes managed status and releases pair-dependent ADDIN_MANAGED model authority/foreground work without terminating the logical ChatGPT conversation or full Revit MCP runtime.
-- Control-plane restart follows fresh-pair/rebind semantics without using prior idle duration.
-
-Any deviation is a blocking lifecycle finding, not an accepted workaround.
+No merge/deployment without explicit human release approval. A CI success means only the tested revision passed those actual checks.
