@@ -160,6 +160,37 @@ test("P1-D: concurrent @rg wake and rg/stop cannot resurrect Awake after STOPPED
   });
 });
 
+
+test("P1-D: two-step accepted work unit may continue after stop, unrelated work denied",async()=>{
+  await fixture(async filePath=>{
+    let stopped=0;
+    const tracker=await createWorkTracker({
+      filePath,onDrained:async()=>{stopped++;}
+    });
+    const parent=await tracker.acceptWorkUnit("two-step-job");
+    const first=await tracker.admitContinuation(parent,"file_search","READ_ONLY",{root:"workspace"});
+    await tracker.begin(first);
+    await tracker.settle(first,"TERMINAL_SUCCESS");
+    const busy=await tracker.requestStop();
+    assert.equal(busy.status,"BUSY");
+    assert.equal(busy.active_count,1,"registered parent is still active before next step");
+    await assert.rejects(tracker.admit("file_search","READ_ONLY",{}),/STOP_PENDING/);
+    await assert.rejects(tracker.admitContinuation("forged-id","file_search","READ_ONLY",{}),
+      /WORK_CONTINUATION_NOT_AUTHORIZED/);
+    const second=await tracker.admitContinuation(parent,"file_read","READ_ONLY",{path:"workspace/a.md"});
+    await tracker.begin(second);
+    await tracker.settle(second,"TERMINAL_SUCCESS");
+    assert.equal(tracker.status().mode,"STOP_PENDING",
+      "parent still active; child completion alone cannot stop workflow");
+    await tracker.settle(parent,"TERMINAL_SUCCESS");
+    assert.equal(tracker.status().mode,"STOPPED");
+    assert.equal(stopped,1);
+    const disk=JSON.parse(await fs.readFile(filePath,"utf8"));
+    assert.equal(disk.operations.find(x=>x.id===second).parent_id,parent);
+    assert.equal(disk.operations.find(x=>x.id===second).validated_continuation,true);
+  });
+});
+
 test("P1-D: explicit stop cannot claim STOPPED if intent clear fails",async()=>{
   await fixture(async filePath=>{
     let attempts=0;
