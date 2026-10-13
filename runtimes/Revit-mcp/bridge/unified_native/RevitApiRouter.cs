@@ -65,9 +65,16 @@ namespace RevitGPT.Native
                     });
                 }
                 if (binding == null) return Error(503, "Native binding enforcement unavailable.");
-                string denial = binding.ReadDenial(Token(payload, "document_id"));
+                // UI commands require the bound model to be active. All other
+                // paths target the explicitly bound DOCUMENT, regardless of
+                // a different UI tab. Do not fall back to the active model.
+                bool uiScoped = path.StartsWith("/ui/", StringComparison.Ordinal) ||
+                                path == "/dynamo/load";
+                string denial = uiScoped
+                    ? binding.ReadDenial(Token(payload, "document_id"))
+                    : binding.ReadDocumentDenial(Token(payload, "document_id"));
                 if (denial != null) return Error(409, denial);
-                var doc = FindDocument(app, payload);
+                var doc = FindDocument(app, payload, binding.Current.BoundId);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
                 if (path == "/ui/view/active") return GetActiveView(app, doc);
                 if (path == "/ui/selection") return Selection(app, doc);
@@ -441,14 +448,18 @@ namespace RevitGPT.Native
                 doc.Application.VersionNumber);
         }
 
-        private static Document FindDocument(UIApplication app, JObject payload)
+        private static Document FindDocument(UIApplication app, JObject payload, string boundId)
         {
-            string id = Token(payload, "document_id");
-            if (String.IsNullOrEmpty(id)) return app.ActiveUIDocument?.Document;
-            foreach (Document doc in app.Application.Documents)
-                if (doc.GetHashCode().ToString(CultureInfo.InvariantCulture) == id)
-                    return doc;
-            return null; // Never silently rebind to a different active model.
+            // If the caller omitted document_id, use the verified primary
+            // binding, NEVER the active tab. Duplicate runtime hash identities
+            // are ambiguous: refuse rather than modifying the wrong RVT.
+            string id = Token(payload, "document_id") ?? boundId;
+            if (String.IsNullOrEmpty(id) || id != boundId) return null;
+            var matches = app.Application.Documents.Cast<Document>()
+                .Where(doc => !doc.IsLinked && !doc.IsFamilyDocument &&
+                    doc.GetHashCode().ToString(CultureInfo.InvariantCulture) == id)
+                .Take(2).ToList();
+            return matches.Count == 1 ? matches[0] : null;
         }
 
         private static string Elements(Document doc, JObject payload)
