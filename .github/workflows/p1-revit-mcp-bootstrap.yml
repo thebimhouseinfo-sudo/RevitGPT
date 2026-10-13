@@ -56,6 +56,11 @@ jobs:
         run: |
           node scripts/test-system-reconciliation.mjs
 
+      - name: Test Native host-scoped operation reconciliation after lost HTTP response
+        shell: pwsh
+        run: |
+          node scripts/test-native-reconciliation.mjs
+
       - name: Test graceful stop durable operation journal under crash and timeout
         shell: pwsh
         run: |
