@@ -257,6 +257,33 @@ export async function createWorkTracker({
     await drain();
     return {status:data.mode==="STOPPED"?"STOPPED":"STOP_PENDING",...status()};
   }
+  async function reopenWithWake({wake,clear,isAwake}={}) {
+    if(typeof wake!=="function"||typeof clear!=="function"||typeof isAwake!=="function")
+      throw new Error("AWAKE_CONTROL_CALLBACKS_REQUIRED");
+    const priorAwake=Boolean(isAwake());
+    let woke=false;
+    try {
+      // The durable stop fence and the awakened intent MUST share the same
+      // serialized control lane. Otherwise @rg can finish its wake AFTER a
+      // concurrent rg/stop has already drained and declared STOPPED.
+      await transition(async d=>{
+        if(d.mode==="STOP_PENDING")
+          throw new Error("STOP_PENDING: cannot cancel draining stop");
+        if(snapshotState(d).unresolved_count)
+          throw new Error("STOP_BLOCKED: reconcile unresolved work before new wake");
+        await wake();
+        woke=true;
+        if(d.mode==="STOPPED"){d.mode="OPEN";d.epoch++;}
+      });
+    }catch(error){
+      // If the journal commit fails after a successful wake, return to the
+      // earlier STANDBY intent. A wake that was already true is not cleared.
+      if(woke&&!priorAwake)await clear().catch(()=>undefined);
+      throw error;
+    }
+    return status();
+  }
+
   async function reopen(){
     await transition(d=>{
       if(d.mode==="STOP_PENDING")throw new Error("STOP_PENDING: cannot cancel draining stop");
@@ -266,7 +293,7 @@ export async function createWorkTracker({
     });
     return status();
   }
-  return Object.freeze({status,unresolvedOperations,admit,begin,noteNativeHandoff,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
+  return Object.freeze({status,unresolvedOperations,admit,begin,noteNativeHandoff,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen,reopenWithWake});
 }
 
 /**
@@ -284,6 +311,6 @@ export function createBlockedWorkTracker(error) {
   return Object.freeze({
     status:()=>state,unresolvedOperations:()=>[],requestStop:async()=>({status:"STOP_BLOCKED",...state}),
     admit:deny,begin:deny,noteNativeHandoff:deny,settle:deny,run:deny,runAdmitted:deny,
-    cancelIfNotStarted:async()=>false,reopen:deny
+    cancelIfNotStarted:async()=>false,reopen:deny,reopenWithWake:deny
   });
 }
