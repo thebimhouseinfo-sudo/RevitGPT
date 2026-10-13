@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/J-AFC4-p1-revit-mcp-bootstrap
+      - work/p1-stable-runtime-20261013
   workflow_dispatch:
 
 concurrency:
@@ -41,6 +42,11 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/check-node-syntax.ps1
+
+      - name: Test MCP transport session lifecycle and recovery
+        shell: pwsh
+        run: |
+          node scripts/test-mcp-session.mjs
 
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
