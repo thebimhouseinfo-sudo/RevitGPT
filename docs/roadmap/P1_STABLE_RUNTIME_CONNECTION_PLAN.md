@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 8 — CR-13/CR-14 incorporated; planning review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNING REVIEW PASS — Rev8 (source-grounded internal review); independent CR re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -299,4 +299,5 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 - Reviewer planning inspection of Rev7 (blob 8dce80d3f057967f900306f6565e76c25f5d7502): all twelve CR ledger entries and 36 test IDs present, all source paths verified, but six stage-local GOAL anchors were missing. Planner added concise stage goals to preserve the fixed Phase Goal in each work stage. Reviewer check still required for the amended revision.
 - 2026-10-13 Rev7 internal Reviewer PASS against blob b367abce0139fab457ce4cb353a47e5f73df94c6: seven legacy CR and five new CR mapped to source and work items, 36 contiguous test IDs, six stage GOAL anchors, docs-only branch and human release gate independently re-read. **This is a planning evidence check, not a persisted GSA independent CRITIC_REVIEW or CI/real-host verification.**
 - Rev8 Planner: CR-13 mapped against current persisted GSA Job statuses and source SHAs with read-only REUSE/VERIFY/SUPERSEDE_CANDIDATE/DEFER classification; CR-14 mapped to SYSTEM operation post-state/append/registry/subprocess recovery. Both are tied to P1-A/C/D/F with T37–T41. **Internal review of this revision is pending; prior PASS/CR FAIL do not transfer.**
+- **Rev8 internal planning review PASS (2026-10-13, reviewed blob `4583107e3a9d21cba34c52f97fc3acab1f8d2fb2`):** read back persisted plan, source SYSTEM mutation implementations, 7 relevant current GSA Job records and repo diff. Confirmed Goal + six stage goals, CR-01…CR-14 ownership, T01…T41 contiguous, no Project Memory/Job mutations, no P2/P3 scope drift, no premature CI/host claim. **Not** an independent persisted GSA `CRITIC_REVIEW` Verification and not real host/CI PASS. Next external CR must review this new Rev8 exact revision.
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
