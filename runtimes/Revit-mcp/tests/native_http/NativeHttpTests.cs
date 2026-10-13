@@ -118,6 +118,31 @@ internal static class NativeProtocolTests
         var resultWrite = await timedRead.ProcessAsync("POST","/delete",H,null,"application/json",ID,"{}");
         Check(resultWrite.StatusCode == 504 &&
               resultWrite.Body.Contains("outcome unknown"),"write timeout does not lie about mutation");
+        // CR-09: UI selection/view effects are NOT pure reads. The HTTP
+        // deadline must reflect an operation that may have completed despite
+        // a lost response, including conditional select-related(apply=true).
+        Check(BridgeHttpProtocol.IsWrite("/ui/selection/set") &&
+              BridgeHttpProtocol.IsWrite("/ui/show") &&
+              BridgeHttpProtocol.IsWrite("/ui/view/activate"),
+            "UI side-effect routes require write-safe timeout");
+        Check(BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{\"apply\":true}") &&
+              !BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{\"apply\":false}") &&
+              !BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{}"),
+            "conditional related selection depends on payload apply");
+        Check(BridgeHttpProtocol.HasSideEffect("/ui/select-related", "not-json"),
+            "invalid payload classification fails conservative");
+        var timedUI = await timedRead.ProcessAsync("POST","/ui/selection/set",H,null,
+            "application/json",ID,"{\"element_ids\":[]}");
+        Check(timedUI.StatusCode == 504 && timedUI.Body.Contains("outcome unknown"),
+            "selection side-effect timeout must not claim read-only");
+        var timedApply = await timedRead.ProcessAsync("POST","/ui/select-related",H,null,
+            "application/json",ID,"{\"apply\":true}");
+        Check(timedApply.StatusCode == 504 && timedApply.Body.Contains("outcome unknown"),
+            "applied related selection timeout is ambiguous");
+        var timedPreview = await timedRead.ProcessAsync("POST","/ui/select-related",H,null,
+            "application/json",ID,"{\"apply\":false}");
+        Check(timedPreview.StatusCode == 504 && timedPreview.Body.Contains("read timed out"),
+            "non-applying related preview retains read classification");
         delay.TrySetResult("{\"data\":true}");
 
         // Concurrency: simulated requests await independent ExternalEvent results,
