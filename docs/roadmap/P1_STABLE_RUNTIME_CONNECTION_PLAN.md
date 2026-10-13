@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 7 — CR-08 to CR-12 incorporated; review pending; independent CR re-review and real-host tests pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNING REVIEW PASS — revision 7 (source-based internal review); independent CR re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -259,4 +259,5 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 - **Planning review PASS (2026-10-13, rev6 blob 96ee37696359fa7365874c2ca456c1ecfe6db90b):** reviewed exact persisted plan against seven CR findings and main source contract; 28 identified negative/host test cases; paths of existing test fixtures verified; ordering and scope checked; the only changed repository path is this plan. No pending planning blocker found. **This is a same-turn internal Reviewer assessment, not a persisted independent GSA CRITIC_REVIEW record or implementation/CI/host PASS.**
 - Rev7 Planner: CR-08–CR-12 mapped to contract §1.5, audit A18–A22, tasks and targeted negative controls T29–T36. No phase expansion or extra human gates. New revision requires Reviewer check and independent CR re-review.
 - Reviewer planning inspection of Rev7 (blob 8dce80d3f057967f900306f6565e76c25f5d7502): all twelve CR ledger entries and 36 test IDs present, all source paths verified, but six stage-local GOAL anchors were missing. Planner added concise stage goals to preserve the fixed Phase Goal in each work stage. Reviewer check still required for the amended revision.
+- 2026-10-13 Rev7 internal Reviewer PASS against blob b367abce0139fab457ce4cb353a47e5f73df94c6: seven legacy CR and five new CR mapped to source and work items, 36 contiguous test IDs, six stage GOAL anchors, docs-only branch and human release gate independently re-read. **This is a planning evidence check, not a persisted GSA independent CRITIC_REVIEW or CI/real-host verification.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
