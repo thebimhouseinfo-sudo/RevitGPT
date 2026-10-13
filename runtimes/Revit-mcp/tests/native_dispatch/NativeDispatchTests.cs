@@ -51,8 +51,9 @@ internal static class NativeDispatchTests
         True(single.Current.Status == "NOT_BOUND", "no active model cannot bootstrap");
         single.Observe("A", "Test A", new[] { "A" });
         True(single.Current.Status == "BOUND_CURRENT" &&
-            single.Current.BoundId == "A" && single.Current.Revision == 1,
-            "one active project is automatically bound");
+            single.Current.BoundId == "A" && single.Current.Revision == 1 &&
+            !single.Current.ManualBinding,
+            "one active project auto-binds but is NOT manual takeover evidence");
         True(single.ReadDenial(null) == null, "single project may be read immediately");
         single.ObserveUnavailable();
         True(single.Current.Status == "BOUND_UNVERIFIED" &&
@@ -108,8 +109,9 @@ internal static class NativeDispatchTests
         True(!binding.ConsumePendingBind() && binding.Current.Status == "NOT_BOUND",
             "switch before Idling rejects stale click");
         True(binding.RequestBindCurrent(), "bind Model B explicitly");
-        True(binding.ConsumePendingBind() && binding.Current.BoundId == "200",
-            "only requested Model B becomes bound");
+        True(binding.ConsumePendingBind() && binding.Current.BoundId == "200" &&
+            binding.Current.ManualBinding,
+            "only requested Model B becomes bound with explicit-user evidence");
         binding.Observe("100", "MAGS", new[] { "100", "200" });
         True(binding.Current.Status == "BOUND_OTHER_ACTIVE" &&
             binding.Current.BoundId == "200", "switch does not rebind");
