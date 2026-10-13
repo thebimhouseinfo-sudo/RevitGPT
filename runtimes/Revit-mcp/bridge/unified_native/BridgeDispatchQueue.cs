@@ -17,7 +17,22 @@ namespace RevitGPT.Native
             private readonly TaskCompletionSource<string> _source =
                 new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             private int _state; // 0=pending, 1=executing, 2=terminal
+            private string _terminalPhase;
             private CancellationTokenRegistration _registration;
+
+            internal string Phase
+            {
+                get
+                {
+                    lock (_gate)
+                        return _state == 0 ? "PENDING" :
+                            _state == 1 ? "EXECUTING" : (_terminalPhase ?? "UNKNOWN");
+                }
+            }
+            internal bool IsTerminal
+            {
+                get { lock (_gate) return _state == 2; }
+            }
 
             internal WorkItem(string id, Func<string> action)
             {
@@ -61,6 +76,7 @@ namespace RevitGPT.Native
                 {
                     if (_state != 1) return;
                     _state = 2;
+                    _terminalPhase = error == null ? "TERMINAL_SUCCESS" : "TERMINAL_FAILURE";
                     registration = _registration;
                 }
                 registration.Dispose();
@@ -75,6 +91,7 @@ namespace RevitGPT.Native
                 {
                     if (_state != 0) return;
                     _state = 2;
+                    _terminalPhase = "FAILED_BEFORE_START";
                     registration = _registration;
                 }
                 registration.Dispose();
@@ -89,6 +106,7 @@ namespace RevitGPT.Native
                     // only cancel before it enters the Revit UI/API context.
                     if (_state != 0) return;
                     _state = 2;
+                    _terminalPhase = "CANCELED_BEFORE_START";
                     _source.TrySetCanceled();
                 }
             }
@@ -96,6 +114,10 @@ namespace RevitGPT.Native
 
         private readonly object _gate = new object();
         private readonly Queue<WorkItem> _pending = new Queue<WorkItem>();
+        private readonly Dictionary<string, WorkItem> _operations =
+            new Dictionary<string, WorkItem>(StringComparer.Ordinal);
+        private readonly Queue<string> _operationOrder = new Queue<string>();
+        private const int MaxOperationHistory = 8192;
         private readonly Func<RaiseOutcome> _raise;
         private readonly int _limit;
         private bool _scheduled;
@@ -122,7 +144,17 @@ namespace RevitGPT.Native
                 if (_disposed) throw new ObjectDisposedException(nameof(BridgeDispatchQueue));
                 if (_pending.Count >= _limit)
                     throw new InvalidOperationException("Revit bridge dispatch queue is full.");
-                // No Revit API call happens here, only an immutable work envelope.
+                if (_operations.ContainsKey(requestId))
+                    throw new InvalidOperationException(
+                        "DUPLICATE_OPERATION_ID: query operation status; never replay a side effect.");
+                TrimTerminalHistory();
+                if (_operations.Count >= MaxOperationHistory)
+                    throw new InvalidOperationException(
+                        "Native operation history is full with nonterminal work.");
+                // Admission and duplicate detection share the same queue gate.
+                // HTTP timeout does not remove status for executing operations.
+                _operations.Add(requestId, item);
+                _operationOrder.Enqueue(requestId);
                 _pending.Enqueue(item);
                 if (!_scheduled && !_draining)
                 {
@@ -133,6 +165,35 @@ namespace RevitGPT.Native
             item.RegisterCancellation(cancellation);
             if (mustRaise) RaiseOrReject();
             return item.Result;
+        }
+
+        // HTTP-safe observation: this never touches UIApplication/RevitAPI.
+        public string OperationPhase(string requestId)
+        {
+            if (String.IsNullOrWhiteSpace(requestId)) return null;
+            lock (_gate)
+            {
+                WorkItem item;
+                return _operations.TryGetValue(requestId, out item) ? item.Phase : null;
+            }
+        }
+
+        // Retain the recent terminal history for Node/Python reconciliation;
+        // never evict an executing or pending operation merely due to volume.
+        private void TrimTerminalHistory()
+        {
+            if (_operations.Count < MaxOperationHistory) return;
+            int inspections = _operationOrder.Count;
+            while (inspections-- > 0 &&
+                   _operations.Count > MaxOperationHistory * 3 / 4)
+            {
+                string id = _operationOrder.Dequeue();
+                WorkItem previous;
+                if (_operations.TryGetValue(id, out previous) && previous.IsTerminal)
+                    _operations.Remove(id);
+                else
+                    _operationOrder.Enqueue(id);
+            }
         }
 
         private void RaiseOrReject()
