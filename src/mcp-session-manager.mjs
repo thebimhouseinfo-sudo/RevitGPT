@@ -6,8 +6,8 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS
 } from "@modelcontextprotocol/sdk/types.js";
 
-const SESSION_TTL_MS = Number(process.env.MCP_SESSION_TTL_MS || 86_400_000);
-const SESSION_CLEANUP_MS = Number(process.env.MCP_SESSION_CLEANUP_MS || 300_000);
+// Awake intent and live MCP transport sessions have no wall-clock idle TTL.
+// Only confirmed protocol closure/supersession may reclaim a transport.
 const SESSION_DELETE_GRACE_MS = Number(process.env.MCP_SESSION_DELETE_GRACE_MS || 45_000);
 
 function extractHeader(req, name) {
@@ -94,7 +94,8 @@ export function createSessionManager(port, createServer) {
   const pendingRecoveries = new Map();
   const graceTimers = new Map();
   const opChains = new Map();
-  let cleanupTimer = null;
+  const inflight = new Map();
+  const closed = new Set();
 
   function clearGrace(id) {
     const timer = graceTimers.get(id);
@@ -109,15 +110,34 @@ export function createSessionManager(port, createServer) {
   }
 
   function removeSession(id, reason) {
+    if ((inflight.get(id) || 0) > 0) {
+      closed.add(id);
+      console.log(`[MCP] Cleanup deferred until accepted request terminal: ${id}`);
+      return;
+    }
     clearGrace(id);
+    closed.delete(id);
     const session = sessions.get(id) || pendingRecoveries.get(id);
     sessions.delete(id);
     pendingRecoveries.delete(id);
     opChains.delete(id);
-    if (session) {
-      void session.transport.close().catch(() => undefined);
-    }
+    inflight.delete(id);
+    if (session) void session.transport.close().catch(() => undefined);
     console.log(`[MCP] Session removed (${reason}): ${id}`);
+  }
+
+  async function trackRequest(id, callback) {
+    if (!id) return callback();
+    inflight.set(id, (inflight.get(id) || 0) + 1);
+    try { return await callback(); }
+    finally {
+      const next = (inflight.get(id) || 1) - 1;
+      if (next > 0) inflight.set(id, next);
+      else {
+        inflight.delete(id);
+        if (closed.has(id)) removeSession(id, "confirmed closed, in-flight terminal");
+      }
+    }
   }
 
   async function enqueue(id, fn) {
@@ -273,8 +293,10 @@ export function createSessionManager(port, createServer) {
       const run = async () => {
         await session.transport.handleRequest(req, res, body);
       };
-      if (id && req.method !== "GET" && !isPriorityControlRequest(body)) await enqueue(id, run);
-      else await run();
+      await trackRequest(id, async () => {
+        if (id && req.method !== "GET" && !isPriorityControlRequest(body)) await enqueue(id, run);
+        else await run();
+      });
     },
 
     async tryRecover(staleId, req, res, body) {
@@ -296,32 +318,21 @@ export function createSessionManager(port, createServer) {
       if (!recovered) return false;
       const patched = withSessionHeaders(req, staleId, protocolVersion);
       const handle = async () => recovered.transport.handleRequest(patched, res, body);
-      if(isPriorityControlRequest(body))await handle();
-      else await enqueue(staleId,handle);
+      await trackRequest(staleId, async () => {
+        if(isPriorityControlRequest(body))await handle();
+        else await enqueue(staleId,handle);
+      });
       return true;
     },
 
-    startCleanup() {
-      if (cleanupTimer) return;
-      cleanupTimer = setInterval(() => {
-        const now = Date.now();
-        for (const [id, session] of sessions) {
-          if (now - session.lastAccessedAt > SESSION_TTL_MS) {
-            removeSession(id, "TTL expired");
-          }
-        }
-      }, SESSION_CLEANUP_MS);
-      cleanupTimer.unref?.();
-    },
-
-    stopCleanup() {
-      if (!cleanupTimer) return;
-      clearInterval(cleanupTimer);
-      cleanupTimer = null;
-    },
+    // Kept as compatible lifecycle hooks for older tests/callers.
+    // No idle-time eviction is permitted, even after many hours/days.
+    startCleanup() {},
+    stopCleanup() {},
 
     async closeAll(reason = "shutdown") {
       this.stopCleanup();
+      // Administrative shutdown, not graceful rg/stop; preserve work journal.
       const all = [...sessions.entries()];
       sessions.clear();
       pendingRecoveries.clear();
