@@ -38,11 +38,37 @@ namespace RevitGPT.Native
                 throw new ArgumentOutOfRangeException(nameof(readTimeout));
         }
 
+        // "Write" here means an externally observable Revit UI or model
+        // side effect, not necessarily a DB transaction. Timeout of either
+        // is ambiguous once ExternalEvent started execution.
         public static bool IsWrite(string path)
         {
-            return path == "/ui/visibility/temporary" || path == "/dynamo/load" || path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
+            return path == "/ui/selection/set" || path == "/ui/show" ||
+                   path == "/ui/view/activate" ||
+                   path == "/ui/visibility/temporary" || path == "/dynamo/load" || path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                    path == "/parameter/set" || path == "/delete" || path == "/move" ||
                    (path.StartsWith("/annotation/", StringComparison.Ordinal) && path != "/annotation/get");
+        }
+
+        // Conditional UI mutation. Read-only select-related(apply=false)
+        // must retain the bounded read deadline, but apply=true can change
+        // selection even when the RVT document does not enter a transaction.
+        // Invalid payload is classified conservatively as a side effect;
+        // the Revit router is still the authority for input validation.
+        public static bool HasSideEffect(string path, string body)
+        {
+            if (IsWrite(path)) return true;
+            if (path != "/ui/select-related") return false;
+            if (String.IsNullOrWhiteSpace(body)) return false;
+            try
+            {
+                var input = JObject.Parse(body);
+                var apply = input["apply"];
+                if (apply == null) return false;
+                return apply.Type == JTokenType.Boolean
+                    ? apply.Value<bool>() : true;
+            }
+            catch (JsonException) { return true; }
         }
 
         public async Task<BridgeHttpResponse> ProcessAsync(
@@ -85,7 +111,8 @@ namespace RevitGPT.Native
                 catch (Exception) { return Error(500, "Dispatch initialization failed."); }
 
                 if (dispatched == null) return Error(500, "Dispatch returned no task.");
-                var delay = Task.Delay(IsWrite(path) ? _writeTimeout : _readTimeout);
+                bool hasSideEffect = HasSideEffect(path, body);
+                var delay = Task.Delay(hasSideEffect ? _writeTimeout : _readTimeout);
                 var completed = await Task.WhenAny(dispatched, delay).ConfigureAwait(false);
                 if (completed != dispatched)
                 {
@@ -94,8 +121,8 @@ namespace RevitGPT.Native
                     _ = dispatched.ContinueWith(t => { var ignored = t.Exception; },
                         CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted,
                         TaskScheduler.Default);
-                    return Error(504, IsWrite(path)
-                        ? "Revit write timed out; outcome unknown; do not retry automatically."
+                    return Error(504, hasSideEffect
+                        ? "Revit side-effect timed out; outcome unknown; do not retry automatically."
                         : "Revit read timed out.");
                 }
                 try
