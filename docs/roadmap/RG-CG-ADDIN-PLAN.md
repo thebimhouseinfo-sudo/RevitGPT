@@ -1,5 +1,8 @@
 # RG / CG Add-in Plan
 
+> **RevitGPT P1 authority update (2026-10-13):** The old `BROWSER_TTL`/`ADDIN_MANAGED` and per-chat lifecycle passages below are **archival design provenance, not executable P1 requirements**. RevitGPT now follows the [approved P1 Rev9 plan](P1_STABLE_RUNTIME_CONNECTION_PLAN.md) and [canonical P1 runtime/binding/stop contract](../architecture/AUTHORITY_LIFECYCLE.md). This does **not** change CadGPT architecture or Job records. The add-in remains a convenience UI; its tested Native Bridge and panel must be verified before edits.
+
+
 Status: **MIGRATED DESIGN CONTRACT — J-8A2C P0**  
 Scope: **RevitGPT (RG) + CadGPT (CG) convenience add-ins**  
 Principle: **The add-in automates plumbing; it does not replace the local engine or the ChatGPT plugin.**  
