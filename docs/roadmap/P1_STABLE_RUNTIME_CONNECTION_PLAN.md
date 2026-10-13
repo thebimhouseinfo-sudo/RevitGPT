@@ -113,6 +113,10 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-A — Baseline, architectural contract and conflict resolution
 
+#### GOAL
+Establish one canonical lifecycle/authority contract and a verified source baseline, including all tool entry points and timeout/recovery behaviors, before changing runtime code.
+
+
 1. Pin current branch/HEAD and inspect actual tray/tunnel, Node (including all direct registrations in managed-tools and dev tools), Python bridge, native add-in, CI, tests and existing real-host logs. Inventory tool entrypoints and side effects. Produce KEEP/VERIFY/MODIFY/REMOVE/ADD checklist with file-to-evidence links. Do not rewrite installed add-in or tested features before targeted reproduction.
 2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, @rg during drain, boot/logon epoch, process/restart, Revit host owner, multi-chat, validated accepted-work continuations and bound model). Choose one awake-intent authority; show failure recovery and the atomic admission/stop boundary. Derive minimal work-unit registration, durable control journal and terminal signal from actual P1/MCP implementation; do not infer Job completion from chat messages.
 3. **Before any runtime source edit**, converge AUTHORITY_LIFECYCLE.md and references: make the new state/authority contract canonical, mark browser 15m lease/ADDIN_MANAGED superseded, preserve historical artifacts as history, and make all active references point to one contract. No competing authority document.
@@ -120,6 +124,10 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 **Gate A:** one canonical contract, no contradictory live policy, recorded baseline and timeout matrix; NO fabricated host PASS.
 
 ### P1-B — Awake lifecycle and recovery foundations (after Gate A)
+
+#### GOAL
+Enable explicit @rg wake, offline workspace availability and safe automatic Revit arrival/recovery without idle-based runtime termination or unjustified transport eviction.
+
 
 5. Reuse tray/tunnel/slim MCP to receive @rg while STANDBY. Add global awake-intent owner with same-boot/logon recovery and rejection of stale next-boot intent. Explicit @rg with Revit OFF gives WORKSPACE_AWAKE, never REVIT_OFF with no workspace.
 6. On transition to Revit available + healthy owner bridge, activate full Python MCP automatically, once, without an extra @rg. Revit exit only deactivates Revit layer. Closing chat/WebView leaves workspace/MCP awake.
@@ -129,6 +137,10 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-C — Native work visibility and fault isolation (prerequisite to graceful stop)
 
+#### GOAL
+Ensure each Native request and its real side effects have an observable, crash-recoverable status; a tool timeout/error cannot deactivate a healthy runtime or silently replay writes.
+
+
 9. First verify actual Native route/payload side-effect classification including UI changes, then instrument existing native dispatch queue/protocol with correlation IDs and **minimal operation-state observation**: accepted, pending, executing, terminal success, terminal failure, canceled-before-start, outcome-unknown/interrupted. This is NOT a Job Runtime or capability registry. Expose a bounded safe status/quiescence probe without doing Revit API work on HTTP threads. Separate native host lifetime state from listener/HTTP request lifetime state.
 10. Implement crash-consistent Node→Python→Native handoff stages, authoritative native acceptance and HANDOFF_UNKNOWN recovery. Preserve status of a write or UI side effect that timed out at HTTP **after** Revit API execution began. Ensure a Node-level call can retrieve the exact native operation by cross-layer ID despite Python generating a separate request ID today. Ensure native completion updates operation state even if Python/Node/client departed or bridge listener needs recovery. Guard against disposing an active ExternalEvent dispatcher during listener restart. Make status query robust to missed responses, duplicate IDs, stale host identity and bridge owner replacement. Never re-run a write solely to discover its status.
 11. Separate application/validation errors, HTTP 4xx/5xx responses, read/write 504, SDK timeout, transport close, Python process exit, bridge listener death and Revit.exe exit in Node/Python/native. An ordinary tool exception (including native 504) must not call a global deactivate. Recovery may rebuild only a **confirmed failed** transport/process with bounded backoff.
@@ -136,6 +148,10 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 **Gate C:** isolated failure tests, UI side-effect timeout tests, crash at each handoff boundary, 504-after-start with continued execution, no write replay, native completion visible, next independent tool works.
 
 ### P1-D — Safe global stop and concurrency (depends on Gate C)
+
+#### GOAL
+Honor the user-defined graceful stop: promptly report BUSY, reject unrelated work, preserve all accepted SYSTEM/Revit operations and authorized continuations, then stop only at proven quiescence.
+
 
 13. Implement **atomic stop admission fence** and accepted-work accounting across every managed/dev/SYSTEM/Revit tool, multiple chats, Node/Python/native queue and minimal durable LocalAppData journal, including queued/in-flight operations. Fail closed on unclassified tools; subprocess lifetime counts until terminal. Assign IDs and persist admission *before* dispatch. Stop itself is not active work. Reject new unrelated tasks; permit validated continuation calls for an explicitly registered and nonterminal work ID; same-chat requests without the ID cannot bypass the fence.
 14. **rg/stop on busy** promptly returns BUSY upon server receipt, including when a tool in the SAME session is running, through verified authenticated priority control ingress atomically coordinated with the regular MCP queue; keeps MCP/bridge alive; automatically transitions to STANDBY through an atomic quiescence check only after all admitted work units, their continuations and native operations have **known terminal outcomes**. A failed operation still counts as finished only once its terminal failure is known. @rg during drain is status-only; repeated stop requests are idempotent. No follow-up stop request is necessary.
@@ -145,12 +161,20 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-E — Binding and host identity
 
+#### GOAL
+Maintain one intentional primary bound model and authoritative host, safe across tab changes, wrapper identity and multiple Revit processes, with no wrong-model work.
+
+
 17. Split model operations into document-scoped vs UI-scoped according to router/API evidence; make document-scoped read/write use exact bound document independent of active tab wherever supported. Specifically audit whether Revit `Document.GetHashCode()` correctly identifies the same document across wrapper representations and reopens; if not, replace it with a verified runtime document identity scoped to a host generation before enabling inactive-document operations. Preserve strong host/document validation. UI actions may fail precisely without unbinding or acting on another model. No blanket model-operation rejection solely due to a tab switch.
 18. Define and implement single bridge-host ownership using host_instance_id/process identity. Verify fixed-port conflict, second host opening, owner exit while another Revit.exe remains, bridge reconnect and explicit Bind Current. Never silently bind a model on another host.
 19. Verify transport/session recreation and concurrent chats cannot steal binding; ensure independent operations survive another chat's tool error. Retain native UI-thread safety.
 **Gate E:** automated authority and process-owner negative controls green; API details marked HOST_RETEST_REQUIRED until real Revit proof.
 
 ### P1-F — Acceptance and release
+
+#### GOAL
+Verify the Phase Goal through existing CI fixtures plus only missing fault-injection cases, then a single real-Revit host acceptance round; no false-green and no merge before human approval.
+
 
 20. Reuse/extend test-revit-upstream-lifecycle.mjs, test-mcp-session.mjs, test-model-authority.mjs, test-bridge-health.mjs, NativeHttpTests.cs, NativeDispatchTests.cs and existing pane/route fixtures. Add targeted SYSTEM, UI side effect, same-session stop, orphan transport and crash handoff fixtures only where missing. Do not duplicate equivalent tests; introduce new tests only for gaps.
 21. Run available offline CI, fault-injection simulations and negative controls. Reviewer must compare goal→task→code→test→result and iterate Planner→Reviewer until PASS. Keep host tests separate; a fixture is not real Revit acceptance.
@@ -234,4 +258,5 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 - Rev6 Reviewer finding: `Document.GetHashCode()` is used as a model/document key in native code. This may work in a host process but must be validated under wrapper churn and close/reopen; add audit A17, explicit gate P1-E17 and T28. **No claim that this is a proven bug; acceptance requires evidence.**
 - **Planning review PASS (2026-10-13, rev6 blob 96ee37696359fa7365874c2ca456c1ecfe6db90b):** reviewed exact persisted plan against seven CR findings and main source contract; 28 identified negative/host test cases; paths of existing test fixtures verified; ordering and scope checked; the only changed repository path is this plan. No pending planning blocker found. **This is a same-turn internal Reviewer assessment, not a persisted independent GSA CRITIC_REVIEW record or implementation/CI/host PASS.**
 - Rev7 Planner: CR-08–CR-12 mapped to contract §1.5, audit A18–A22, tasks and targeted negative controls T29–T36. No phase expansion or extra human gates. New revision requires Reviewer check and independent CR re-review.
+- Reviewer planning inspection of Rev7 (blob 8dce80d3f057967f900306f6565e76c25f5d7502): all twelve CR ledger entries and 36 test IDs present, all source paths verified, but six stage-local GOAL anchors were missing. Planner added concise stage goals to preserve the fixed Phase Goal in each work stage. Reviewer check still required for the amended revision.
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
