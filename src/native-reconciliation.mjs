@@ -61,8 +61,8 @@ export async function reconcileNativeOutcomes(tracker,options={}) {
   if(typeof tracker?.unresolvedOperations!=="function")return [];
   const reports=[];
   const maxOperations=Math.max(1,Math.min(32,Number(options.maxOperations)||8));
-  for(const op of tracker.unresolvedOperations().slice(0,maxOperations)) {
-    if(!["UI_SIDE_EFFECT","MODEL_MUTATION"].includes(op.effect))continue;
+  for(const op of tracker.unresolvedOperations().filter(op=>
+    ["UI_SIDE_EFFECT","MODEL_MUTATION"].includes(op.effect)).slice(0,maxOperations)) {
     let decision=await inspectNativeOutcome(op,options);
     if(decision.verdict==="TERMINAL_PROVEN"){
       try{await tracker.settle(op.id,decision.phase,decision.reason);}
