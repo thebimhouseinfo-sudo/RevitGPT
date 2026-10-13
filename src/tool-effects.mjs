@@ -26,6 +26,11 @@ const RETIRED_READ_ONLY = new Set(["revitgpt_pair_panel", "revitgpt_lease_bound_
 
 export function effectForTool(name, args={}) {
   if(CONTROL.has(name))return "CONTROL";
+  if(name==="revitgpt_command"){
+    const command=String(args?.command??"").trim().toLowerCase();
+    if(command==="rg/stop"||command==="rg/status")return "CONTROL";
+    return "READ_ONLY";
+  }
   if(READ_ONLY.has(name))return "READ_ONLY";
   if(SYSTEM_SIDE_EFFECT.has(name))return "SYSTEM_SIDE_EFFECT";
   if(name==="revitgpt_call"){
