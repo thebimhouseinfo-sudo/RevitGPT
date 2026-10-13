@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using Newtonsoft.Json;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
@@ -83,29 +84,40 @@ namespace RevitGPT.Native
             var now = DateTimeOffset.UtcNow;
             if (!manualRetry && !_recovery.ShouldRetry(now)) return;
             _recovery.ReportAttempt(now);
-            // A stopped/failed listener must release its old dispatcher first.
-            DisposeBridge();
+            // The HTTP listener and Revit UI dispatcher have different
+            // lifetimes. Never Dispose the ExternalEvent queue when only a
+            // listener crashed: timed-out writes may STILL BE EXECUTING.
+            DisposeListener();
             try
             {
-                // Both handler construction and ExternalEvent.Create occur in
-                // a valid Revit callback, never on the HTTP listener thread.
-                _dispatcher = RevitExternalEventAdapter.CreateOnRevitUiThread();
+                // Only create the ExternalEvent on Revit's UI thread, once for
+                // this Revit application. A listener restart reuses its queue
+                // and operation history, including ambiguous write outcomes.
+                if (_dispatcher == null)
+                    _dispatcher = RevitExternalEventAdapter.CreateOnRevitUiThread();
+                var dispatcher = _dispatcher;
                 var protocol = new BridgeHttpProtocol(
                     (id, method, path, body, cancellation) =>
-                        _dispatcher.Submit(id,
+                        dispatcher.Submit(id,
                             ui => RevitApiRouter.Execute(ui, method, path, body, _binding),
-                            cancellation));
+                            cancellation),
+                    operationStatusProbe: id => JsonConvert.SerializeObject(
+                        new { data = new {
+                            operation_id = id,
+                            phase = dispatcher.OperationPhase(id) ?? "NOT_FOUND",
+                            host_instance_id = _binding.Current.HostInstanceId
+                        }}));
                 _server = new BridgeHttpServer(protocol);
                 _server.Start();
                 _recovery.ReportHealthy();
-                Debug.WriteLine("[RevitGPT] Native bridge listener initialized.");
+                Debug.WriteLine("[RevitGPT] Native HTTP listener recovered; ExternalEvent dispatcher retained.");
             }
             catch (Exception error)
             {
-                // Do NOT kill other port owners, block Revit, or start the
-                // retired standalone/pyRevit bridge as a workaround.
-                Debug.WriteLine("[RevitGPT] Native bridge unavailable: " + error);
-                DisposeBridge();
+                // Do NOT kill other port owners, block Revit, or use pyRevit.
+                // Failed listener attempts may repeat; the UI queue survives.
+                Debug.WriteLine("[RevitGPT] Native listener unavailable: " + error);
+                DisposeListener();
             }
         }
 
@@ -159,10 +171,19 @@ namespace RevitGPT.Native
             }
         }
 
-        private void DisposeBridge()
+        // Idling listener replacement NEVER owns a pending/executing Revit
+        // operation. The ExternalEvent is an application-lifetime resource.
+        private void DisposeListener()
         {
             try { _server?.Dispose(); } catch { }
             _server = null;
+        }
+
+        private void DisposeBridge()
+        {
+            // Explicit Revit application shutdown only. The host may terminate
+            // any operation; callers must not misreport that as STOPPED.
+            DisposeListener();
             try { _dispatcher?.Dispose(); } catch { }
             _dispatcher = null;
         }
