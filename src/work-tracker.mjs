@@ -175,30 +175,53 @@ export async function createWorkTracker({
     catch{ /* failure to clear awake is reflected by STOP_PENDING; caller's
               operation already reached its known terminal outcome */ }
   }
-  async function run(tool,effect,args,callback){
-    const id=await admit(tool,effect,args);
+  async function execute(id,effect,callback){
     try{
       await begin(id);
     }catch(error){
-      // If begin failed before execution, no tool mutation occurred.
+      // Begin persisted BEFORE invoking callback; failed begin proves no
+      // tool execution happened (unless an independent host already accepted
+      // a previous correlated child operation, tracked separately in P1-C).
       await settle(id,"NOT_STARTED","EXECUTION_ADMISSION_FAILED").catch(()=>undefined);
       throw error;
     }
     try{
       const value=await callback();
-      if(value?.isError){
+      const isError=Boolean(value?.isError||value?.structuredContent?.result?.isError);
+      if(isError){
         await settle(id,effect==="READ_ONLY"?"TERMINAL_FAILURE":"OUTCOME_UNKNOWN","MCP_TOOL_RESULT_IS_ERROR");
       }else{
         await settle(id,"TERMINAL_SUCCESS");
       }
       return value;
     }catch(error){
-      // Side effects can commit before throwing; unknown is NOT terminal.
-      // A pure read error cannot leave a side effect.
+      // A side effect might have committed before its response disappeared.
       const phase=effect==="READ_ONLY"?"TERMINAL_FAILURE":"OUTCOME_UNKNOWN";
       await settle(id,phase,error instanceof Error?error.message:String(error)).catch(()=>undefined);
       throw error;
     }
+  }
+  async function run(tool,effect,args,callback){
+    return execute(await admit(tool,effect,args),effect,callback);
+  }
+  async function runAdmitted(id,tool,effect,callback){
+    const op=data.operations.find(x=>x.id===id);
+    if(!op||op.tool!==tool||op.effect!==effect||op.phase!=="ADMITTED")
+      throw new Error("WORK_RESERVATION_MISMATCH");
+    // This was durably admitted at HTTP receive-time, before the stop fence.
+    return execute(id,effect,callback);
+  }
+  async function cancelIfNotStarted(id){
+    const canceled=await transition(d=>{
+      const op=d.operations.find(x=>x.id===id);
+      if(!op||op.phase!=="ADMITTED")return false;
+      op.phase="NOT_STARTED";
+      op.finished_at=now();
+      op.reason="SDK_REJECTED_BEFORE_TOOL_CALLBACK";
+      return true;
+    });
+    if(canceled)await drain().catch(()=>undefined);
+    return canceled;
   }
   async function requestStop(){
     await transition(d=>{if(d.mode==="OPEN")d.mode="STOP_PENDING";});
@@ -217,5 +240,5 @@ export async function createWorkTracker({
     });
     return status();
   }
-  return Object.freeze({status,admit,begin,settle,run,requestStop,reopen});
+  return Object.freeze({status,admit,begin,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
 }
