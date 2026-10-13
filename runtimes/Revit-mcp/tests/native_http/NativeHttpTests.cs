@@ -106,6 +106,31 @@ internal static class NativeProtocolTests
             Check(result.StatusCode == entry.status && result.Body.Contains("\"error\""),"reject " + entry.status);
         }
         Check(called == 2,"rejected requests never run API");
+
+        // CR-01/12: the /operation/status control route must not go through
+        // ExternalEvent or require another mutating request to become visible.
+        var operationProbe = new BridgeHttpProtocol(
+            (id,m,p,b,ct) => throw new Exception("operation status may not dispatch to Revit"),
+            operationStatusProbe: opId =>
+                "{\"data\":{\"operation_id\":\"" + opId +
+                "\",\"phase\":\"EXECUTING\",\"host_instance_id\":\"host-test\"}}");
+        var observed = await operationProbe.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-1","{\"operation_id\":\"write-123\"}");
+        Check(observed.StatusCode == 200 &&
+              observed.Body.Contains("\"phase\":\"EXECUTING\"") &&
+              observed.Body.Contains("\"host_instance_id\":\"host-test\""),
+              "native operation status reports authoritative phase and host identity without UI dispatch");
+        var invalidProbe = await operationProbe.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-2","{\"operation_id\":\"bad id\"}");
+        Check(invalidProbe.StatusCode == 400,
+              "invalid operation ID is rejected before native probe");
+        var unavailable = new BridgeHttpProtocol(
+            (id,m,p,b,ct)=>throw new Exception("unexpected API dispatch"));
+        var noStatus = await unavailable.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-3","{\"operation_id\":\"write-123\"}");
+        Check(noStatus.StatusCode == 503,
+              "no native status provider is not proof work did not execute");
+
         var big = await run("POST","/elements",H,null,"application/json",ID,
             new string('a', BridgeHttpProtocol.MaximumBodyBytes + 1),CancellationToken.None);
         Check(big.StatusCode == 413,"bounded request body");
