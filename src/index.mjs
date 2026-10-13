@@ -7,7 +7,8 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
-import { createAwakeIntent } from "./awake-intent.mjs";
+import { createAwakeIntent, getWindowsBootSessionId } from "./awake-intent.mjs";
+import { createNativeHostIdentity } from "./native-host-identity.mjs";
 import { createWorkTracker, createBlockedWorkTracker, currentOperationId } from "./work-tracker.mjs";
 import { reconcileRecoveredSystemOperations } from "./system-reconciliation.mjs";
 import { reconcileNativeOutcomes } from "./native-reconciliation.mjs";
@@ -38,8 +39,14 @@ if (!TOKEN) {
 }
 
 let shuttingDown = false;
+const bootSessionId=await getWindowsBootSessionId();
 const awakeIntent = await createAwakeIntent({
-  filePath: path.join(getAppDataRoot(), "state", "awake-intent.json")
+  filePath: path.join(getAppDataRoot(), "state", "awake-intent.json"),
+  sessionIdProvider:async()=>bootSessionId
+});
+const nativeHostIdentity=await createNativeHostIdentity({
+  filePath:path.join(getAppDataRoot(),"state","native-host-identity.json"),
+  sessionIdProvider:async()=>bootSessionId
 });
 // The accepted-work fence and Native/SYSTEM completion journal are shared by
 // all MCP transports. A new Node process cannot silently discard unknown work.
@@ -135,7 +142,7 @@ function createServer(sessionKey) {
   // Each tool request may be routed through a new/recovered MCP transport.
   // Model operation permission comes from native binding on THIS request, not a
   // previously executed revitgpt_admission call in another server instance.
-  const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
+  const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL),nativeHostIdentity);
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
     {
@@ -303,6 +310,7 @@ function createServer(sessionKey) {
           runtime_state: runtimeState,
           awake_intent: awakeIntent.status(),
           work_status: workTracker.status(),
+          native_host_identity: nativeHostIdentity.status(),
           admission_required_for_reads: true,
           authorization: "native_binding_verified_per_read"
         }
@@ -463,6 +471,7 @@ app.get("/health", async (_req, res) => {
       revitUpstream.status().connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE",
     awake_intent: awakeIntent.status(),
     work_status: workTracker.status(),
+    native_host_identity: nativeHostIdentity.status(),
     active_mcp_sessions: sessions.count()
   });
 });
