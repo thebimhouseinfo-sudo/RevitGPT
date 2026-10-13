@@ -253,6 +253,11 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | T34 | MCP DELETE/recovery during active tool | No premature close of in-flight work; shared workspace/binding unchanged |
 | T35 | Crash before/after Node dispatch, Python forward, Native accept, execute and response | Exact native receipt reconciles journal; no unsafe replay or false terminal |
 | T36 | Crash after DISPATCH_ATTEMPTED with native receipt unprovable | HANDOFF_UNKNOWN remains unresolved/STOP_BLOCKED; no duplicate write or false STOPPED |
+| T37 | Latest GSA Job records include active old TTL/bridge Jobs, READY migration plan and DRAFT incident reviews | SHA-bound read-only disposition map resolves overlaps; source/revision evidence required; no Job state or Run/cursor mutation |
+| T38 | Node crash before/during/after file_create or file_edit staging/atomic rename and before response | Exact operation ID and content hashes identify terminal vs unknown; never overwrite concurrent external modifications |
+| T39 | Node crash during asset_import staging, target replacement or registry updates | Partial import and registry inconsistency detected; no automatic reimport, staging deletion, rollback or false STOPPED |
+| T40 | Node crash after run_record_append or knowledge append but before HTTP response | Exact record marker proves one append or stays unknown; no duplicated append or false failure/success |
+| T41 | STOP_PENDING with SYSTEM write or validation child still running, followed by Node restart | Recover active/subprocess state and actual file outcomes; wait for terminal or report STOP_BLOCKED/NEEDS_RECONCILIATION, never stop early |
 | H01–H06 | One real-host round: startup, long-session failure isolation, multi-chat, binding, recovery, graceful stop | Host PASS/FAIL recorded separately with evidence |
 
 **P1 PASS** requires zero unexpected global deactivation from normal tool errors, timeouts, idle or chat churn on healthy host; no wrong-model writes; no silent replay; correct BUSY→STOP_PENDING→STANDBY semantics; no idle expiry; verified intentional stop and actual failure recovery. It does **not** require all Revit MCP tools fully implemented or all P2/P3 Jobs.
@@ -275,6 +280,9 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | CR-11 | Resource reclamation for confirmed orphan transport without any runtime idle expiry | P1-B7, F20; T33/T34 |
 | CR-12 | Durable Node→Python→Native receipts and safe crash-state reconciliation | P1-C10, D15; T35/T36 |
 
+| CR-13 | Map source-authoritative GSA READY/IN_PROGRESS/DRAFT Jobs, lifecycle conflicts, reuse evidence and dispositions before runtime edits, without Job mutation | P1-A A-CR13, Gate A; T37 |
+| CR-14 | Crash-safe SYSTEM side-effect/child-process reconciliation by file hashes, import/registry state and append markers, no blind replay | P1-A A-CR14, C10, D15; T38–T41 |
+
 ## 6. Review history and outstanding evidence
 
 - 2026-10-13 R1–R5: initial self-review marked consistency PASS for prior plan, **not independent CR**.
@@ -290,4 +298,5 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 - Rev7 Planner: CR-08–CR-12 mapped to contract §1.5, audit A18–A22, tasks and targeted negative controls T29–T36. No phase expansion or extra human gates. New revision requires Reviewer check and independent CR re-review.
 - Reviewer planning inspection of Rev7 (blob 8dce80d3f057967f900306f6565e76c25f5d7502): all twelve CR ledger entries and 36 test IDs present, all source paths verified, but six stage-local GOAL anchors were missing. Planner added concise stage goals to preserve the fixed Phase Goal in each work stage. Reviewer check still required for the amended revision.
 - 2026-10-13 Rev7 internal Reviewer PASS against blob b367abce0139fab457ce4cb353a47e5f73df94c6: seven legacy CR and five new CR mapped to source and work items, 36 contiguous test IDs, six stage GOAL anchors, docs-only branch and human release gate independently re-read. **This is a planning evidence check, not a persisted GSA independent CRITIC_REVIEW or CI/real-host verification.**
+- Rev8 Planner: CR-13 mapped against current persisted GSA Job statuses and source SHAs with read-only REUSE/VERIFY/SUPERSEDE_CANDIDATE/DEFER classification; CR-14 mapped to SYSTEM operation post-state/append/registry/subprocess recovery. Both are tied to P1-A/C/D/F with T37–T41. **Internal review of this revision is pending; prior PASS/CR FAIL do not transfer.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
