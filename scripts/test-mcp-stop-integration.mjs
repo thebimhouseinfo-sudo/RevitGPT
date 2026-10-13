@@ -113,6 +113,14 @@ try{
   const ready=await post({jsonrpc:"2.0",method:"notifications/initialized"},sid,"2025-11-25");
   assert.ok([200,202].includes(ready.status),JSON.stringify(ready.json));
 
+  // A live idle MCP transport must not be evicted merely because an old
+  // configured TTL has elapsed. Its process/session resource is distinct from
+  // global awake/bound-model intent. Actual client DELETE is the cleanup proof.
+  process.env.MCP_SESSION_TTL_MS = "1";
+  sessions.startCleanup();
+  await new Promise(resolve=>setTimeout(resolve,35));
+  assert.ok(sessions.get(sid),"live idle MCP transport must survive former TTL");
+
   const first=post(call(2,"file_search",{root:"workspace",query:"test"}),sid,"2025-11-25");
   await entered;
   const second=post(call(3,"file_read",{path:"workspace/a.md"}),sid,"2025-11-25");
