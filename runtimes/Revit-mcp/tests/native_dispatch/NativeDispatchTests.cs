@@ -72,7 +72,10 @@ internal static class NativeDispatchTests
         single.Observe("B", "Test B", new[] { "A", "B" });
         True(single.Current.Status == "BOUND_OTHER_ACTIVE" &&
             single.ReadDenial(null) == "ACTIVE_MODEL_MISMATCH",
-            "different active tab blocks access");
+            "different active tab blocks UI-scoped access");
+        True(single.ReadDocumentDenial("A") == null &&
+            single.ReadDocumentDenial("B") == "DOCUMENT_ID_MISMATCH",
+            "off-tab document operations still target exact bound A, never active B");
         single.Observe("B", "Test B", new[] { "B" });
         True(single.Current.Status == "BOUND_CLOSED" &&
             single.ReadDenial(null) == "BOUND_MODEL_CLOSED",
@@ -140,7 +143,10 @@ internal static class NativeDispatchTests
         True(!String.IsNullOrWhiteSpace(instance), "host instance identifier present");
         enforce.Observe("B", "Test B", new[] { "A", "B" });
         True(enforce.ReadDenial("A") == "ACTIVE_MODEL_MISMATCH",
-            "tab mismatch blocks even explicit bound document id");
+            "tab mismatch blocks UI-scoped calls even with bound document id");
+        True(enforce.ReadDocumentDenial("A") == null &&
+            enforce.ReadDocumentDenial("B") == "DOCUMENT_ID_MISMATCH",
+            "document scope ignores active-tab mismatch but rejects cross-model ID");
         enforce.Observe("B", "Test B", new[] { "B" });
         True(enforce.ReadDenial(null) == "BOUND_MODEL_CLOSED", "closed binding blocked");
         enforce.Observe("A", "Reopened A", new[] { "A", "B" });
