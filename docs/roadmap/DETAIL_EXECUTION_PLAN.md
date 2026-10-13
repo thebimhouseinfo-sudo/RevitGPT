@@ -1,5 +1,8 @@
 # RevitGPT Detailed Execution Plan — J-8A2C rev2
 
+> **ARCHIVED IMPLEMENTATION GUIDANCE for P1 (2026-10-13).** J-8A2C is preserved as historical evidence; its GitHub Job state remains untouched. **Do not execute its old TTL/pairing/lease, branch, phase-order or install instructions for P1.** Follow the [approved P1 Rev9 plan](P1_STABLE_RUNTIME_CONNECTION_PLAN.md), [current lifecycle authority](../architecture/AUTHORITY_LIFECYCLE.md) and dedicated `work/p1-stable-runtime-20261013` branch. Other historical content in this document is not a competing authority. No installed add-in or tested connection should be rewritten without evidence.
+
+
 Status: **EXECUTION DETAIL / NO SCOPE CHANGE**  
 Durable roadmap: **J-8A2C, planning_revision 2, Reviewer PASS**  
 Working repository: `thebimhouseinfo-sudo/RevitGPT`  
