@@ -42,6 +42,14 @@ class RouteParityTests(unittest.TestCase):
         actual = set(re.findall(r'"(GET|POST) (/[^"]+)"', code))
         self.assertEqual(expected, actual)
 
+    def test_native_operation_status_client_is_read_only_reconciliation(self):
+        """Native status must be a declared client path, not an orphan route."""
+        source = CLIENT.read_text(encoding="utf-8")
+        self.assertIn("def get_native_operation_status(operation_id: str)", source)
+        self.assertIn('"/operation/status", payload={"operation_id": operation_id}, method="POST"', source)
+        self.assertIn("HANDOFF_UNKNOWN", source)
+        self.assertIn('"POST /operation/status"', NATIVE.read_text(encoding="utf-8"))
+
     def test_annotation_native_handlers_are_reachable(self):
         router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
         operations = (BASE / "bridge" / "unified_native" / "NativeWriteOperations.cs").read_text(encoding="utf-8")
