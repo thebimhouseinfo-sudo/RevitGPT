@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * No operation is dispatched until durable ADMITTED and EXECUTING records exist.
  */
 const VERSION = 1;
-const EFFECTS = new Set(["READ_ONLY", "UI_SIDE_EFFECT", "MODEL_MUTATION", "SYSTEM_SIDE_EFFECT"]);
+const EFFECTS = new Set(["READ_ONLY", "UI_SIDE_EFFECT", "MODEL_MUTATION", "SYSTEM_SIDE_EFFECT", "WORK_UNIT"]);
 const TERMINAL = new Set(["TERMINAL_SUCCESS", "TERMINAL_FAILURE", "TERMINAL_COMPLETED", "NOT_STARTED"]);
 const RETAIN = 300;
 const operationContext = new AsyncLocalStorage();
@@ -154,6 +154,39 @@ export async function createWorkTracker({
     });
     return id;
   }
+  // Minimal P1 seam for a future accepted multi-step Job. A work unit is
+  // explicitly registered BEFORE stop and holds a durable parent ID; Chat ID
+  // alone grants no continuation authority. This is not a P3 scheduler.
+  async function acceptWorkUnit(label) {
+    if(typeof label!=="string" || !/^[A-Za-z0-9._-]{1,128}$/.test(label))
+      throw new Error("WORK_UNIT_LABEL_INVALID");
+    const id=await admit("work_unit:"+label,"WORK_UNIT",{label});
+    await begin(id);
+    return id;
+  }
+  async function admitContinuation(parentId,tool,effect,args={}) {
+    if(!EFFECTS.has(effect)||effect==="WORK_UNIT")
+      throw new Error("WORK_CONTINUATION_EFFECT_INVALID");
+    if(typeof parentId!=="string"||!parentId)
+      throw new Error("WORK_PARENT_ID_REQUIRED");
+    const id=idFactory();
+    await transition(d=>{
+      if(d.mode==="STOPPED")throw new Error("STOPPED: no new work");
+      const parent=d.operations.find(op=>op.id===parentId);
+      if(!parent || parent.effect!=="WORK_UNIT" ||
+         parent.phase!=="EXECUTING")
+        throw new Error("WORK_CONTINUATION_NOT_AUTHORIZED");
+      if(snapshotState(d).unresolved_count && effect!=="READ_ONLY")
+        throw new Error("WORK_OUTCOME_UNRESOLVED: reconcile prior side effect");
+      d.operations.push({
+        id,tool,effect,phase:"ADMITTED",parent_id:parentId,
+        args_digest:digest(args),targets:compactArgs(args),
+        accepted_at:now(),validated_continuation:true
+      });
+    });
+    return id;
+  }
+
   async function begin(id){
     await transition(d=>{
       const op=d.operations.find(x=>x.id===id);
@@ -293,7 +326,7 @@ export async function createWorkTracker({
     });
     return status();
   }
-  return Object.freeze({status,unresolvedOperations,admit,begin,noteNativeHandoff,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen,reopenWithWake});
+  return Object.freeze({status,unresolvedOperations,admit,acceptWorkUnit,admitContinuation,begin,noteNativeHandoff,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen,reopenWithWake});
 }
 
 /**
@@ -310,7 +343,7 @@ export function createBlockedWorkTracker(error) {
   const deny=async()=>{throw new Error("WORK_JOURNAL_UNVERIFIED: "+reason);};
   return Object.freeze({
     status:()=>state,unresolvedOperations:()=>[],requestStop:async()=>({status:"STOP_BLOCKED",...state}),
-    admit:deny,begin:deny,noteNativeHandoff:deny,settle:deny,run:deny,runAdmitted:deny,
+    admit:deny,acceptWorkUnit:deny,admitContinuation:deny,begin:deny,noteNativeHandoff:deny,settle:deny,run:deny,runAdmitted:deny,
     cancelIfNotStarted:async()=>false,reopen:deny,reopenWithWake:deny
   });
 }
