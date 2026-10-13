@@ -118,6 +118,22 @@ def health_check() -> dict:
         }
 
 
+def get_native_operation_status(operation_id: str) -> dict:
+    """Query a previously submitted Native operation without executing/replaying it.
+
+    An absent status after client/host recovery is NOT evidence a write was
+    never executed; callers must preserve HANDOFF_UNKNOWN until authoritative
+    host-generation proof is available.
+    """
+    import re
+    if not isinstance(operation_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", operation_id):
+        raise ValueError("Invalid Native operation ID")
+    result = _send_request(
+        "/operation/status", payload={"operation_id": operation_id}, method="POST"
+    )
+    return result.get("data", result)
+
+
 def get_binding_status() -> dict:
     """Read native binding. This does not confer a remote MCP session lease."""
     result = _send_request("/binding/status")
