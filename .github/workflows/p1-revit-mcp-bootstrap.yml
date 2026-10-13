@@ -61,6 +61,11 @@ jobs:
         run: |
           node --test scripts/test-tool-effects-and-priority.mjs
 
+      - name: Test actual MCP same-session stop priority and accepted-work drain
+        shell: pwsh
+        run: |
+          node scripts/test-mcp-stop-integration.mjs
+
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
         run: |
