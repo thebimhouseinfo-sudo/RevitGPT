@@ -228,8 +228,11 @@ function createServer(sessionKey) {
         };
       }
       // @rg is the sole explicit global wake operation, not per-chat admission.
-      await workTracker.reopen();
-      await awakeIntent.wake();
+      await workTracker.reopenWithWake({
+        wake:()=>awakeIntent.wake(),
+        clear:()=>awakeIntent.clearAfterDrain(),
+        isAwake:()=>awakeIntent.isAwake()
+      });
       const [revitProcess, bridge] = await Promise.all([
         revitProcessState(), bridgeHealth()
       ]);
