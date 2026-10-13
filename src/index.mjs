@@ -10,6 +10,7 @@ import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
 import { createWorkTracker, createBlockedWorkTracker, currentOperationId } from "./work-tracker.mjs";
 import { reconcileRecoveredSystemOperations } from "./system-reconciliation.mjs";
+import { reconcileNativeOutcomes } from "./native-reconciliation.mjs";
 import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
@@ -63,6 +64,11 @@ try {
 const recoveredSystem = await reconcileRecoveredSystemOperations(workTracker);
 if (recoveredSystem.length)
   await logControl({event:"system_reconciliation",results:recoveredSystem.map(x=>({
+    id:x.id,tool:x.tool,verdict:x.verdict,reason:x.reason
+  }))}).catch(()=>undefined);
+const recoveredNative=await reconcileNativeOutcomes(workTracker,{bridgeUrl:BRIDGE_URL});
+if (recoveredNative.length)
+  await logControl({event:"native_reconciliation_at_boot",results:recoveredNative.map(x=>({
     id:x.id,tool:x.tool,verdict:x.verdict,reason:x.reason
   }))}).catch(()=>undefined);
 // Work was accepted on HTTP ingress even if a Streamable MCP transport must
@@ -574,6 +580,24 @@ app.post(route, handleMcpPost);
 app.get(route, handleMcpGet);
 app.delete(route, handleMcpDelete);
 
+// Status-only polling for requests whose final HTTP response was lost.
+// Never wakes Python, rebinds a model or issues a Revit API action.
+let nativeRecoveryRunning=false;
+const nativeRecoveryWatch=setInterval(async()=>{
+  if(shuttingDown||nativeRecoveryRunning||
+     !workTracker.status().unresolved_count)return;
+  nativeRecoveryRunning=true;
+  try{
+    const reports=await reconcileNativeOutcomes(workTracker,{bridgeUrl:BRIDGE_URL});
+    if(reports.some(x=>x.verdict==="TERMINAL_PROVEN"))
+      await logControl({event:"native_reconciliation_terminal",
+        results:reports.filter(x=>x.verdict==="TERMINAL_PROVEN").map(x=>({id:x.id,phase:x.phase}))});
+  }catch(error){
+    await logError({source:"native-reconciliation",error:String(error)}).catch(()=>undefined);
+  }finally{nativeRecoveryRunning=false;}
+},15000);
+nativeRecoveryWatch.unref?.();
+
 let processWatchRunning = false;
 let nextActivationAttempt = 0;
 const revitProcessWatch = setInterval(async () => {
@@ -621,6 +645,7 @@ async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(revitProcessWatch);
+  clearInterval(nativeRecoveryWatch);
   console.log("[RevitGPT] " + signal + ": shutting down");
   await revitUpstream.deactivate().catch(() => undefined);
   sessions.stopCleanup();
