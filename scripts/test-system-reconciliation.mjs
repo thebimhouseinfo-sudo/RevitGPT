@@ -15,12 +15,14 @@ const ids=["op-edit","op-create","op-append","op-knowledge","op-import","op-mism
 let counter=0;
 const idFactory=()=>ids[counter++];
 const tracker=await createWorkTracker({filePath:journal,idFactory});
+const queued=[];
 
+// All operations are durably admitted while the tracker is OPEN. Only after
+// that do we simulate the crash and ambiguous outcomes. This is a valid
+// concurrent-work fixture; admitting after an UNKNOWN side effect must fail.
 async function abandoned(tool,args,perform,phase) {
   const id=await tracker.admit(tool,"SYSTEM_SIDE_EFFECT",args);
-  await tracker.begin(id);
-  if(perform)await perform(id);
-  if(phase)await tracker.settle(id,phase,"simulated crash source");
+  queued.push({id,perform,phase});
   return id;
 }
 try {
@@ -52,6 +54,16 @@ try {
     async()=>fs.writeFile(modified,"different"),"OUTCOME_UNKNOWN");
   await abandoned("run_record_append",{kind:"test",id:"missing"},
     null,"OUTCOME_UNKNOWN");
+
+  for (const task of queued) {
+    await tracker.begin(task.id);
+    if(task.perform)await task.perform(task.id);
+    if(task.phase)await tracker.settle(task.id,task.phase,"simulated crash source");
+  }
+  await assert.rejects(
+    tracker.admit("file_edit","SYSTEM_SIDE_EFFECT",{path:modified,content:"unsafe"}),
+    /WORK_OUTCOME_UNRESOLVED/,
+    "any new write after an unresolved side-effect must be rejected");
 
   const before=tracker.unresolvedOperations();
   assert.equal(before.length,7);
