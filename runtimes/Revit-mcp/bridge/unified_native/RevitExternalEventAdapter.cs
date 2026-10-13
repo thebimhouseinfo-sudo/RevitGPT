@@ -60,6 +60,12 @@ namespace RevitGPT.Native
             return _queue.Submit(id, () => action(_callback.RequireUiApp()), cancellation);
         }
 
+        // Safe for HTTP workers: inspects pure queue metadata, no Revit API.
+        public string OperationPhase(string operationId)
+        {
+            return _queue.OperationPhase(operationId);
+        }
+
         private static RaiseOutcome Map(ExternalEventRequest outcome)
         {
             if (outcome == ExternalEventRequest.Accepted) return RaiseOutcome.Accepted;
