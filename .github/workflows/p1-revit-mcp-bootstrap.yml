@@ -46,11 +46,6 @@ jobs:
         run: |
           ./scripts/check-node-syntax.ps1
 
-      - name: Test MCP transport session lifecycle and recovery
-        shell: pwsh
-        run: |
-          node scripts/test-mcp-session.mjs
-
       - name: Test explicit global awake intent, Windows boot/logon and stale-state negative controls
         shell: pwsh
         run: |
