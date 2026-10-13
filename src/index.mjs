@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -8,11 +9,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
 import { createWorkTracker } from "./work-tracker.mjs";
-import { wrapToolRegistration } from "./tool-effects.mjs";
+import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
 import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
-import { createSessionManager, extractRequestId, isInitializeRequest } from "./mcp-session-manager.mjs";
+import { createSessionManager, extractRequestId, isInitializeRequest, isPriorityControlRequest } from "./mcp-session-manager.mjs";
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
@@ -48,6 +49,9 @@ const workTracker = await createWorkTracker({
     await logControl({event:"graceful_stop_completed"});
   }
 });
+// Work was accepted on HTTP ingress even if a Streamable MCP transport must
+// serialize or recover before its actual tool callback becomes runnable.
+const requestContext = new AsyncLocalStorage();
 
 const ensureExplicitReadReady = () => ensureReadRuntime({
   upstream: revitUpstream,
@@ -134,7 +138,8 @@ function createServer(sessionKey) {
   // No callback can escape work accounting by using a new MCP session.
   wrapToolRegistration(server,{
     tracker:workTracker,
-    isAwake:()=>awakeIntent.isAwake() && workTracker.status().mode==="OPEN"
+    isAwake:()=>awakeIntent.isAwake(),
+    reservationIdProvider:()=>requestContext.getStore()?.reservedId??null
   });
   registerManagedTools(server);
   registerRevitMcpDevTools(server);
@@ -430,12 +435,28 @@ app.get("/health", async (_req, res) => {
 });
 
 async function handleMcpPost(req, res) {
+  let reservedId=null;
   try {
     const sessionId =
       typeof req.headers["mcp-session-id"] === "string"
         ? req.headers["mcp-session-id"]
         : undefined;
     const requestId = extractRequestId(req.body);
+    const body=req.body;
+    if(sessionId && body?.jsonrpc==="2.0" && body.method==="tools/call" &&
+       !isPriorityControlRequest(body) && body.params?.name){
+      const name=body.params.name;
+      const inputs=body.params.arguments??{};
+      const effect=effectForTool(name,inputs);
+      if(effect!=="CONTROL"){
+        if(!awakeIntent.isAwake())throw new Error("WORKSPACE_STANDBY: explicit @rg required");
+        const toolName=name==="revitgpt_call"?inputs.name:name;
+        const toolArgs=name==="revitgpt_call"?inputs.arguments??{}:inputs;
+        reservedId=await workTracker.admit(toolName,effect,toolArgs);
+      }
+    }
+    return await requestContext.run({reservedId},async()=>{
+      try {
 
     const discoverFallback = buildLegacyDiscoverFallback(req.body);
     if (discoverFallback) {
@@ -467,6 +488,13 @@ async function handleMcpPost(req, res) {
       "Bad Request: Mcp-Session-Id header is required",
       requestId
     );
+      } finally {
+        // If the SDK rejected a message before tool callback admission,
+        // its operation is proven NOT_STARTED; otherwise it is in progress
+        // or terminal. Never erase an unknown/started operation.
+        if(reservedId) await workTracker.cancelIfNotStarted(reservedId);
+      }
+    });
   } catch (error) {
     console.error("[MCP POST]", error);
     const message = error instanceof Error ? error.message : String(error);
