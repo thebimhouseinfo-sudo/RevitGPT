@@ -51,6 +51,11 @@ jobs:
         run: |
           node scripts/test-awake-intent.mjs
 
+      - name: Test SYSTEM poststate crash reconciliation without replay
+        shell: pwsh
+        run: |
+          node scripts/test-system-reconciliation.mjs
+
       - name: Test graceful stop durable operation journal under crash and timeout
         shell: pwsh
         run: |
