@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {test} from "node:test";
-import {createWorkTracker} from "../src/work-tracker.mjs";
+import {createWorkTracker,createBlockedWorkTracker} from "../src/work-tracker.mjs";
 
 async function fixture(fn) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),"rg-work-tracker-"));
@@ -138,5 +138,21 @@ test("P1-C: corrupted journal fails closed rather than dropping unknown writes",
     await fs.writeFile(filePath,"not json","utf8");
     await assert.rejects(createWorkTracker({filePath}),SyntaxError);
     assert.equal(await fs.readFile(filePath,"utf8"),"not json");
+  });
+});
+
+test("P1-C: corrupt journal leaves control/status reachable but blocks all work",async()=>{
+  await fixture(async filePath=>{
+    await fs.mkdir(path.dirname(filePath),{recursive:true});
+    await fs.writeFile(filePath,"{garbled","utf8");
+    let error;
+    try{await createWorkTracker({filePath});}catch(e){error=e;}
+    assert.ok(error,"a damaged durable journal must not become an empty state");
+    const blocked=createBlockedWorkTracker(error);
+    assert.equal(blocked.status().safety_state,"STOP_BLOCKED");
+    assert.equal((await blocked.requestStop()).status,"STOP_BLOCKED");
+    await assert.rejects(blocked.run("file_edit","SYSTEM_SIDE_EFFECT",{},async()=>{}),
+      /WORK_JOURNAL_UNVERIFIED/);
+    assert.equal(await fs.readFile(filePath,"utf8"),"{garbled","evidence must be retained");
   });
 });
