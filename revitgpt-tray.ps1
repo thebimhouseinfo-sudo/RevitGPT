@@ -70,6 +70,28 @@ function Write-TrayLog([string]$Message) {
     Add-Content -Path $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8
 }
 
+
+# Explicit administrative stop clears awake intent but preserves work journal.
+function Set-ExplicitStandby {
+    $awakePath = Join-Path $StateDir "awake-intent.json"
+    if (-not (Test-Path $awakePath)) { return }
+    $temp = $null
+    try {
+        $record = Get-Content $awakePath -Raw | ConvertFrom-Json
+        if ($record.version -ne 1 -or $record.boot_session_id -notmatch '^[a-f0-9]{64}$') { return }
+        $record.awake = $false
+        $record.updated_at = (Get-Date).ToUniversalTime().ToString('o')
+        $temp = "$awakePath.admin-$([guid]::NewGuid().ToString('N')).tmp"
+        [System.IO.File]::WriteAllText($temp,
+            (($record | ConvertTo-Json -Depth 5 -Compress) + [Environment]::NewLine),
+            (New-Object System.Text.UTF8Encoding($false)))
+        Move-Item -Path $temp -Destination $awakePath -Force
+    } catch {
+        if ($temp) { Remove-Item $temp -Force -ErrorAction SilentlyContinue }
+        throw "Cannot safely reset awake intent: $($_.Exception.Message)"
+    }
+}
+
 function Get-StartupCommand {
     return 'wscript.exe "' + $TrayLauncherPath + '"'
 }
@@ -317,6 +339,7 @@ if ($RemoveStartup) {
     exit 0
 }
 if ($StopInstalled) {
+    Set-ExplicitStandby
     Stop-RevitGptTunnel
     Stop-RevitGptRuntime
     Stop-InstalledTray
@@ -412,6 +435,7 @@ function Self-Heal {
 }
 
 $restartItem.Add_Click({
+    Set-ExplicitStandby
     try {
         Stop-RevitGptTunnel
         Stop-RevitGptRuntime
@@ -425,6 +449,7 @@ $restartItem.Add_Click({
 })
 
 $exitItem.Add_Click({
+    Set-ExplicitStandby
     $script:Exiting = $true
     Stop-RevitGptTunnel
     Stop-RevitGptRuntime
