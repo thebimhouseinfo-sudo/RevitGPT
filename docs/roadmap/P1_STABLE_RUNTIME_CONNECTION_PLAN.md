@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNING REVIEW PASS — Rev8 (source-grounded internal review); independent CR re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 9 — narrow CR Rev8 PASS_WITH_FINDINGS follow-up; internal review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -50,10 +50,10 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 ### 1.3 Awake-intent persistence and manual commands
 
 - **Owner:** one local control-plane authority coordinated with the tray. Do not persist per-chat awake ownership or establish a second registry.
-- Persist/reconstruct awake intent **only for the current Windows boot/logon generation**, using a verifiable boot/logon identity (not elapsed time or a stale PID alone). Recover from Node/tray crash, tunnel replacement and sleep/wake within the same generation; boot restart/logoff must invalidate old awake intent and return to STANDBY.
+- Persist/reconstruct awake intent **only for the current Windows boot/logon generation**, using a verifiable boot/logon identity (not elapsed time or a stale PID alone). Recover from Node/tray crash, tunnel replacement and sleep/wake within the same generation; boot restart/logoff invalidates old awake intent and initializes the **runtime in STANDBY, without automatically restarting workspace, Python MCP, Revit writes, or prior SYSTEM work**. This does **not** delete or settle an unresolved operation journal; startup control/status must report an independent recovery safety flag when old work has unknown effects.
 - **rg/stop** clears awake intent only after the drain conditions above are met. Durable STOP_PENDING must survive recoverable control-plane restart without silently completing or accepting new work.
 - **run.bat stop** is an explicit administrative host shutdown, not an alias of graceful rg/stop, and may interrupt active work by administrator intent. **run.bat restart** is explicit administrative stop→start and returns to STANDBY (the current script calls stop then start); it is NOT unplanned crash recovery. Test this behavior. Do not auto-awake on a new Windows login.
-- If boot/session identity cannot be verified at startup, **do not restore stale awake intent**. With no admitted/unresolved work, remain STANDBY; if a durable journal indicates accepted/unresolved native work, preserve its safety status as RECOVERY_UNVERIFIED/STOP_BLOCKED and reconcile the actual host/operation before tearing down dependencies. Never declare STOPPED merely because the boot probe failed.
+- If boot/session identity cannot be verified at startup, **do not restore stale awake intent**. With no admitted/unresolved work, remain STANDBY; if a durable journal indicates accepted/unresolved **Native or SYSTEM** work, keep runtime activation at STANDBY while retaining its safety status as RECOVERY_UNVERIFIED/STOP_BLOCKED and reconcile actual host/files/registry/record/process evidence. **Treat runtime activation state and unresolved-work safety state as separate fields**: STANDBY is not a fabricated terminal result. Keep relevant mutation admission blocked until safe reconciliation, but allow read-only status/diagnostics. A fresh @rg must not silently replay an old operation. Never declare STOPPED merely because the boot probe failed.
 - A stop on an idle runtime returns STOPPED and STANDBY immediately. No new work is admitted during drain, and rg/stop is not an unconditional force-kill.
 
 ### 1.4 Binding and host selection
@@ -99,7 +99,7 @@ Source: GSA Memory Repo `thebimhouseinfo-sudo/GSA-Projects`, Project `01a0f866-d
 - Asset import/registration and development source edits: trace staging copy, destination replacement, registry updates, and expected manifest. A crash between phases may produce PARTIAL/NEEDS_RECONCILIATION. Compare actual files and registry entries; never blindly re-import, delete staging, roll back or label partially registered capabilities successful.
 - Append operations (run_record_append, knowledge append): use an exact operation ID/marker/record evidence to detect already-appended content or partial records without duplicating a line. Keep pre-existing legacy records readable.
 - Validation subprocesses: a parent HTTP/Node failure does not prove spawned Python exited. Track process/terminal evidence; reconcile or retain UNKNOWN rather than assuming child completion.
-- During STOP_PENDING, SYSTEM work counts until verified terminal, including output/child-process state. Unresolved after crash means STOP_BLOCKED/NEEDS_RECONCILIATION with safe diagnostics. Do not declare STOPPED, force-retry or create a generic file rollback/Job Runtime in P1.
+- During STOP_PENDING, SYSTEM work counts until verified terminal, including output/child-process state. Unresolved after crash means STOP_BLOCKED/NEEDS_RECONCILIATION with safe diagnostics. **Node restart within the same Windows boot** may recover awake/STOP_PENDING intent; **Windows restart/new logon** resets runtime activation to STANDBY but must preserve journal and flag unresolved prior SYSTEM side effects for manual/verified reconciliation, without auto-continuing work. OS termination can interrupt active work and is not a guarantee of graceful rg/stop. Do not declare STOPPED, force-retry or create a generic file rollback/Job Runtime in P1.
 
 ## 2. Source audit and exact brownfield disposition
 
@@ -163,7 +163,7 @@ Enable explicit @rg wake, offline workspace availability and safe automatic Revi
 6. On transition to Revit available + healthy owner bridge, activate full Python MCP automatically, once, without an extra @rg. Revit exit only deactivates Revit layer. Closing chat/WebView leaves workspace/MCP awake.
 7. Remove 24h idle eviction as a runtime authority mechanism; retain standards-compliant transport DELETE/stale recovery with confirmed-orphan cleanup only after every in-flight operation is terminal. Add connection churn and no-idle-disconnect tests. Prevent cold model-tool activation after rg/stop via global admission fence, including reconstructed connector sessions.
 8. Review tray's 2s health probes and restarts: process-exit and repeated/evidenced unhealthy conditions must be distinguished from a briefly delayed response. Restart only the unhealthy owned component; maintain awake intent.
-**Gate B:** deterministic lifecycle, clock jump, Windows reboot and crash-recovery tests green; no hidden auto-awake after explicit stop.
+**Gate B:** deterministic lifecycle, clock jump, Windows reboot and crash-recovery tests green; on reboot verify STANDBY **and preserved unresolved-work safety marker**, not only awake-intent reset; no hidden auto-awake after explicit stop.
 
 ### P1-C — Native work visibility and fault isolation (prerequisite to graceful stop)
 
@@ -217,7 +217,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 
 | Test | Scenario | Expected result / proof |
 |---|---|---|
-| T01 | Windows boot or new logon with stale awake marker | STANDBY; no implicit @rg |
+| T01 | Windows boot or new logon with stale awake marker, with/without unresolved operation journal | Runtime STANDBY and no implicit @rg; journal not erased and independent recovery safety status remains visible where applicable |
 | T02 | @rg while Revit OFF; later Revit launches; closes; relaunches | WORKSPACE_AWAKE → FULLY_AWAKE → WORKSPACE_AWAKE → FULLY_AWAKE, no extra @rg |
 | T03 | Idle beyond old 15m and 24h thresholds; simulated clock jump | Awake and binding unchanged; no TTL-based eviction |
 | T04 | Ordinary Revit tool returns 4xx/5xx or throws while healthy transport remains | Exact tool error; MCP remains connected; next call succeeds |
@@ -243,7 +243,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | T24 | Chat closes after receiving BUSY; another chat checks state | Work continues to terminal and auto-stop occurs without requiring another rg/stop |
 | T25 | Journal write fails immediately before Native dispatch | No execution, request fails closed; stop work count remains accurate |
 | T26 | Node tool ID differs from Python X-Request-ID; client disappears after timeout | End-to-end mapping resolves the single native write without replay |
-| T27 | Boot identity unavailable but accepted native work has an unresolved journal marker | No stale auto-awake or premature teardown; recovery-safe blocked state until reconciliation |
+| T27 | Boot identity unavailable but accepted Native/SYSTEM work has an unresolved journal marker | No stale auto-awake or premature teardown; runtime stays STANDBY with independent RECOVERY_UNVERIFIED/STOP_BLOCKED safety marker until reconciliation |
 | T28 | Revit Document wrapper changes, same-title models, close/reopen while previous binding exists | No identity collision/stale binding or cross-model reads/writes; exact host/document identity independently verified |
 | T29 | Long-running managed/dev SYSTEM tool or subprocess and another chat calls rg/stop | BUSY, prior work finishes and writes preserved before STANDBY; every tool registered and tracked |
 | T30 | UI select/show/activate and select_related apply=true vs false exceed original read timeout | Effect classification correct; no duplicate/replayed UI side effect; no early stop |
@@ -257,7 +257,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | T38 | Node crash before/during/after file_create or file_edit staging/atomic rename and before response | Exact operation ID and content hashes identify terminal vs unknown; never overwrite concurrent external modifications |
 | T39 | Node crash during asset_import staging, target replacement or registry updates | Partial import and registry inconsistency detected; no automatic reimport, staging deletion, rollback or false STOPPED |
 | T40 | Node crash after run_record_append or knowledge append but before HTTP response | Exact record marker proves one append or stays unknown; no duplicated append or false failure/success |
-| T41 | STOP_PENDING with SYSTEM write or validation child still running, followed by Node restart | Recover active/subprocess state and actual file outcomes; wait for terminal or report STOP_BLOCKED/NEEDS_RECONCILIATION, never stop early |
+| T41 | STOP_PENDING with SYSTEM write/child subprocess interrupted by (a) same-boot Node restart and (b) Windows reboot/new logon | (a) Restore valid same-boot intent, reconcile actual file/process outcome, wait for known terminal or flag STOP_BLOCKED; (b) runtime starts STANDBY without auto-resuming work, retains durable unresolved journal and recovery flag; no false completion, replay, or lost evidence |
 | H01–H06 | One real-host round: startup, long-session failure isolation, multi-chat, binding, recovery, graceful stop | Host PASS/FAIL recorded separately with evidence |
 
 **P1 PASS** requires zero unexpected global deactivation from normal tool errors, timeouts, idle or chat churn on healthy host; no wrong-model writes; no silent replay; correct BUSY→STOP_PENDING→STANDBY semantics; no idle expiry; verified intentional stop and actual failure recovery. It does **not** require all Revit MCP tools fully implemented or all P2/P3 Jobs.
@@ -269,7 +269,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | CR-01 | End-to-end timeout audit including native 2.5s read/25s write, Python 3s/30s, SDK/tunnel and actual ExternalEvent | P1-A4, C9–12; T05/T06/T18 |
 | CR-02 | Document-scoped bound-model access separate from UI-scoped active context; not wholesale mismatch denial | P1-E17; T15/T16/T28 |
 | CR-03 | One authoritative native bridge host at a time; fixed-port owner death/second process detected, no silent rebind | P1-E17/E18; T14/T28 |
-| CR-04 | Awake intent survives recoverable restart in same boot/logon, not Windows restart; distinct manual commands | P1-A2, B5/B8; T01/T19 |
+| CR-04 | Awake intent survives recoverable restart in same boot/logon; Windows reboot resets activation but preserves unresolved-work safety journal | P1-A2, B5/B8; T01/T19/T27/T41 |
 | CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
 | CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T41, H01–H06 |
@@ -281,7 +281,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | CR-12 | Durable Node→Python→Native receipts and safe crash-state reconciliation | P1-C10, D15; T35/T36 |
 
 | CR-13 | Map source-authoritative GSA READY/IN_PROGRESS/DRAFT Jobs, lifecycle conflicts, reuse evidence and dispositions before runtime edits, without Job mutation | P1-A A-CR13, Gate A; T37 |
-| CR-14 | Crash-safe SYSTEM side-effect/child-process reconciliation by file hashes, import/registry state and append markers, no blind replay | P1-A A-CR14, C10, D15; T38–T41 |
+| CR-14 | Crash-safe SYSTEM side-effect/child-process reconciliation by file hashes, import/registry state and append markers, including Windows reboot without automatic wake/replay | P1-A A-CR14, B5/B8, C10, D15; T38–T41 |
 
 ## 6. Review history and outstanding evidence
 
@@ -300,4 +300,5 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 - 2026-10-13 Rev7 internal Reviewer PASS against blob b367abce0139fab457ce4cb353a47e5f73df94c6: seven legacy CR and five new CR mapped to source and work items, 36 contiguous test IDs, six stage GOAL anchors, docs-only branch and human release gate independently re-read. **This is a planning evidence check, not a persisted GSA independent CRITIC_REVIEW or CI/real-host verification.**
 - Rev8 Planner: CR-13 mapped against current persisted GSA Job statuses and source SHAs with read-only REUSE/VERIFY/SUPERSEDE_CANDIDATE/DEFER classification; CR-14 mapped to SYSTEM operation post-state/append/registry/subprocess recovery. Both are tied to P1-A/C/D/F with T37–T41. **Internal review of this revision is pending; prior PASS/CR FAIL do not transfer.**
 - **Rev8 internal planning review PASS (2026-10-13, reviewed blob `4583107e3a9d21cba34c52f97fc3acab1f8d2fb2`):** read back persisted plan, source SYSTEM mutation implementations, 7 relevant current GSA Job records and repo diff. Confirmed Goal + six stage goals, CR-01…CR-14 ownership, T01…T41 contiguous, no Project Memory/Job mutations, no P2/P3 scope drift, no premature CI/host claim. **Not** an independent persisted GSA `CRITIC_REVIEW` Verification and not real host/CI PASS. Next external CR must review this new Rev8 exact revision.
+- Rev9 Planner follow-up to CR Rev8 PASS_WITH_FINDINGS: separate **runtime STANDBY on Windows reboot** from preserved unresolved Native/SYSTEM work journal and recovery marker; extend T01/T27/T41 and Gates B/CR04/CR14 traceability. No new phase or test ID; no implementation code edits; independent CR Rev8 verdict applies to Rev8, not automatically to Rev9.
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
