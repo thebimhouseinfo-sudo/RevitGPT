@@ -17,6 +17,34 @@ function extractHeader(req, name) {
   return undefined;
 }
 
+/**
+ * Only authenticated MCP tool calls for stop/status bypass the *per-session*
+ * business FIFO. All traffic still goes through the existing StreamableHTTP
+ * session transport, JSON-RPC validation and tokenized MCP URL.
+ * No general-purpose elevated endpoint is created.
+ */
+export function isPriorityControlRequest(body) {
+  if(!body||typeof body!=="object"||Array.isArray(body)||
+      body.jsonrpc!=="2.0"||body.method!=="tools/call"||
+      !(typeof body.id==="string"||typeof body.id==="number"))return false;
+  const params=body.params;
+  if(!params||typeof params!=="object"||Array.isArray(params))return false;
+  if(params.name==="revitgpt_status")return true;
+  if(params.name==="revitgpt_call"){
+    const c=params.arguments;
+    return !!c&&typeof c==="object"&&!Array.isArray(c)&&
+      typeof c.name==="string"&&["rg/stop","rg/status"].includes(c.name.toLowerCase()) &&
+      (c.arguments===undefined || (c.arguments&&
+        typeof c.arguments==="object"&&!Array.isArray(c.arguments)&&
+        Object.keys(c.arguments).length===0));
+  }
+  if(params.name==="revitgpt_command"){
+    const cmd=params.arguments?.command;
+    return typeof cmd==="string" && ["rg/stop","rg/status"].includes(cmd.trim().toLowerCase());
+  }
+  return false;
+}
+
 export function extractRequestId(body) {
   if (!body || typeof body !== "object" || !("id" in body)) return null;
   const id = body.id;
@@ -245,7 +273,7 @@ export function createSessionManager(port, createServer) {
       const run = async () => {
         await session.transport.handleRequest(req, res, body);
       };
-      if (id && req.method !== "GET") await enqueue(id, run);
+      if (id && req.method !== "GET" && !isPriorityControlRequest(body)) await enqueue(id, run);
       else await run();
     },
 
@@ -267,9 +295,9 @@ export function createSessionManager(port, createServer) {
       const recovered = sessions.get(staleId);
       if (!recovered) return false;
       const patched = withSessionHeaders(req, staleId, protocolVersion);
-      await enqueue(staleId, async () => {
-        await recovered.transport.handleRequest(patched, res, body);
-      });
+      const handle = async () => recovered.transport.handleRequest(patched, res, body);
+      if(isPriorityControlRequest(body))await handle();
+      else await enqueue(staleId,handle);
       return true;
     },
 
