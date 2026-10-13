@@ -63,32 +63,32 @@ def _send_request(
             error_result = json.loads(exc.read().decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
             error_result = None
+        # Preserve the actual Native X-Request-ID all the way back to Node.
+        # On 504 the write/UI action may still run inside ExternalEvent.
+        if exc.code == 504:
+            raise RevitBridgeError(
+                f"native_operation_id={request_id}; Bridge HTTP 504: "
+                "side-effect outcome unknown; do not retry automatically."
+            ) from exc
         if isinstance(error_result, dict):
             error_info = error_result.get("error")
             if isinstance(error_info, dict) and isinstance(error_info.get("message"), str):
                 raise RevitBridgeError(
-                    f"Bridge HTTP {exc.code}: {error_info['message']}"
+                    f"native_operation_id={request_id}; Bridge HTTP {exc.code}: {error_info['message']}"
                 ) from exc
-        if exc.code == 504:
-            # A write may have committed despite a gateway timeout.
-            # Fail closed even when the response body is missing/malformed.
-            raise RevitBridgeError(
-                "Bridge HTTP 504: request timed out; outcome unknown; "
-                "do not retry automatically."
-            ) from exc
         if 400 <= exc.code < 500:
             raise RevitBridgeError(f"Bridge returned HTTP {exc.code}") from exc
         raise RevitBridgeUnavailableError(
-            f"Cannot reach Revit bridge at {url}: {exc}"
+            f"native_operation_id={request_id}; Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except (URLError, TimeoutError, OSError) as exc:
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
         raise RevitBridgeUnavailableError(
-            f"Cannot reach Revit bridge at {url}: {exc}"
+            f"native_operation_id={request_id}; Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except ValueError as exc:
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
-        raise RevitBridgeError(f"Invalid JSON response from bridge: {exc}") from exc
+        raise RevitBridgeError(f"native_operation_id={request_id}; Invalid JSON response from bridge: {exc}") from exc
 
     if not isinstance(result, dict):
         raise RevitBridgeError("Bridge response must be a JSON object.")
@@ -96,7 +96,7 @@ def _send_request(
     if "error" in result:
         error_info = result["error"]
         raise RevitBridgeError(
-            f"Bridge error: {error_info.get('message', 'Unknown error')}"
+            f"native_operation_id={request_id}; Bridge error: {error_info.get('message', 'Unknown error')}"
         )
 
     return result
