@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNING REVIEW PASS — revision 6 (reviewed against actual source); independent CR re-review and real-host tests pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 7 — CR-08 to CR-12 incorporated; review pending; independent CR re-review and real-host tests pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -64,6 +64,18 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 - **Multiple Revit.exe processes:** the current native listener uses fixed 127.0.0.1:8765, so P1 supports **one authoritative bridge-host/process per binding at a time**, not an invented multi-host routing system. Bind/discover using host_instance_id plus documented process ownership. A second Revit process cannot silently seize the port or inherit another host's bound model. On owner exit with a second process still alive, detect stale host, safely reconnect a newly available bridge and require explicit Bind Current before model work; never treat “some Revit.exe exists” as proof the old host/binding is healthy.
 - An awake workspace may remain active without a currently usable bound model. Distinguish AWAKE, HOST_AVAILABLE and BOUND_READY in diagnostics rather than calling every state READY.
 
+### 1.5 CR-08 to CR-12 — runtime safety contracts (amendments to sections 1.1–1.4)
+
+**CR-08 — Unified in-flight accounting.** All tool registrations in src/index.mjs, src/managed-tools.mjs and src/revit-mcp-dev.mjs (when development mode is enabled) must pass one common admission/work tracker. Include SYSTEM reads and writes, file/library/registry changes, searches, validations and their external subprocesses, not just revitgpt_call and the native queue. Registration inventory must detect unclassified new tools and fail closed. Pure stop/status/health/reconciliation controls remain available during STOP_PENDING without deadlocking the drain. All other work (including read-only business calls) participates in the stop fence. Accepted work completes successfully or with an accurately recorded terminal failure; HTTP completion is not proof an independently launched subprocess has finished.
+
+**CR-09 — Actual side-effect classification.** Use one verified operation-effect inventory: READ_ONLY, UI_SIDE_EFFECT, MODEL_MUTATION, SYSTEM_SIDE_EFFECT, CONTROL. Classify Native routes by method/path AND payload, not POST alone: /ui/selection/set, /ui/view/activate, /ui/show and /ui/select-related when apply=true change UI state; /ui/select-related with apply=false is read-only. The existing BridgeHttpProtocol.IsWrite(path) does not cover these side effects and applies its 2.5-second read timeout to them. Align Native timeout, Python client timeout, Node retry/response classification and outcome-tracking for UI side effects. Side-effect timeout must never trigger automatic replay, even if the RVT model transaction did not change. Preserve bounded read deadlines for genuine reads; do not blanket-increase every timeout.
+
+**CR-10 — Prompt stop from the SAME session.** src/mcp-session-manager.mjs serializes non-GET requests per MCP transport using enqueue. Implement and VERIFY the smallest authenticated MCP-compliant priority control path for rg/stop and status that can accept a stop while a long business request from that same session is still running. Do not bypass MCP authentication/session validation, fabricate SDK results, expose an unauthenticated endpoint or move Revit API execution onto the Node HTTP thread. Atomic ordering between stop fence and normal admission must ensure earlier accepted work is counted and subsequent unrelated work rejected. If the MCP SDK or connected client cannot deliver a second request concurrently, investigate the supported existing control channel rather than silently claiming immediate same-session response. Test actual server-receipt-to-BUSY latency, not time before the client sends the request.
+
+**CR-11 — No idle expiry does not imply orphan transport retention.** Keep workspace, awake intent and primary binding independent of transport idle age. Reclaim MCP transport/server resources only after proven protocol DELETE, confirmed closure, or verified replacement AND all its requests reach terminal state. Check sessions, pendingRecoveries, graceTimers and opChains; never close a live but quiet session on a wall-clock threshold or terminate accepted work during stale recovery. Retain recovery context, expose resource counters/cleanup reasons, stress-test connection/replacement/deletion/idle churn. Unknown liveness cannot justify silent eviction; report unverified accumulation.
+
+**CR-12 — Crash-safe dispatch handoff.** A durable Node admission record alone does not prove Python or Native received the request. Use stable cross-layer operation ID/receipt and explicit journal states INTENT_DURABLE → DISPATCH_ATTEMPTED → NATIVE_ACCEPTED → NATIVE_EXECUTING → NATIVE_TERMINAL, plus HANDOFF_UNKNOWN for a crash or lost acknowledgement. Reconcile only against the authoritative native host generation/operation-status record; absence of a record after crash is NOT proof the operation did not run. Never replay an unknown-outcome side effect. During STOP_PENDING retain the unresolved work and display STOP_BLOCKED if recovery cannot establish terminal status. Inject crashes before/after every Node→Python→Native receipt and execution boundary. This is a P1 safety journal, NOT a P3 Job Runtime.
+
 ## 2. Source audit and exact brownfield disposition
 
 | ID | Evidence / file | Action | Reviewer issue |
@@ -85,6 +97,12 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 | A15 | docs/architecture/AUTHORITY_LIFECYCLE.md and old roadmap claim browser 15m model lease and per-chat ownership | DOCUMENT RECONCILIATION REQUIRED **before runtime code edits** | CR-06 |
 | A16 | Existing scripts/test-revit-upstream-lifecycle.mjs, test-mcp-session.mjs, test-model-authority.mjs and native_http/NativeHttpTests.cs | REUSE/ADAPT; add only missing negative controls | CR-07 |
 | A17 | RevitGptApplication.cs and RevitApiRouter.cs use Document.GetHashCode() for binding/document lookup and active-document equality | VERIFY identity stability, collision/wrapper/reopen behavior before any change; retain strong host+document identity | CR-02/03 |
+
+| A18 | src/managed-tools.mjs and src/revit-mcp-dev.mjs directly register SYSTEM and development tools | ADD shared admission and in-flight accounting for every tool family, including subprocess lifetime | CR-08 |
+| A19 | BridgeHttpProtocol.IsWrite excludes /ui/selection/set, /ui/view/activate, /ui/show, and conditional /ui/select-related(apply=true) | VERIFY/FIX route/payload effect map and native+Python timeout consistency | CR-09 |
+| A20 | src/mcp-session-manager.mjs enqueue serializes non-GET calls per MCP session | ADD protocol-correct priority stop/status ingress, verify auth and same-session liveness | CR-10 |
+| A21 | MCP sessions map stores transport/server; idle cleanup runs at 24h | REMOVE idle eviction only; add confirmed-dead/superseded transport reclamation that drains in-flight first | CR-11 |
+| A22 | Node journal, Python-generated request ID and Native bridge receipt are separate handoff stages | ADD receipt-based crash-recovery contract and negative-control tests | CR-12 |
 
 **Cross-layer timeout inventory required before changing durations:**
 ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do not guess) → Node MCP request/SDK timeout and 15s handshake/list → Node native binding probe 2.5s → Python HTTP read 3s / write 30s by default → native bridge read 2.5s / write 25s → Revit ExternalEvent queue wait / actual API run / response. Record actual limits, cancellation semantics, error categories and request IDs for each layer. No blanket “remove all timeouts” policy.
@@ -188,6 +206,12 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
 | CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T28, H01–H06 |
+
+| CR-08 | All SYSTEM/managed/dev/Revit tools participate in common in-flight accounting and graceful stop | P1-A1, D13, F20; T29 |
+| CR-09 | Side-effect classes include Native UI changes and conditional apply flag; timeout and retry safety | P1-A4, C9–12; T30 |
+| CR-10 | Same-session stop/status priority path is authenticated, nonblocking and atomically fenced | P1-A4, D14; T31/T32 |
+| CR-11 | Resource reclamation for confirmed orphan transport without any runtime idle expiry | P1-B7, F20; T33/T34 |
+| CR-12 | Durable Node→Python→Native receipts and safe crash-state reconciliation | P1-C10, D15; T35/T36 |
 
 ## 6. Review history and outstanding evidence
 
