@@ -108,6 +108,22 @@ namespace RevitGPT.Native
             }
         }
 
+        // Document-scoped operations may target the explicitly bound, still
+        // open project even when another model tab is active. This method
+        // never grants UI selection/view activation on an inactive document.
+        public string ReadDocumentDenial(string requestedId)
+        {
+            lock (_gate)
+            {
+                if (_boundId == null) return "MODEL_NOT_BOUND";
+                if (_boundLost || !_open.Contains(_boundId)) return "BOUND_MODEL_CLOSED";
+                if (_observationUnavailable) return "DOCUMENTS_UNAVAILABLE";
+                if (!String.IsNullOrEmpty(requestedId) && requestedId != _boundId)
+                    return "DOCUMENT_ID_MISMATCH";
+                return null;
+            }
+        }
+
         public bool RequestBindCurrent()
         {
             lock (_gate)
