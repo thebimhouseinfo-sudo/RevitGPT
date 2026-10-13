@@ -86,6 +86,11 @@ jobs:
         run: |
           node scripts/test-revit-upstream-lifecycle.mjs
 
+      - name: Test authoritative Native host and explicit rebind across Revit processes
+        shell: pwsh
+        run: |
+          node scripts/test-native-host-identity.mjs
+
       - name: Test P2E automatically bound model authority
         shell: pwsh
         run: |
