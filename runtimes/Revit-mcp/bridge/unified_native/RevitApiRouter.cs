@@ -55,6 +55,7 @@ namespace RevitGPT.Native
                         status = snap.Status,
                         host_instance_id = snap.HostInstanceId,
                         revision = snap.Revision,
+                        manual_binding = snap.ManualBinding,
                         active_id = snap.ActiveId,
                         active_title = snap.ActiveTitle,
                         bound_id = snap.BoundId,
