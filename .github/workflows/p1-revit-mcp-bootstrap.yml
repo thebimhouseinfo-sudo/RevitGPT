@@ -51,6 +51,11 @@ jobs:
         run: |
           node scripts/test-awake-intent.mjs
 
+      - name: Test graceful stop durable operation journal under crash and timeout
+        shell: pwsh
+        run: |
+          node --test scripts/test-work-tracker.mjs
+
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
         run: |
