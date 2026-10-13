@@ -242,3 +242,22 @@ export async function createWorkTracker({
   }
   return Object.freeze({status,admit,begin,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
 }
+
+/**
+ * Control-plane emergency mode when the durable journal cannot be trusted.
+ * Keep status/stop available, but do NOT clear evidence or admit business work.
+ */
+export function createBlockedWorkTracker(error) {
+  const reason=error instanceof Error?error.message:String(error);
+  const state=Object.freeze({
+    mode:"STOP_PENDING",epoch:0,active_count:0,unresolved_count:1,
+    active_ids:[],unresolved_ids:["JOURNAL_UNVERIFIED"],
+    stop_pending:true,safety_state:"STOP_BLOCKED",recovery_error:reason
+  });
+  const deny=async()=>{throw new Error("WORK_JOURNAL_UNVERIFIED: "+reason);};
+  return Object.freeze({
+    status:()=>state,requestStop:async()=>({status:"STOP_BLOCKED",...state}),
+    admit:deny,begin:deny,settle:deny,run:deny,runAdmitted:deny,
+    cancelIfNotStarted:async()=>false,reopen:deny
+  });
+}
