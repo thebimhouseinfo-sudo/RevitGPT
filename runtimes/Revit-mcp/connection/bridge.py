@@ -236,13 +236,13 @@ def set_selection(element_ids: list[str], document_id: str | None = None,
     if mode != "replace":
         payload["mode"] = mode
     if document_id: payload["document_id"] = document_id
-    return _send_request("/ui/selection/set", payload=payload, method="POST")["data"]
+    return _send_request("/ui/selection/set", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def show_elements(element_ids: list[str], document_id: str | None = None) -> dict:
     payload = {"element_ids": _valid_ui_ids(element_ids, allow_empty=False)}
     if document_id: payload["document_id"] = document_id
-    return _send_request("/ui/show", payload=payload, method="POST")["data"]
+    return _send_request("/ui/show", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def select_related(element_id: str, relation: str, apply: bool = False,
@@ -256,7 +256,8 @@ def select_related(element_id: str, relation: str, apply: bool = False,
     payload = {"element_id": element_id, "relation": relation, "apply": apply}
     if document_id:
         payload["document_id"] = document_id
-    return _send_request("/ui/select-related", payload=payload, method="POST")["data"]
+    return _send_request("/ui/select-related", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT if apply else None)["data"]
 
 
 def temporary_visibility(mode: str, element_ids: list[str] | None = None,
@@ -298,7 +299,7 @@ def activate_view(view_id: str, document_id: str | None = None) -> dict:
     payload = {"view_id": view_id}
     if document_id:
         payload["document_id"] = document_id
-    return _send_request("/ui/view/activate", payload=payload, method="POST")["data"]
+    return _send_request("/ui/view/activate", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def query_elements(category: str | None = None,
