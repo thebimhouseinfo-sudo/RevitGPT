@@ -209,7 +209,13 @@ export async function createWorkTracker({
       const value=await operationContext.run({id,effect},callback);
       const isError=Boolean(value?.isError||value?.structuredContent?.result?.isError);
       if(isError){
-        await settle(id,effect==="READ_ONLY"?"TERMINAL_FAILURE":"OUTCOME_UNKNOWN","MCP_TOOL_RESULT_IS_ERROR");
+        // FastMCP may return an error as a normal JSON-RPC tool result rather
+        // than throwing. Preserve Python's Native X-Request-ID for a later
+        // host-scoped status query; never silently drop the only receipt.
+        const detail=JSON.stringify(value?.structuredContent?.result?.content ?? value?.content ?? []);
+        const nativeId=detail.match(/native_operation_id=([A-Za-z0-9_.-]{1,128})/)?.[1];
+        await settle(id,effect==="READ_ONLY"?"TERMINAL_FAILURE":"OUTCOME_UNKNOWN",
+          nativeId ? "native_operation_id="+nativeId+"; MCP_TOOL_RESULT_IS_ERROR" : "MCP_TOOL_RESULT_IS_ERROR");
       }else{
         await settle(id,"TERMINAL_SUCCESS");
       }
