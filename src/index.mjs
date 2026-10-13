@@ -144,6 +144,19 @@ function createServer(sessionKey) {
     description:"Read-only command router rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Uses effective registry; never executes scripts or edits RVT.",
     inputSchema:{command:z.string().min(3)}
   },async({command})=>{
+    const text=String(command||"").trim().toLowerCase();
+    if(text==="rg/stop"){
+      const stopped=await workTracker.requestStop();
+      return {content:[{type:"text",text:"RevitGPT "+stopped.status+
+        " active="+stopped.active_count+" unresolved="+stopped.unresolved_count}],
+        structuredContent:stopped};
+    }
+    if(text==="rg/status"){
+      const state=workTracker.status();
+      return {content:[{type:"text",text:"RevitGPT "+state.mode+
+        " active="+state.active_count+" unresolved="+state.unresolved_count}],
+        structuredContent:{...state,awake_intent:awakeIntent.status(),revit_mcp:revitUpstream.status()}};
+    }
     const result=await executeRevitCommand(command,{
       bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
     });
