@@ -8,7 +8,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
-import { createWorkTracker } from "./work-tracker.mjs";
+import { createWorkTracker, createBlockedWorkTracker } from "./work-tracker.mjs";
 import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
@@ -41,14 +41,22 @@ const awakeIntent = await createAwakeIntent({
 });
 // The accepted-work fence and Native/SYSTEM completion journal are shared by
 // all MCP transports. A new Node process cannot silently discard unknown work.
-const workTracker = await createWorkTracker({
-  filePath: path.join(getAppDataRoot(), "state", "work-journal.json"),
-  onDrained: async () => {
-    await awakeIntent.clearAfterDrain();
-    await revitUpstream.deactivate();
-    await logControl({event:"graceful_stop_completed"});
-  }
-});
+let workTracker;
+try {
+  workTracker = await createWorkTracker({
+    filePath: path.join(getAppDataRoot(), "state", "work-journal.json"),
+    onDrained: async () => {
+      await awakeIntent.clearAfterDrain();
+      await revitUpstream.deactivate();
+      await logControl({event:"graceful_stop_completed"});
+    }
+  });
+} catch (error) {
+  // A corrupt/missing-authority journal is a safety incident, not an excuse to
+  // mark STOPPED or render the minimal status/control surface unreachable.
+  await logError({source:"work-journal-init",error:String(error)}).catch(()=>undefined);
+  workTracker = createBlockedWorkTracker(error);
+}
 // Work was accepted on HTTP ingress even if a Streamable MCP transport must
 // serialize or recover before its actual tool callback becomes runnable.
 const requestContext = new AsyncLocalStorage();
