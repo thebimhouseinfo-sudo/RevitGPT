@@ -24,16 +24,19 @@ namespace RevitGPT.Native
         private readonly Func<string, string, string, string, CancellationToken, Task<string>> _dispatch;
         private readonly TimeSpan _readTimeout;
         private readonly TimeSpan _writeTimeout;
+        private readonly Func<string, string> _operationStatusProbe;
         public const int MaximumBodyBytes = 1024 * 1024;
 
         public BridgeHttpProtocol(
             Func<string, string, string, string, CancellationToken, Task<string>> dispatch,
             TimeSpan? readTimeout = null,
-            TimeSpan? writeTimeout = null)
+            TimeSpan? writeTimeout = null,
+            Func<string, string> operationStatusProbe = null)
         {
             _dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
             _readTimeout = readTimeout ?? TimeSpan.FromMilliseconds(2500);
             _writeTimeout = writeTimeout ?? TimeSpan.FromSeconds(25);
+            _operationStatusProbe = operationStatusProbe;
             if (_readTimeout <= TimeSpan.Zero || _writeTimeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(readTimeout));
         }
@@ -99,6 +102,41 @@ namespace RevitGPT.Native
                 return Error(413, "Request body too large.");
             if (stopping.IsCancellationRequested)
                 return Error(503, "Bridge shutting down.");
+
+            // A pure metadata query. Never dispatch into Revit UI context and
+            // never use a delayed native side-effect response as cancellation.
+            if (method == "POST" && path == "/operation/status")
+            {
+                if (_operationStatusProbe == null)
+                    return Error(503, "Native operation status unavailable.");
+                string operationId;
+                try
+                {
+                    var request = JObject.Parse(body ?? "");
+                    operationId = request.Value<string>("operation_id");
+                }
+                catch (JsonException)
+                {
+                    return Error(400, "Malformed operation status request.");
+                }
+                if (String.IsNullOrWhiteSpace(operationId) || operationId.Length > 128)
+                    return Error(400, "Operation ID required.");
+                foreach (char ch in operationId)
+                    if (!(Char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.'))
+                        return Error(400, "Invalid operation ID.");
+                try
+                {
+                    var statusJson = _operationStatusProbe(operationId);
+                    if (String.IsNullOrWhiteSpace(statusJson) ||
+                        JObject.Parse(statusJson)["data"] == null)
+                        return Error(503, "Invalid operation status response.");
+                    return new BridgeHttpResponse(200, statusJson);
+                }
+                catch (Exception)
+                {
+                    return Error(503, "Native operation status probe failed.");
+                }
+            }
 
             // The timeout cancels a PENDING queue item; once an API operation
             // starts, cancellation cannot roll back a Revit transaction.
