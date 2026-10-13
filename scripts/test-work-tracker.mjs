@@ -119,6 +119,47 @@ test("P1-D: admitted-before-stop work may start and finish after the stop fence"
   });
 });
 
+
+test("P1-D: concurrent @rg wake and rg/stop cannot resurrect Awake after STOPPED",async()=>{
+  await fixture(async filePath=>{
+    let awake=false,signal,release;
+    const entered=new Promise(r=>signal=r);
+    const allowed=new Promise(r=>release=r);
+    let drains=0;
+    const tracker=await createWorkTracker({
+      filePath,onDrained:async()=>{drains++;awake=false;}
+    });
+    const gate={
+      wake:async()=>{signal();await allowed;awake=true;},
+      clear:async()=>{awake=false;},
+      isAwake:()=>awake
+    };
+    const waking=tracker.reopenWithWake(gate);
+    await entered;
+    const stopping=tracker.requestStop(); // queues AFTER wake's durable transition
+    release();
+    await waking;
+    const result=await stopping;
+    assert.equal(result.status,"STOPPED");
+    assert.equal(tracker.status().mode,"STOPPED");
+    assert.equal(awake,false,
+      "stop fence must clear final wake even when another chat was awakening");
+    assert.equal(drains,1);
+
+    // A stop that already began draining is never canceled by another @rg.
+    const blocked=await createWorkTracker({filePath,onDrained:async()=>{awake=false;}});
+    await blocked.reopenWithWake(gate);
+    const accepted=await blocked.admit("file_search","READ_ONLY",{});
+    const busy=await blocked.requestStop();
+    assert.equal(busy.status,"BUSY");
+    await assert.rejects(blocked.reopenWithWake(gate),/STOP_PENDING/);
+    await blocked.begin(accepted);
+    await blocked.settle(accepted,"TERMINAL_SUCCESS");
+    assert.equal(awake,false);
+    assert.equal(blocked.status().mode,"STOPPED");
+  });
+});
+
 test("P1-D: explicit stop cannot claim STOPPED if intent clear fails",async()=>{
   await fixture(async filePath=>{
     let attempts=0;
