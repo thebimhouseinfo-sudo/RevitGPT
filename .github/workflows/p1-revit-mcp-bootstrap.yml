@@ -131,6 +131,11 @@ jobs:
         run: |
           ./scripts/check-powershell-syntax.ps1
 
+      - name: Verify Native listener recovery keeps in-flight ExternalEvent and host-scoped status
+        shell: pwsh
+        run: |
+          node scripts/test-native-listener-continuity.mjs
+
       - name: Compile native RevitGPT against Revit 2024 API
         if: matrix.node-version == '24'
         shell: pwsh
