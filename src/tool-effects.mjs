@@ -48,7 +48,7 @@ export function effectForTool(name, args={}) {
 
 // Refuse hidden unclassified callback paths. All source-managed/development
 // registrations and RevitGPT public tools must go through this wrapper.
-export function wrapToolRegistration(server,{tracker,isAwake}){
+export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvider=()=>null}){
   if(!server || typeof server.registerTool!=="function")
     throw new Error("TOOL_REGISTER_INVALID");
   if(!tracker || typeof tracker.run!=="function")
@@ -62,10 +62,16 @@ export function wrapToolRegistration(server,{tracker,isAwake}){
     return raw(name,config,async(args,...rest)=>{
       const effect=effectForTool(name,args);
       if(effect==="CONTROL")return callback(args,...rest);
-      if(!isAwake())throw new Error("WORKSPACE_STANDBY: invoke @rg before business tools");
-      return tracker.run(name==="revitgpt_call"?String(args.name):name,
-        effect,name==="revitgpt_call"?args.arguments??{}:args??{},
+      const reservedId=reservationIdProvider();
+      // Previously admitted/queued requests are allowed to finish even if
+      // STOP_PENDING has already fenced off unrelated business requests.
+      if(!isAwake() && !reservedId)
+        throw new Error("WORKSPACE_STANDBY: invoke @rg before business tools");
+      const tool=name==="revitgpt_call"?String(args.name):name;
+      const inputs=name==="revitgpt_call"?args.arguments??{}:args??{};
+      if(reservedId)return tracker.runAdmitted(reservedId,tool,effect,
         ()=>callback(args,...rest));
+      return tracker.run(tool,effect,inputs,()=>callback(args,...rest));
     });
   };
   return server;
