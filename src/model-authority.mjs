@@ -21,6 +21,21 @@ const MODEL_WRITES = new Set([
   "revit_create_spot_elevation", "revit_create_detail_line"
 ]);
 
+/**
+ * Source-backed effect classification for the existing Revit tool contract.
+ * UI actions are not read-only, even when the API does not open an RVT
+ * transaction. An unknown name is NEVER implicitly treated as a read.
+ */
+export function classifyModelOperation(name, args = {}) {
+  if (DIAGNOSTIC.has(name) || MODEL_READS.has(name)) return "READ_ONLY";
+  if (UI_ACTIONS.has(name)) {
+    if (name === "revit_select_related" && args?.apply === false) return "READ_ONLY";
+    return "UI_SIDE_EFFECT";
+  }
+  if (MODEL_WRITES.has(name)) return "MODEL_MUTATION";
+  return null;
+}
+
 // The control plane, never WebView, reads native model selection.
 // Every model operation checks binding, including writes.
 export async function fetchNativeBindingStatus(baseUrl, {
