@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <Compile Include="../../bridge/unified_native/BridgeRouteContract.cs" Link="BridgeRouteContract.cs" />
+    <Compile Include="../../bridge/unified_native/BridgeHttpProtocol.cs" Link="BridgeHttpProtocol.cs" />
+    <Compile Include="../../bridge/unified_native/BridgeHttpServer.cs" Link="BridgeHttpServer.cs" />
+    <Compile Include="../../bridge/unified_native/NativeDocumentContract.cs" Link="NativeDocumentContract.cs" />
+  </ItemGroup>
+</Project>

@@ -1,8 +1,9 @@
 # RG / CG Add-in Plan
 
-Status: **DESIGN PLAN**  
+Status: **MIGRATED DESIGN CONTRACT — J-8A2C P0**  
 Scope: **RevitGPT (RG) + CadGPT (CG) convenience add-ins**  
-Principle: **The add-in automates plumbing; it does not replace the local engine or the ChatGPT plugin.**
+Principle: **The add-in automates plumbing; it does not replace the local engine or the ChatGPT plugin.**  
+Canonical RevitGPT authority lifecycle: [`../architecture/AUTHORITY_LIFECYCLE.md`](../architecture/AUTHORITY_LIFECYCLE.md)
 
 ## 1. Goal
 
@@ -279,9 +280,37 @@ A runtime reconnect must not by itself destroy the host-document/conversation as
 
 The add-in should restore/open the known conversation and use @rg/@cg handshake to confirm the live conversation path.
 
-The add-in itself should not impose an arbitrary idle timeout merely because no command has run recently.
+RevitGPT uses two explicit authority modes defined by the canonical lifecycle contract:
 
-**Roadmap reconciliation required:** the current RevitGPT roadmap still contains the earlier 15-minute model lease timeout decision. Before implementation, decide whether the new persistent add-in-managed binding supersedes that policy globally or only in add-in mode. Do not silently implement conflicting policies.
+~~~text
+BROWSER_TTL
+  ordinary browser/plugin chat
+  15-minute idle lease
+
+ADDIN_MANAGED
+  WebView chat successfully paired to the add-in
+  no RevitGPT idle timeout while pair remains valid
+~~~
+
+The add-in must not use a synthetic heartbeat merely to manufacture activity. Windows sleep, WebView recreation, panel hide/show, and MCP transport replacement are not session-end signals for `ADDIN_MANAGED`.
+
+The pair is established by local pair-window handshake + normal `@rg` admission. WebView cookies, DOM state, login state, and transport identity never grant model authority.
+
+All release/recovery semantics are owned by the canonical contract in `docs/architecture/AUTHORITY_LIFECYCLE.md`.
+
+
+## Bridge hosting decision before native bridge integration
+
+Do not assume the Revit docked add-in must own the bridge.
+
+First run the E-PY evidence gate against the existing pyRevit bridge.
+
+- If pyRevit auto-start is stable, Revit API execution is safe, the full bridge contract/capability checks pass, and no routine manual recovery is needed, keep the pyRevit bridge as a separate invisible add-in. The native RevitGPT add-in hosts DockablePane + WebView2 only.
+- If pyRevit remains unreliable after bounded remediation or user interaction is required to start/recover it, use one unified native RevitGPT add-in for bridge + DockablePane + WebView2, with recovery exposed only inside the RevitGPT panel.
+- Never require the user to leave the RevitGPT panel to operate a second bridge UI.
+- Exactly one bridge implementation may own `127.0.0.1:8765` during any evidence run.
+
+This hosting decision is infrastructure-only and does not change the downstream model-authority/pairing rules in this document.
 
 ## 7. WebView2 rules
 
@@ -363,6 +392,7 @@ User should normally not need to remember:
 - Persist conversation association.
 - Restore the intended conversation.
 - Validate reconnect/re-handshake without losing local binding.
+- Validate BROWSER_TTL vs ADDIN_MANAGED behavior against the canonical lifecycle contract.
 - Isolate any UI-trigger automation from core binding logic.
 
 ### A5 - Hardening
@@ -371,6 +401,8 @@ User should normally not need to remember:
 - ChatGPT logout/relogin.
 - WebView crash/reload.
 - Plugin/MCP reconnect.
+- Idle > browser TTL with add-in pair still valid.
+- Windows sleep/resume.
 - Host model/drawing closed.
 - Wrong model visually active.
 - Bind-current failure rollback.

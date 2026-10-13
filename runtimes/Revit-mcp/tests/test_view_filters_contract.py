@@ -1,0 +1,65 @@
+"""View parameter filter read/edit: explicit action validation and Native grant."""
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+from connection import bridge
+
+BASE = Path(__file__).resolve().parents[1]
+
+
+class FilterContracts(unittest.TestCase):
+    @patch.object(bridge, "_send_request", return_value={"data": {"filters": [], "complete": True}})
+    def test_read_view_filters(self, request):
+        result = bridge.list_view_filters("15")
+        self.assertTrue(result["complete"])
+        request.assert_called_once_with("/view/filters", payload={"view_id": "15"}, method="POST")
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"attached": True}})
+    def test_apply_filter(self, request):
+        result = bridge.manage_view_filters("15", "44", "apply")
+        self.assertTrue(result["attached"])
+        request.assert_called_once_with("/view/filter/write",
+            payload={"view_id": "15", "filter_id": "44", "action": "apply"},
+            method="POST", timeout=bridge.WRITE_TIMEOUT)
+
+    @patch.object(bridge, "_send_request", return_value={"data": {"filter_id": "88"}})
+    def test_create_string_rule(self, request):
+        result = bridge.manage_view_filters("15", None, "create_text_equals",
+            name="FCU only", bip="ALL_MODEL_MARK", value="FCU",
+            category_ids=["-2001140"], visible=True)
+        self.assertEqual(result["filter_id"], "88")
+        request.assert_called_once_with("/view/filter/write", payload={
+            "view_id": "15", "action": "create_text_equals",
+            "name": "FCU only", "bip": "ALL_MODEL_MARK",
+            "value": "FCU", "category_ids": ["-2001140"],
+            "visible": True
+        }, method="POST", timeout=bridge.WRITE_TIMEOUT)
+
+    @patch.object(bridge, "_send_request")
+    def test_invalid_requests_never_sent(self, request):
+        for args in (("0","15","apply"),("15","0","apply"),
+                     ("15","44","unsafe"),("15","44","visibility")):
+            with self.subTest(args=args):
+                with self.assertRaises(ValueError):
+                    bridge.manage_view_filters(*args)
+        with self.assertRaises(ValueError):
+            bridge.manage_view_filters("15", "44", "apply", visible=True)
+        request.assert_not_called()
+
+    def test_view_edit_transaction_guard(self):
+        native = (BASE/"bridge/unified_native/NativeViewFilters.cs").read_text(encoding="utf-8")
+        proto = (BASE/"bridge/unified_native/BridgeHttpProtocol.cs").read_text(encoding="utf-8")
+        self.assertIn("view.GetFilters()", native)
+        self.assertIn("tx.RollBack()", native)
+        self.assertIn("view.SetFilterVisibility(", native)
+        self.assertIn("ParameterFilterRuleFactory.CreateEqualsRule(", native)
+        self.assertIn("ParameterFilterElement.Create(", native)
+        formatting = (BASE/"bridge/unified_native/NativeViewFormatting.cs").read_text(encoding="utf-8")
+        self.assertIn("Specify exactly one element_id OR category_id.", formatting)
+        self.assertIn("view.SetCategoryHidden(", formatting)
+        self.assertIn("view.SetCategoryOverrides(", formatting)
+        self.assertIn('path == "/view/filter/write"', proto)
+
+
+if __name__ == "__main__":
+    unittest.main()

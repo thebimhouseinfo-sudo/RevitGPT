@@ -1,0 +1,250 @@
+name: P1 Revit MCP Bootstrap
+
+on:
+  push:
+    branches:
+      - work/J-AFC4-p1-revit-mcp-bootstrap
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap-check:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["20", "24"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove exact revision
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          $expected = "${{ github.sha }}"
+          if ($actual -ne $expected) {
+            throw "Checkout revision mismatch. expected=$expected actual=$actual"
+          }
+          Write-Host "[PASS] exact revision: $actual"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Check Node syntax with red control
+        shell: pwsh
+        run: |
+          ./scripts/check-node-syntax.ps1
+
+      - name: Test bridge health request-id and real HTTP 400 negative control
+        shell: pwsh
+        run: |
+          node scripts/test-bridge-health.mjs
+
+      - name: Test bounded Revit MCP upstream and no duplicate tools/list
+        shell: pwsh
+        run: |
+          node scripts/test-revit-upstream-lifecycle.mjs
+
+      - name: Test P2E automatically bound model authority
+        shell: pwsh
+        run: |
+          node scripts/test-model-authority.mjs
+
+      - name: Test explicit read intent without cross-request admission state
+        shell: pwsh
+        run: |
+          node scripts/test-read-intent-gate.mjs
+
+      - name: Test retired pairing descriptions cannot trigger mutation error
+        shell: pwsh
+        run: |
+          node scripts/test-retired-panel-commands.mjs
+
+      - name: Verify unified Revit capability registry and non-executable discovery
+        shell: pwsh
+        run: |
+          node scripts/test-capability-registry.mjs
+
+      - name: Audit Revit MCP source coverage and mandatory V1 capability matrix
+        shell: pwsh
+        run: |
+          node scripts/audit-revit-mcp-coverage.mjs
+          node scripts/test-revit-mcp-coverage.mjs
+
+      - name: Test RevitGPT fake CLI read-only routing and negative controls
+        shell: pwsh
+        run: |
+          node scripts/test-revit-fake-cli.mjs
+
+      - name: Check Direct/Reasoning Custom Jobs are local-only
+        shell: pwsh
+        run: |
+          node scripts/test-custom-job-local-storage.mjs
+
+      - name: Simulate Windows bootstrap paths with spaces
+        shell: pwsh
+        run: |
+          ./scripts/simulate-windows-bootstrap.ps1
+
+      - name: Verify AppData contract
+        shell: pwsh
+        run: node scripts/verify-appdata.mjs
+
+      - name: Smoke Slim MCP startup
+        shell: pwsh
+        run: |
+          ./scripts/smoke-slim-mcp.ps1
+
+      - name: Check PowerShell syntax on pwsh and Windows PowerShell 5.1
+        shell: pwsh
+        run: |
+          ./scripts/check-powershell-syntax.ps1
+
+      - name: Compile native RevitGPT against Revit 2024 API
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          dotnet build runtimes/Revit-mcp/bridge/unified_native/RevitGPT.Native.csproj -c Release -p:UseNugetRevitApi=true -warnaserror
+
+      - name: Stage uninstalled native preview and exercise red controls
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-native-preview-package.ps1
+
+      - name: Test explicit native preview registration and rollback in isolated folders
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-native-preview-registration.ps1
+
+      - name: Test official local installation, migration and rollback in isolated folders
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-native-official-install.ps1
+
+      - name: Test bounded E-PY host preflight, rollback and red controls
+        shell: powershell
+        run: |
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = "powershell.exe"
+          $psi.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-e-py-host-baseline.ps1"'
+          $psi.WorkingDirectory = (Get-Location).Path
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $child = New-Object System.Diagnostics.Process
+          $child.StartInfo = $psi
+          if (-not $child.Start()) { throw "Cannot launch E-PY host regression tests" }
+          $out = $child.StandardOutput.ReadToEndAsync()
+          $err = $child.StandardError.ReadToEndAsync()
+          $finished = $child.WaitForExit(120000)
+          if (-not $finished) { try { $child.Kill() } catch {} }
+          if ($out.IsCompleted) { Write-Host $out.GetAwaiter().GetResult() }
+          if ($err.IsCompleted) { Write-Host $err.GetAwaiter().GetResult() }
+          if (-not $finished) { throw "E-PY host test watchdog: test exceeded 120 seconds" }
+          $child.Refresh()
+          if ($child.ExitCode -ne 0) { throw "E-PY host regression test failed with exit $($child.ExitCode)" }
+          $child.Dispose()
+
+      - name: Check static native Revit bridge package contract
+        shell: pwsh
+        run: |
+          ./scripts/check-native-revit-bridge.ps1
+
+      - name: Verify RevitGPT tray icon and red control
+        shell: powershell
+        run: |
+          ./scripts/test-revitgpt-tray-icon.ps1
+
+      - name: Test pyRevit package validator with red controls
+        shell: pwsh
+        run: |
+          ./scripts/test-pyrevit-bridge-package-contract.ps1
+
+      - name: Test pyRevit runtime discovery positive and negative controls
+        shell: pwsh
+        run: |
+          ./scripts/test-pyrevit-runtime.ps1
+
+      - name: Verify current Secure MCP tunnel client
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./openai-tunnel.ps1 -VerifyClient
+
+      - name: Test exact tunnel-client version parser red controls
+        if: matrix.node-version == '24'
+        shell: powershell
+        run: |
+          ./scripts/test-tunnel-version-contract.ps1
+
+      - name: Test exact tunnel-client against Slim MCP
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-tunnel-client-dev-proxy.ps1
+
+      - name: Check static tunnel ownership source guard
+        shell: pwsh
+        run: |
+          ./scripts/check-tunnel-ownership.ps1
+
+      - name: Test tunnel doctor with configured health port occupied
+        if: matrix.node-version == '24'
+        shell: pwsh
+        run: |
+          ./scripts/test-tunnel-doctor-port-isolation.ps1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Revit MCP Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -r runtimes/Revit-mcp/requirements.txt
+
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          python -m compileall -q runtimes/Revit-mcp
+
+      - name: Test legacy bridge installer fail-closed
+        shell: powershell
+        run: |
+          ./scripts/test-legacy-bridge-block.ps1
+
+      - name: Check native read-only preview host safety gates
+        shell: pwsh
+        run: |
+          python -m unittest discover -s runtimes/Revit-mcp/tests -p test_native_host_preview.py -v
+
+      - name: Validate native HTTP routes match Python MCP consumer
+        shell: pwsh
+        run: |
+          python -m unittest discover -s runtimes/Revit-mcp/tests -p test_native_route_contract.py -v
+
+      - name: Test native HTTP protocol and bounded request handling
+        shell: pwsh
+        run: |
+          dotnet run --project runtimes/Revit-mcp/tests/native_http/NativeHttpTests.csproj --configuration Release
+
+      - name: Test unified-native ExternalEvent dispatch concurrency
+        shell: pwsh
+        run: |
+          dotnet run --project runtimes/Revit-mcp/tests/native_dispatch/NativeDispatchTests.csproj --configuration Release
+
+      - name: Run classified offline Revit MCP tests
+        shell: pwsh
+        run: |
+          ./scripts/run-revit-mcp-tests.ps1

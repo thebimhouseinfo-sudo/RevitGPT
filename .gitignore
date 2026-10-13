@@ -1,0 +1,10 @@
+.env
+node_modules/
+bin/
+profiles/
+*.log
+runtimes/Revit-mcp/.venv/
+runtimes/Revit-mcp/**/__pycache__/
+runtimes/Revit-mcp/**/*.pyc
+runtimes/Revit-mcp/bridge/standalone_addin/bin/
+runtimes/Revit-mcp/bridge/standalone_addin/obj/

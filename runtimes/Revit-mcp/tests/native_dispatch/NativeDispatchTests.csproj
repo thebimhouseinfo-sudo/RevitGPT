@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../bridge/unified_native/BridgeDispatchQueue.cs" Link="BridgeDispatchQueue.cs" />
+    <Compile Include="../../bridge/unified_native/BridgeRetryState.cs" Link="BridgeRetryState.cs" />
+    <Compile Include="../../bridge/unified_native/NativeBridgeRecoveryPolicy.cs" Link="NativeBridgeRecoveryPolicy.cs" />
+    <Compile Include="../../bridge/unified_native/NativePaneStartupPolicy.cs" Link="NativePaneStartupPolicy.cs" />
+    <Compile Include="../../bridge/unified_native/NativeModelBindingState.cs" Link="NativeModelBindingState.cs" />
+    <Compile Include="../../bridge/unified_native/RevitExternalEventAdapter.cs" Link="RevitExternalEventAdapter.cs" />
+  </ItemGroup>
+</Project>

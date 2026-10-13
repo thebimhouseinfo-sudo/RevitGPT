@@ -1,0 +1,51 @@
+# Revit MCP V1 — Development acceptance and in-project retest policy
+
+Decision date: 2026-10-10
+Owner verdict: **PASS_RETEST_REQUIRED**
+Development reference commit: `10846a2f1448b925244a14ad90658eb068adc8df`
+CI reference: https://github.com/thebimhouseinfo-sudo/RevitGPT/actions/runs/38057431821 (SUCCESS)
+Canonical branch: `work/J-AFC4-p1-revit-mcp-bootstrap`
+
+## Meaning of verdict
+- Accept the current offline development checkpoint, compiled native code and CI evidence as **PASS_RETEST_REQUIRED**; do not reopen the whole initial implementation as FAILED merely because an individual tool subsequently fails in the Revit host.
+- **PASS_RETEST_REQUIRED is NOT a per-tool READY/HOST_TESTED verdict.** Live Revit 2024 functional testing, especially model mutation, rollback, Dynamo no-run, model binding and E01–E09, remains required before production release.
+- Preserve truthful source/runtime labels such as `implemented_unverified`, `pending_native_fixture`, and `read_only_available`; do not bulk promote the 63 manifest entries to READY.
+- Maintain safe fixture-only write approval and current one-model binding rules.
+
+## Owner decision: fix failing MCP tools within RevitGPT
+RevitGPT is the main workspace and coordinating brain. Revit MCP is its independent Revit API tool subsystem. If a tool fails while testing or operating:
+1. Capture exact tool name, parameters (sanitized), model binding identity, expected/observed response, trace/operation ID, environment versions, and safe repro steps.
+2. Classify as contract/schema, routing/authorization, native Revit API, UI, environment, or host evidence gap; record a bounded repair task **within RevitGPT**.
+3. Prefer dedicated **internal development MCP capabilities** accessible to RevitGPT for source inspection, writing/editing MCP implementation and tests, building, linting, targeted regression, and Git operations. These are developer/system capabilities and must be separate from user-facing Revit model-authoring commands; a model editing tool must not silently become arbitrary source-file or shell authority.
+4. Patch the existing canonical development branch, run relevant offline negative controls and complete CI; keep failure evidence and mark affected tool RETEST_REQUIRED.
+5. Re-run failed host workflow on a disposable RVT, then affected neighbor workflows and E01–E09 regression as required. Transition an individual tool to READY only after genuine applicable live-host evidence and review.
+6. If repair changes the installed Native DLL, stage a new immutable version and follow explicit host upgrade/rollback. No silent hot replacement; no production RVT test writes.
+
+## Backlog for internal developer MCP (separate from Revit API tools)
+- Repository read/search and exact-SHA bounded file patch;
+- Safe code/test generation limited to the RevitGPT workspace;
+- Offline `.NET`/Python/Node test and build commands with allowlisted execution roots;
+- Git diff/status/branch/commit and CI evidence reading;
+- Failure-to-repair handoff containing reproduction, root cause, changed files, tests, retest checklist;
+- No direct unreviewed deployment, automatic production model writes, bypass of native approval or arbitrary local filesystem access.
+
+## Gates
+- DEVELOPMENT CHECKPOINT: **PASS_RETEST_REQUIRED** (owner accepted).
+- LIVE HOST E01–E09: **PENDING**.
+- MCP V1 RELEASE / MAIN MERGE: **NOT AUTHORIZED BY THIS DECISION**.
+
+## Approved local test-model WRITE access (2026-10-10)
+
+WRITE tool dispatch is no longer limited to the managed fixtures directory. A local, saved, non-linked, non-family, non-workshared RVT may be opted into testing using an exact-path allowlist at `%LOCALAPPDATA%\\RevitGPT\\config\\write-test-models.txt` (one absolute RVT file path per line). The pre-existing fixture root remains accepted. UNC paths and reparse-point traversal are refused. Native WPF **Approve Write** remains compulsory per exact operation; the caller stages and resubmits that same request after confirmation. Re-binding or request modification invalidates authorization.
+
+This expands test coverage; it is **not** a read-only bypass for arbitrary production models, nor proof that all write handlers pass host tests. Test only disposable copies; do not add client/production RVT paths to the allowlist. Remove an RVT from the allowlist after testing. A changed Native binary requires Revit to be closed and an immutable-version add-in upgrade under the existing installer protocol.
+
+Separate roadmap work (Knowledge Writer, Job Runtime, Dynamo Writer) continues in normal future development turns. ChatGPT text conversations do not by themselves execute unattended background development.
+
+## Owner override: native WRITE dispatch on bound model (2026-10-10)
+
+This newer decision **supersedes the fixture/allowlist and per-operation approval policies above** for Revit MCP. The current runtime accepts READ, UI and WRITE tool requests for the **single current, explicitly bound model**, after a fresh Native model-binding check within Revit ExternalEvent. No extra Approve Write, allowlist or test-only folder is required.
+
+Model switching remains intentional; active tab alone is not authority. Calls carrying a different document ID, or calls after the bound model closes/changes, are refused. Writes still use their existing Revit transactions and API validation; delete/other destructive operations retain their own operation-specific input contracts. Host verification status remains PASS_RETEST_REQUIRED, not READY.
+
+Code-level sources: `src/model-authority.mjs`, `runtimes/Revit-mcp/bridge/unified_native/NativeModelBindingState.cs`, `RevitApiRouter.cs`, native operation handlers and `runtimes/Revit-mcp/tool-manifest.json`. The retired `NativeWriteAuthority.cs` source and its WPF button have been removed. After installing the updated DLL and refreshing the runtime, writes can be tested on the bound RVT (keep independent RVT backups as normal Revit practice).
