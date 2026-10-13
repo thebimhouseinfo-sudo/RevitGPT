@@ -5,6 +5,9 @@ on:
     branches:
       - work/J-AFC4-p1-revit-mcp-bootstrap
       - work/p1-stable-runtime-20261013
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -47,6 +50,11 @@ jobs:
         shell: pwsh
         run: |
           node scripts/test-mcp-session.mjs
+
+      - name: Test explicit global awake intent, Windows boot/logon and stale-state negative controls
+        shell: pwsh
+        run: |
+          node scripts/test-awake-intent.mjs
 
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
