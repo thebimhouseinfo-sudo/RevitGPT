@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 /**
  * P1 control-plane operation journal. NOT a P3 Job Runtime.
@@ -11,6 +12,8 @@ const VERSION = 1;
 const EFFECTS = new Set(["READ_ONLY", "UI_SIDE_EFFECT", "MODEL_MUTATION", "SYSTEM_SIDE_EFFECT"]);
 const TERMINAL = new Set(["TERMINAL_SUCCESS", "TERMINAL_FAILURE", "NOT_STARTED"]);
 const RETAIN = 300;
+const operationContext = new AsyncLocalStorage();
+export function currentOperationId() { return operationContext.getStore()?.id ?? null; }
 
 function digest(value) {
   return createHash("sha256").update(JSON.stringify(value ?? {})).digest("hex");
@@ -18,7 +21,7 @@ function digest(value) {
 function compactArgs(args) {
   if (!args || typeof args !== "object" || Array.isArray(args)) return {};
   const keys = ["path", "destination_path", "source_path", "relative_path", "library_id",
-    "execution_id", "id", "name", "kind", "document_id"];
+    "execution_id", "id", "name", "kind", "title", "document_id", "expected_sha256"];
   const out = {};
   for (const key of keys) {
     if (typeof args[key] === "string") out[key] = args[key].slice(0, 2048);
@@ -133,6 +136,7 @@ export async function createWorkTracker({
     }finally{drainRunning=false;}
   }
   function status(){return {...snapshotState(data),epoch:data.epoch};}
+  function unresolvedOperations(){return clone(data.operations.filter(op=>op.phase==="OUTCOME_UNKNOWN"||op.phase==="PARTIAL"));}
 
   async function admit(tool,effect,args={}){
     if(!EFFECTS.has(effect))throw new Error("WORK_EFFECT_UNCLASSIFIED");
@@ -186,7 +190,7 @@ export async function createWorkTracker({
       throw error;
     }
     try{
-      const value=await callback();
+      const value=await operationContext.run({id,effect},callback);
       const isError=Boolean(value?.isError||value?.structuredContent?.result?.isError);
       if(isError){
         await settle(id,effect==="READ_ONLY"?"TERMINAL_FAILURE":"OUTCOME_UNKNOWN","MCP_TOOL_RESULT_IS_ERROR");
@@ -240,7 +244,7 @@ export async function createWorkTracker({
     });
     return status();
   }
-  return Object.freeze({status,admit,begin,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
+  return Object.freeze({status,unresolvedOperations,admit,begin,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
 }
 
 /**
@@ -256,7 +260,7 @@ export function createBlockedWorkTracker(error) {
   });
   const deny=async()=>{throw new Error("WORK_JOURNAL_UNVERIFIED: "+reason);};
   return Object.freeze({
-    status:()=>state,requestStop:async()=>({status:"STOP_BLOCKED",...state}),
+    status:()=>state,unresolvedOperations:()=>[],requestStop:async()=>({status:"STOP_BLOCKED",...state}),
     admit:deny,begin:deny,settle:deny,run:deny,runAdmitted:deny,
     cancelIfNotStarted:async()=>false,reopen:deny
   });
