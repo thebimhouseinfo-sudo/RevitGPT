@@ -11,7 +11,7 @@ const upstream={
   status(){return {connected:this.connected};},
   cachedTools(){return this.connected?[
     {name:"revit_list_levels"},{name:"revit_get_active_document"},
-    {name:"revit_delete_elements"}
+    {name:"revit_get_active_view"},{name:"revit_delete_elements"}
   ]:[];},
   async activate(){counts.activations++;this.connected=true;return this.cachedTools();}
 };
@@ -53,12 +53,15 @@ await fail(()=>callReadOnlyTool({name:"revit_list_levels",args:{document_id:"OTH
   authority:session(),ensureReady,invoke}),"DOCUMENT_ID_MISMATCH");
 const performed=counts.call;
 native={...native,status:"BOUND_OTHER_ACTIVE",active_id:"B"};
-await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
+const offTab = await callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke});
+assert.equal(offTab.args.document_id,"M",
+  "model reads may target bound M after switching active tab to B");
+await fail(()=>callReadOnlyTool({name:"revit_get_active_view",authority:session(),ensureReady,invoke}),
   "MODEL_BINDING_NOT_CURRENT");
 native={...native,status:"BOUND_CLOSED",active_id:"B"};
 await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
   "MODEL_BINDING_NOT_CURRENT");
-assert.equal(counts.call,performed,"denied reads MUST NOT reach Python");
+assert.equal(counts.call,performed+1,"only document-scoped off-tab read reaches Python; UI and closed binding deny");
 upstream.connected=false;
 const wakeBefore=counts.activations;
 await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
