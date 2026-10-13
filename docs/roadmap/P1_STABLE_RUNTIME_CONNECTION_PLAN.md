@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 2 — internal planning checks PASS; independent CR re-review REQUIRED; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 3 — internal planning checks PASS; independent CR re-review REQUIRED; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -11,7 +11,7 @@ After explicit **@rg**, RevitGPT must remain available and stable until an expli
 
 Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional primary-model binding shared across chats, and architecture compatible with future P2 (MCP/Dynamo execution) and P3 (Jobs/skills/capability reuse). Reuse and verify brownfield code before modification. Do not claim immunity to Revit crash, external outages or OS shutdown.
 
-**Critical stop refinement (human decision after CR-05):** **rg/stop must not interrupt active work.** If accepted work remains, report **BUSY / STOP_PENDING**, keep dependencies alive, block admission of new work, and transition to STANDBY **only after the previously accepted work has reached a known terminal outcome**. An HTTP timeout does not establish that an already executing Revit operation has finished. The user must not have to issue stop a second time.
+**Critical stop refinement (human decision after CR-05):** **rg/stop must not interrupt active work.** If accepted work remains, report **BUSY / STOP_PENDING**, keep dependencies alive, block unrelated new work while permitting validated continuation steps of previously accepted work, and transition to STANDBY **only after the previously accepted work has reached a known terminal outcome**. An HTTP timeout does not establish that an already executing Revit operation has finished. The user must not have to issue stop a second time.
 
 **Scope fence:** every proposed task, code change, review comment and test must trace to this Goal. Otherwise defer to P2/P3. P1 does NOT implement full Job Runtime, Dynamo Writer, Job File Ownership, capability registry leasing or all MCP tools.
 
@@ -24,7 +24,7 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 | STANDBY | Lightweight tray + minimum remote control/admission transport | Inactive | OFF | Only explicit @rg awakens |
 | WORKSPACE_AWAKE | Tray/control plane | ON, independent of Revit | OFF | Revit appears + healthy bridge → FULLY_AWAKE |
 | FULLY_AWAKE | Tray/control plane | ON | ON | Revit closes → WORKSPACE_AWAKE |
-| STOP_PENDING | Control/status path retained; execution dependencies kept alive | Remains usable to finish accepted work only | Kept alive as needed for accepted work | Zero confirmed active work → STANDBY |
+| STOP_PENDING | Control/status path retained; execution dependencies kept alive | Accepted work and validated continuations may run | Kept alive as needed for accepted work | Zero confirmed active work → STANDBY |
 | STOP_BLOCKED | Diagnostic/status and required execution dependencies retained | No new work | Do not tear down while outcome unknown | Resolve or confirm terminal status before automatic stop |
 
 - **@rg** is idempotent and sets one **global awake intent**, not a per-chat model lease. Revit being opened alone never wakes a STANDBY workspace.
@@ -32,17 +32,17 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 - Opening/closing/reloading WebView, changing active Revit view/tab, creating/deleting MCP transports and multiple browser chats must not alter global awake intent or binding.
 - **rg/stop** is global, not a per-chat close and not the administrative **run.bat stop**. Only explicit rg/stop enters STOP_PENDING. No automatic idle stop.
 - During STOP_PENDING, give immediate visible result **BUSY — work in progress; stop after completion** with active/queued/unknown counts and current phase where known. Status/diagnostics remain available. Repeated stop requests are idempotent.
-- Work admitted **before** the stop fence must be allowed to finish, including work already accepted into the Revit dispatch queue. After the stop fence, reject **new** business operations (including another chat's request) with STOP_PENDING; allow status and reconciliation. Exclude the stop control request itself from active-work counting so it cannot deadlock.
+- Work admitted **before** the stop fence must be allowed to finish, including work already accepted into the Revit dispatch queue. After the fence, reject **new unrelated work** (including another chat's new task), but allow **validated continuation steps belonging to a previously accepted work unit** until that unit finishes. Same chat/session alone is not evidence of valid continuation: require work identity, step lineage and terminal tracking. Status and reconciliation remain permitted. The stop command itself is not counted as active work.
 - Known terminal statuses are succeeded, failed or canceled **before starting**. Error completion does not mean success. **Unknown-outcome write remains unresolved** even if its upstream HTTP request ended.
-- If host has exited, an in-flight operation cannot be guaranteed to finish: report **STOP_BLOCKED/EXTERNAL_INTERRUPTION** with unresolved operation IDs, never falsely declare graceful completion. An explicit administrative process kill is outside the guarantee for rg/stop.
-- Future P3 jobs integrate through a minimal observable active-work/quiescence interface; P1 owns request/dispatch in-flight correctness, not P3 job workflow.
+- If host has exited, an in-flight operation cannot be guaranteed to finish: report **STOP_BLOCKED/EXTERNAL_INTERRUPTION** with unresolved operation IDs, never falsely declare graceful completion. **STOP_BLOCKED takes precedence** over ordinary FULLY_AWAKE → WORKSPACE_AWAKE during an unresolved pending stop. Explicit administrative process termination is outside the graceful rg/stop guarantee.
+- Future P3 jobs integrate through a minimal active-work/quiescence and continuation-admission interface: begin accepted work → register follow-on steps to that work ID → complete terminally → notify stop drain. P1 tests this minimal interface with fixtures, but **does not implement P3 Job Runtime or workflow**. A new work unit cannot impersonate an existing continuation just by sharing a chat/session.
 
 ### 1.2 Awake-intent persistence and manual commands
 
 - **Owner:** one local control-plane authority coordinated with the tray. Do not persist per-chat awake ownership or establish a second registry.
 - Persist/reconstruct awake intent **only for the current Windows boot/logon generation**, using a verifiable boot/logon identity (not elapsed time or a stale PID alone). Recover from Node/tray crash, tunnel replacement and sleep/wake within the same generation; boot restart/logoff must invalidate old awake intent and return to STANDBY.
 - **rg/stop** clears awake intent only after the drain conditions above are met. Durable STOP_PENDING must survive recoverable control-plane restart without silently completing or accepting new work.
-- **run.bat stop** is an administrative host shutdown, not an alias of graceful rg/stop. **run.bat restart** needs an explicit documented policy and tests distinguishing controlled restart from stop; inspect current stop→start implementation before choosing preservation mechanics. Do not make a new Windows login auto-awake.
+- **run.bat stop** is an explicit administrative host shutdown, not an alias of graceful rg/stop, and may interrupt active work by administrator intent. **run.bat restart** is explicit administrative stop→start and returns to STANDBY (the current script calls stop then start); it is NOT unplanned crash recovery. Test this behavior. Do not auto-awake on a new Windows login.
 - If boot/session identity cannot be verified at startup, fail to STANDBY; never silently recover stale awake intent.
 - A stop on an idle runtime returns STOPPED and STANDBY immediately. No new work is admitted during drain, and rg/stop is not an unconditional force-kill.
 
@@ -85,7 +85,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 ### P1-A — Baseline, architectural contract and conflict resolution
 
 1. Pin current branch/HEAD and inspect actual tray/tunnel, Node, Python bridge, native add-in, CI, tests and existing real-host logs. Produce KEEP/VERIFY/MODIFY/REMOVE/ADD checklist with file-to-evidence links. Do not rewrite installed add-in or tested features before targeted reproduction.
-2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, boot/logon epoch, process/restart, Revit host owner, multi-chat and bound model). Choose one awake-intent authority; show failure recovery and stop fencing concurrency.
+2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, boot/logon epoch, process/restart, Revit host owner, multi-chat, validated accepted-work continuations and bound model). Choose one awake-intent authority; show failure recovery and stop fencing concurrency.
 3. **Before any runtime source edit**, converge AUTHORITY_LIFECYCLE.md and references: make the new state/authority contract canonical, mark browser 15m lease/ADDIN_MANAGED superseded, preserve historical artifacts as history, and make all active references point to one contract. No competing authority document.
 4. Inventory every timer and timeout using the cross-layer table above and classify as idle expiry, startup protection, transport/health probe, queued wait, execution wait or response wait. Identify which layer can truly cancel work.
 **Gate A:** one canonical contract, no contradictory live policy, recorded baseline and timeout matrix; NO fabricated host PASS.
@@ -108,11 +108,11 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-D — Safe global stop and concurrency (depends on Gate C)
 
-13. Implement **atomic stop admission fence** and active-work accounting across multiple chats, Node/Python/native queue, including already accepted queued items. The stop command is not itself active work. New model/workspace tasks receive STOP_PENDING, while accepted work proceeds normally.
+13. Implement **atomic stop admission fence** and active-work accounting across multiple chats, Node/Python/native queue, including already accepted queued items. Stop itself is not active work. Reject new unrelated tasks; permit validated continuation calls belonging to already accepted work ID and deny same-chat attempts without that ID.
 14. **rg/stop on busy** returns BUSY immediately with work count/IDs where safe; keeps MCP/bridge alive; automatically transitions to STANDBY when all admitted operations have **known terminal outcomes**. A failed operation still counts as finished only once its terminal failure is known. No follow-up stop request is necessary.
 15. **Unknown outcome, lost native host or stuck execution** must surface STOP_BLOCKED and retain diagnostics. Do not force-stop, label graceful completion, auto-replay a write or wait forever without a visible state. Real host death is an external interruption, not successful drain. Administrative run.bat stop/restart remain clearly different commands.
-16. Provide a narrow read-only/quiescence integration seam for future P3 active Jobs. Do not create P3 Job Runtime in P1.
-**Gate D:** offline concurrency tests with A running, B queued, simultaneous stop from C; 504 native write still running; refused new tasks; automatic stop exactly once after native terminal status; blocked external cases visible.
+16. Provide a narrow quiescence **and validated continuation-admission** integration seam for future P3 active Jobs; test with a two-step accepted-work fixture. Do not build full P3 Job Runtime in P1.
+**Gate D:** offline concurrency tests with A running, B queued, stop from C, native 504 write still executing and an already accepted two-step work unit completing its second step during STOP_PENDING; new unrelated work denied; auto-stop exactly once after native/work terminal; external interruption visible.
 
 ### P1-E — Binding and host identity
 
@@ -141,7 +141,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | T05 | Native read exceeds 2.5s; Python read 3s timeout | Request error only; no global MCP shutdown |
 | T06 | Native write exceeds 25s while Revit API has started; Python write 30s | Outcome unknown reported; no replay; native status eventually terminal |
 | T07 | Chat A tool error, Chat B already running a tool | B unaffected; shared runtime stays awake |
-| T08 | Chat A/B accepted work, Chat C calls rg/stop | BUSY immediately; new work denied; accepted queued/running work finishes; auto STANDBY only after completion |
+| T08 | Chat A/B accepted work, Chat C calls rg/stop | BUSY immediately; new unrelated work denied; accepted queued/running work finishes; auto STANDBY only after completion |
 | T09 | rg/stop during HTTP 504 with native write still executing | STOP_PENDING until native completion, no early stop and no duplicate write |
 | T10 | One write remains unknowable due to host crash | STOP_BLOCKED/EXTERNAL_INTERRUPTION; never false STOPPED |
 | T11 | Python MCP process actually exits unexpectedly | Targeted automatic recovery, awake intent/model safety preserved |
@@ -154,6 +154,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | T18 | Simulated pending vs executing ExternalEvent, stopped client, timeout, duplicate request ID | No unsafe replay; no early stop; statuses accurate |
 | T19 | Same-boot Node/tray crash or Windows sleep/wake | Awake-intent restores in valid session; no zombie or reconnection storm |
 | T20 | Prolonged active work, then known terminal error | BUSY while active; error preserved; automatically stops only after terminal disposition |
+| T21 | Accepted two-step work unit invokes next step during STOP_PENDING | Continuation allowed only for validated admitted work identity; unrelated calls (even in same chat) denied; auto-stop after work terminal |
 | H01–H06 | One real-host round: startup, long-session failure isolation, multi-chat, binding, recovery, graceful stop | Host PASS/FAIL recorded separately with evidence |
 
 **P1 PASS** requires zero unexpected global deactivation from normal tool errors, timeouts, idle or chat churn on healthy host; no wrong-model writes; no silent replay; correct BUSY→STOP_PENDING→STANDBY semantics; no idle expiry; verified intentional stop and actual failure recovery. It does **not** require all Revit MCP tools fully implemented or all P2/P3 Jobs.
@@ -166,14 +167,16 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | CR-02 | Document-scoped bound-model access separate from UI-scoped active context; not wholesale mismatch denial | P1-E17; T15/T16 |
 | CR-03 | One authoritative native bridge host at a time; fixed-port owner death/second process detected, no silent rebind | P1-E18; T14 |
 | CR-04 | Awake intent survives recoverable restart in same boot/logon, not Windows restart; distinct manual commands | P1-A2, B5/B8; T01/T19 |
-| CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20 |
+| CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
-| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T20, H01–H06 |
+| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T21, H01–H06 |
 
 ## 6. Review history and outstanding evidence
 
 - 2026-10-13 R1–R5: initial self-review marked consistency PASS for prior plan, **not independent CR**.
 - 2026-10-13 CR: **FAIL / CHANGES REQUIRED**, seven findings (two critical, five high), source-based assessment; CR verdict was communicated in chat, not verified as a persisted GSA CRITIC_REVIEW record.
 - 2026-10-13 Planner rev2: addresses all CR-01…CR-07, incorporates the explicit human CR-05 stop semantics and does not extend P1 into P2/P3.
-- Rev2 internal consistency checks: fixed Phase Goal present; all seven CR mapped to tasks/tests; native write timeout and stop-drain safety dependency ordered C before D; canonical documentation collision explicitly gated before code; real-host proof remains required. **Internal planning checks PASS; a fresh independent CR verdict remains required.**
+- Rev2 Reviewer finding: a STOP_PENDING fence that blocks every tool call would interrupt a previously accepted multi-step Job. Administrative restart policy and STOP_BLOCKED precedence also needed clarification.
+- Rev3 Planner correction: reject unrelated new work while allowing validated continuations of accepted work; test T21; explicitly define run.bat restart as administrative return to STANDBY; STOP_BLOCKED overrides host-exit transition when stop unresolved.
+- Rev3 internal check: fixed Phase Goal present, CR-01…CR-07 mapped to tasks/tests, Native completion tracked before stop, future Job continuation only a minimal interface, canonical contract conversion gated before runtime edits. **Internal planning checks PASS; new independent CR verdict required.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
