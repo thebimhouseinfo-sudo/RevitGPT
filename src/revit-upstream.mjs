@@ -10,6 +10,20 @@ function resolveFromRepo(value, fallback) {
 }
 
 // One deadline for both initial MCP handshake and initial tool inventory.
+/**
+ * Classify only strong evidence that the Python MCP transport itself died.
+ * Ordinary Revit tool errors, Native 504/timeout, or a rejected write whose
+ * outcome is unknown must NEVER deactivate a healthy shared MCP.
+ */
+export function isUpstreamTransportFailure(error) {
+  const code = typeof error?.code === "string" ? error.code.toUpperCase() : "";
+  if (["EPIPE", "ECONNRESET", "ERR_STREAM_DESTROYED", "ERR_IPC_CHANNEL_CLOSED"].includes(code))
+    return true;
+  const text = error instanceof Error ? error.message : String(error ?? "");
+  return /^(?:MCP error -32000:\s*)?(?:Connection closed|Transport closed|Connection is closed|Not connected)(?:\b|:)/i.test(text) ||
+    /(?:^|\s)MCP transport (?:disconnected|closed)(?:\b|:)/i.test(text);
+}
+
 function withinDeadline(task, milliseconds, label) {
   let timer;
   return Promise.race([
@@ -125,7 +139,12 @@ export class RevitUpstream {
       return await this.client.callTool({ name, arguments: args });
     } catch (error) {
       this.lastError = error instanceof Error ? error.message : String(error);
-      await this.deactivate();
+      // Error in one tool must not destroy another chat's Python MCP process.
+      // A true transport failure invalidates only the Python upstream and
+      // leaves the global workspace awake; its watcher may reconnect.
+      if (isUpstreamTransportFailure(error)) {
+        await this.deactivate();
+      }
       throw error;
     }
   }
