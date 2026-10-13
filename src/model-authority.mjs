@@ -88,9 +88,10 @@ function currentBinding(snapshot, requireActive = false) {
 }
 
 export class SessionModelAuthority {
-  constructor(readStatus) {
+  constructor(readStatus, hostIdentity = null) {
     if (typeof readStatus !== "function") throw new Error("Missing native status probe");
     this.readStatus = readStatus;
+    this.hostIdentity = hostIdentity;
     this.lease = null;
   }
   summary() {
@@ -98,7 +99,9 @@ export class SessionModelAuthority {
   }
   async leaseCurrent() {
     this.lease = null; // If re-lease fails, old authority cannot survive.
-    this.lease = currentBinding(await this.readStatus());
+    const raw=await this.readStatus();
+    this.lease = currentBinding(raw,true);
+    if(this.hostIdentity) await this.hostIdentity.observe(raw);
     return this.summary();
   }
   async authorize(name, input = {}) {
@@ -112,7 +115,9 @@ export class SessionModelAuthority {
     // Closing the bound model fails closed; tab change denies UI-scoped work only.
     let snapshot;
     try {
-      snapshot = currentBinding(await this.readStatus(), requiresActiveBoundModel(name));
+      const native=await this.readStatus();
+      snapshot = currentBinding(native,requiresActiveBoundModel(name));
+      if(this.hostIdentity) await this.hostIdentity.observe(native);
     } catch(error) {
       this.lease = null;
       throw error;
