@@ -129,6 +129,9 @@ Source: GSA Memory Repo `thebimhouseinfo-sudo/GSA-Projects`, Project `01a0f866-d
 | A21 | MCP sessions map stores transport/server; idle cleanup runs at 24h | REMOVE idle eviction only; add confirmed-dead/superseded transport reclamation that drains in-flight first | CR-11 |
 | A22 | Node journal, Python-generated request ID and Native bridge receipt are separate handoff stages | ADD receipt-based crash-recovery contract and negative-control tests | CR-12 |
 
+| A23 | GSA RevitGPT Project Memory includes older BROWSER_TTL, pyRevit selection and R4 Phase0 Jobs with READY/IN_PROGRESS/DRAFT states | READ-ONLY source-SHA/Run/cursor conflict mapping before P1 runtime edits | CR-13 |
+| A24 | `src/managed-tools.mjs`: atomicWrite/file_edit, asset_import, registry and run_record_append; `src/revit-mcp-dev.mjs`: source mutations | Reconcile SYSTEM side effects by exact operation evidence and post-state; no blind replay or global rollback | CR-14 |
+
 **Cross-layer timeout inventory required before changing durations:**
 ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do not guess) → Node MCP request/SDK timeout and 15s handshake/list → Node native binding probe 2.5s → Python HTTP read 3s / write 30s by default → native bridge read 2.5s / write 25s → Revit ExternalEvent queue wait / actual API run / response. Record actual limits, cancellation semantics, error categories and request IDs for each layer. No blanket “remove all timeouts” policy.
 
@@ -139,14 +142,16 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 ### P1-A — Baseline, architectural contract and conflict resolution
 
 #### GOAL
-Establish one canonical lifecycle/authority contract and a verified source baseline, including all tool entry points and timeout/recovery behaviors, before changing runtime code.
+Establish one canonical lifecycle/authority contract and verified source baseline, including existing GSA Job conflicts and all tool/timeout/recovery behaviors, before changing runtime code.
 
 
 1. Pin current branch/HEAD and inspect actual tray/tunnel, Node (including all direct registrations in managed-tools and dev tools), Python bridge, native add-in, CI, tests and existing real-host logs. Inventory tool entrypoints and side effects. Produce KEEP/VERIFY/MODIFY/REMOVE/ADD checklist with file-to-evidence links. Do not rewrite installed add-in or tested features before targeted reproduction.
 2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, @rg during drain, boot/logon epoch, process/restart, Revit host owner, multi-chat, validated accepted-work continuations and bound model). Choose one awake-intent authority; show failure recovery and the atomic admission/stop boundary. Derive minimal work-unit registration, durable control journal and terminal signal from actual P1/MCP implementation; do not infer Job completion from chat messages.
 3. **Before any runtime source edit**, converge AUTHORITY_LIFECYCLE.md and references: make the new state/authority contract canonical, mark browser 15m lease/ADDIN_MANAGED superseded, preserve historical artifacts as history, and make all active references point to one contract. No competing authority document.
 4. Inventory every timer and timeout using the cross-layer table above and classify as idle expiry, startup protection, transport/health probe, queued wait, execution wait or response wait. Map UI side-effect routes, same-session command queue and orphan transport reclamation. Identify which layer can truly cancel work.
-**Gate A:** one canonical contract, no contradictory live policy, recorded baseline and timeout matrix; NO fabricated host PASS.
+   - **A-CR13, within Gate A:** read latest GSA Job/Run/Verification/cursor SHAs, map seven still-relevant Job records to P1 contract and identify conflicts. Reuse existing R4.3 evidence instead of repeating it; do not mutate GSA Job state.
+   - **A-CR14, within Gate A:** inventory SYSTEM mutation stages, file/registry/append post-state evidence and child process lifetimes. Classify existing tests vs missing negative controls, without building P3 Job Runtime.
+**Gate A:** one canonical contract, no contradictory live policy, recorded baseline/timeout matrix, SHA-bound GSA Job conflict mapping and SYSTEM write-state evidence map; no Job lifecycle mutation or fabricated host PASS.
 
 ### P1-B — Awake lifecycle and recovery foundations (after Gate A)
 
@@ -163,26 +168,26 @@ Enable explicit @rg wake, offline workspace availability and safe automatic Revi
 ### P1-C — Native work visibility and fault isolation (prerequisite to graceful stop)
 
 #### GOAL
-Ensure each Native request and its real side effects have an observable, crash-recoverable status; a tool timeout/error cannot deactivate a healthy runtime or silently replay writes.
+Ensure Native and SYSTEM side-effect operations have observable, crash-recoverable outcomes; tool errors and timeouts cannot deactivate healthy runtime or silently replay work.
 
 
 9. First verify actual Native route/payload side-effect classification including UI changes, then instrument existing native dispatch queue/protocol with correlation IDs and **minimal operation-state observation**: accepted, pending, executing, terminal success, terminal failure, canceled-before-start, outcome-unknown/interrupted. This is NOT a Job Runtime or capability registry. Expose a bounded safe status/quiescence probe without doing Revit API work on HTTP threads. Separate native host lifetime state from listener/HTTP request lifetime state.
-10. Implement crash-consistent Node→Python→Native handoff stages, authoritative native acceptance and HANDOFF_UNKNOWN recovery. Preserve status of a write or UI side effect that timed out at HTTP **after** Revit API execution began. Ensure a Node-level call can retrieve the exact native operation by cross-layer ID despite Python generating a separate request ID today. Ensure native completion updates operation state even if Python/Node/client departed or bridge listener needs recovery. Guard against disposing an active ExternalEvent dispatcher during listener restart. Make status query robust to missed responses, duplicate IDs, stale host identity and bridge owner replacement. Never re-run a write solely to discover its status.
+10. Implement crash-consistent Node→Python→Native handoff stages and SYSTEM write post-state reconciliation, using authoritative native receipts, SYSTEM content/hash/registry evidence, HANDOFF_UNKNOWN and PARTIAL/NEEDS_RECONCILIATION. Preserve status of a write or UI side effect that timed out at HTTP **after** Revit API execution began. Ensure a Node-level call can retrieve the exact native operation by cross-layer ID despite Python generating a separate request ID today. Ensure native completion updates operation state even if Python/Node/client departed or bridge listener needs recovery. Guard against disposing an active ExternalEvent dispatcher during listener restart. Make status query robust to missed responses, duplicate IDs, stale host identity and bridge owner replacement. Never re-run a write solely to discover its status.
 11. Separate application/validation errors, HTTP 4xx/5xx responses, read/write 504, SDK timeout, transport close, Python process exit, bridge listener death and Revit.exe exit in Node/Python/native. An ordinary tool exception (including native 504) must not call a global deactivate. Recovery may rebuild only a **confirmed failed** transport/process with bounded backoff.
 12. Audit timeout order, UI side-effect categories and cancellation across all layers; preserve bounded detection where needed, but no healthy-layer reset on expiration. A pending queue operation may be canceled before execution when permitted; executing Revit write cannot be treated as canceled just because an HTTP waiter left.
-**Gate C:** isolated failure tests, UI side-effect timeout tests, crash at each handoff boundary, 504-after-start with continued execution, no write replay, native completion visible, next independent tool works.
+**Gate C:** isolated failure tests, UI side-effect timeout tests, crash at Native and SYSTEM mutation boundaries, 504-after-start with continued execution, no blind replay, native/SYSTEM completion visible, next independent tool works.
 
 ### P1-D — Safe global stop and concurrency (depends on Gate C)
 
 #### GOAL
-Honor the user-defined graceful stop: promptly report BUSY, reject unrelated work, preserve all accepted SYSTEM/Revit operations and authorized continuations, then stop only at proven quiescence.
+Honor graceful stop: promptly report BUSY, reject unrelated work, preserve all accepted SYSTEM/Revit work and validated continuations, and stop only when post-crash outcomes are proven terminal.
 
 
 13. Implement **atomic stop admission fence** and accepted-work accounting across every managed/dev/SYSTEM/Revit tool, multiple chats, Node/Python/native queue and minimal durable LocalAppData journal, including queued/in-flight operations. Fail closed on unclassified tools; subprocess lifetime counts until terminal. Assign IDs and persist admission *before* dispatch. Stop itself is not active work. Reject new unrelated tasks; permit validated continuation calls for an explicitly registered and nonterminal work ID; same-chat requests without the ID cannot bypass the fence.
 14. **rg/stop on busy** promptly returns BUSY upon server receipt, including when a tool in the SAME session is running, through verified authenticated priority control ingress atomically coordinated with the regular MCP queue; keeps MCP/bridge alive; automatically transitions to STANDBY through an atomic quiescence check only after all admitted work units, their continuations and native operations have **known terminal outcomes**. A failed operation still counts as finished only once its terminal failure is known. @rg during drain is status-only; repeated stop requests are idempotent. No follow-up stop request is necessary.
-15. **Unknown handoff/outcome, lost native host or stuck execution** must surface STOP_BLOCKED and retain diagnostics. Missing upstream acknowledgment cannot prove Native did not execute; reconcile exact operation/host before terminal. Do not force-stop, label graceful completion, auto-replay a write or wait forever without a visible state. Real host death is an external interruption, not successful drain. Administrative run.bat stop/restart remain clearly different commands.
+15. **Unknown handoff/outcome, partial SYSTEM mutation, lost native host or stuck child process** must surface STOP_BLOCKED and retain diagnostics. SYSTEM terminal evidence requires matching file/hash/registry/record/process proof. Missing upstream acknowledgment cannot prove Native did not execute; reconcile exact operation/host before terminal. Do not force-stop, label graceful completion, auto-replay a write or wait forever without a visible state. Real host death is an external interruption, not successful drain. Administrative run.bat stop/restart remain clearly different commands.
 16. Provide a narrow quiescence **and validated continuation-admission** integration seam for future P3 active Jobs; test with a two-step accepted-work fixture. Do not build full P3 Job Runtime in P1.
-**Gate D:** offline concurrency tests with A running, B queued, stop from C or SAME session, concurrent managed SYSTEM tool, native 504 write still executing and an already accepted two-step work unit completing its second step during STOP_PENDING; atomic admission/stop race; @rg while draining; lost Node state reconstructed from journal+native; bridge listener restarts during execution without dispatch loss; unrelated new work denied; auto-stop exactly once after native/work terminal; external interruption visible.
+**Gate D:** offline concurrency tests with A running, B queued, stop from C or SAME session, concurrent managed SYSTEM tool and post-crash reconciliation, native 504 write still executing and an already accepted two-step work unit completing its second step during STOP_PENDING; atomic admission/stop race; @rg while draining; lost Node state reconstructed from journal+native; bridge listener restarts during execution without dispatch loss; unrelated new work denied; auto-stop exactly once after native/work terminal; external interruption visible.
 
 ### P1-E — Binding and host identity
 
@@ -201,7 +206,7 @@ Maintain one intentional primary bound model and authoritative host, safe across
 Verify the Phase Goal through existing CI fixtures plus only missing fault-injection cases, then a single real-Revit host acceptance round; no false-green and no merge before human approval.
 
 
-20. Reuse/extend test-revit-upstream-lifecycle.mjs, test-mcp-session.mjs, test-model-authority.mjs, test-bridge-health.mjs, NativeHttpTests.cs, NativeDispatchTests.cs and existing pane/route fixtures. Add targeted SYSTEM, UI side effect, same-session stop, orphan transport and crash handoff fixtures only where missing. Do not duplicate equivalent tests; introduce new tests only for gaps.
+20. Reuse/extend test-revit-upstream-lifecycle.mjs, test-mcp-session.mjs, test-model-authority.mjs, test-bridge-health.mjs, NativeHttpTests.cs, NativeDispatchTests.cs and existing pane/route fixtures. Add targeted SYSTEM crash-reconciliation, UI side effect, same-session stop, orphan transport and handoff crash fixtures only where missing; use a read-only SHA-bound GSA Job conflict inventory. Do not duplicate equivalent tests; introduce new tests only for gaps.
 21. Run available offline CI, fault-injection simulations and negative controls. Reviewer must compare goal→task→code→test→result and iterate Planner→Reviewer until PASS. Keep host tests separate; a fixture is not real Revit acceptance.
 22. Perform **one consolidated real Revit round** on a safe reversible RVT, test real ExternalEvent/write execution, two open documents, two Revit processes (if available), WebView/browser multi-chat, interrupted bridge and sleep/wake. Capture actual error/timeout/binding/host evidence.
 23. Only after human explicit release approval may implementation be merged/deployed. Record real host PASS/FAIL, unresolved environmental causes and rollback. Plan PASS never equals code or host PASS.
@@ -262,7 +267,7 @@ Verify the Phase Goal through existing CI fixtures plus only missing fault-injec
 | CR-04 | Awake intent survives recoverable restart in same boot/logon, not Windows restart; distinct manual commands | P1-A2, B5/B8; T01/T19 |
 | CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
-| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T36, H01–H06 |
+| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T41, H01–H06 |
 
 | CR-08 | All SYSTEM/managed/dev/Revit tools participate in common in-flight accounting and graceful stop | P1-A1, D13, F20; T29 |
 | CR-09 | Side-effect classes include Native UI changes and conditional apply flag; timeout and retry safety | P1-A4, C9–12; T30 |
