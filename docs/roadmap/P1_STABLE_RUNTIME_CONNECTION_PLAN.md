@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 5 — Reviewer pass candidate; formal re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 6 — final review candidate; formal re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -58,7 +58,7 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 
 ### 1.4 Binding and host selection
 
-- Maintain **one primary bound model** for a Revit host session. **Bind Current** is the intentional rebinding action; switching tabs does not rebind and does not release binding.
+- Maintain **one primary bound model** for a Revit host session. **Bind Current** is the intentional rebinding action; switching tabs does not rebind and does not release binding. Audit the existing use of `Document.GetHashCode()` as model identity in `RevitGptApplication.cs` and `RevitApiRouter.cs`: verify stability across managed Document wrapper churn, simultaneous documents and close/reopen; never assume a hash alone proves model identity without Revit-host evidence. Preserve explicit host-generation + document identity and fail closed on ambiguity.
 - **Document-scoped** reads/writes must target the bound Document by exact host/document identity, even when another model tab is visible **where Revit API permits**. Do not accept global ACTIVE_MODEL_MISMATCH as sufficient success for these operations.
 - **UI-scoped** selection, zoom, view activation, temporary visibility and other active-UIDocument operations must satisfy UI context requirements. Return a precise *operation-only* limitation when context cannot be satisfied; do not switch model or drop global binding. Verify classification against actual router tools before changing guards.
 - **Multiple Revit.exe processes:** the current native listener uses fixed 127.0.0.1:8765, so P1 supports **one authoritative bridge-host/process per binding at a time**, not an invented multi-host routing system. Bind/discover using host_instance_id plus documented process ownership. A second Revit process cannot silently seize the port or inherit another host's bound model. On owner exit with a second process still alive, detect stale host, safely reconnect a newly available bridge and require explicit Bind Current before model work; never treat “some Revit.exe exists” as proof the old host/binding is healthy.
@@ -84,6 +84,7 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 | A14 | src/index.mjs per-transport sessions share one upstream singleton | KEEP/VERIFY multi-chat faults and stop admission fence | CR-07 |
 | A15 | docs/architecture/AUTHORITY_LIFECYCLE.md and old roadmap claim browser 15m model lease and per-chat ownership | DOCUMENT RECONCILIATION REQUIRED **before runtime code edits** | CR-06 |
 | A16 | Existing scripts/test-revit-upstream-lifecycle.mjs, test-mcp-session.mjs, test-model-authority.mjs and native_http/NativeHttpTests.cs | REUSE/ADAPT; add only missing negative controls | CR-07 |
+| A17 | RevitGptApplication.cs and RevitApiRouter.cs use Document.GetHashCode() for binding/document lookup and active-document equality | VERIFY identity stability, collision/wrapper/reopen behavior before any change; retain strong host+document identity | CR-02/03 |
 
 **Cross-layer timeout inventory required before changing durations:**
 ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do not guess) → Node MCP request/SDK timeout and 15s handshake/list → Node native binding probe 2.5s → Python HTTP read 3s / write 30s by default → native bridge read 2.5s / write 25s → Revit ExternalEvent queue wait / actual API run / response. Record actual limits, cancellation semantics, error categories and request IDs for each layer. No blanket “remove all timeouts” policy.
@@ -126,7 +127,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-E — Binding and host identity
 
-17. Split model operations into document-scoped vs UI-scoped according to router/API evidence; make document-scoped read/write use exact bound document independent of active tab wherever supported; preserve strong host/document validation. UI actions may fail precisely without unbinding or acting on another model. No blanket model-operation rejection solely due to a tab switch.
+17. Split model operations into document-scoped vs UI-scoped according to router/API evidence; make document-scoped read/write use exact bound document independent of active tab wherever supported. Specifically audit whether Revit `Document.GetHashCode()` correctly identifies the same document across wrapper representations and reopens; if not, replace it with a verified runtime document identity scoped to a host generation before enabling inactive-document operations. Preserve strong host/document validation. UI actions may fail precisely without unbinding or acting on another model. No blanket model-operation rejection solely due to a tab switch.
 18. Define and implement single bridge-host ownership using host_instance_id/process identity. Verify fixed-port conflict, second host opening, owner exit while another Revit.exe remains, bridge reconnect and explicit Bind Current. Never silently bind a model on another host.
 19. Verify transport/session recreation and concurrent chats cannot steal binding; ensure independent operations survive another chat's tool error. Retain native UI-thread safety.
 **Gate E:** automated authority and process-owner negative controls green; API details marked HOST_RETEST_REQUIRED until real Revit proof.
@@ -171,6 +172,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | T25 | Journal write fails immediately before Native dispatch | No execution, request fails closed; stop work count remains accurate |
 | T26 | Node tool ID differs from Python X-Request-ID; client disappears after timeout | End-to-end mapping resolves the single native write without replay |
 | T27 | Boot identity unavailable but accepted native work has an unresolved journal marker | No stale auto-awake or premature teardown; recovery-safe blocked state until reconciliation |
+| T28 | Revit Document wrapper changes, same-title models, close/reopen while previous binding exists | No identity collision/stale binding or cross-model reads/writes; exact host/document identity independently verified |
 | H01–H06 | One real-host round: startup, long-session failure isolation, multi-chat, binding, recovery, graceful stop | Host PASS/FAIL recorded separately with evidence |
 
 **P1 PASS** requires zero unexpected global deactivation from normal tool errors, timeouts, idle or chat churn on healthy host; no wrong-model writes; no silent replay; correct BUSY→STOP_PENDING→STANDBY semantics; no idle expiry; verified intentional stop and actual failure recovery. It does **not** require all Revit MCP tools fully implemented or all P2/P3 Jobs.
@@ -180,12 +182,12 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | CR | Requirement adopted by Planner | Implementation/test owner |
 |---|---|---|
 | CR-01 | End-to-end timeout audit including native 2.5s read/25s write, Python 3s/30s, SDK/tunnel and actual ExternalEvent | P1-A4, C9–12; T05/T06/T18 |
-| CR-02 | Document-scoped bound-model access separate from UI-scoped active context; not wholesale mismatch denial | P1-E17; T15/T16 |
-| CR-03 | One authoritative native bridge host at a time; fixed-port owner death/second process detected, no silent rebind | P1-E18; T14 |
+| CR-02 | Document-scoped bound-model access separate from UI-scoped active context; not wholesale mismatch denial | P1-E17; T15/T16/T28 |
+| CR-03 | One authoritative native bridge host at a time; fixed-port owner death/second process detected, no silent rebind | P1-E17/E18; T14/T28 |
 | CR-04 | Awake intent survives recoverable restart in same boot/logon, not Windows restart; distinct manual commands | P1-A2, B5/B8; T01/T19 |
 | CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
-| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T27, H01–H06 |
+| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T28, H01–H06 |
 
 ## 6. Review history and outstanding evidence
 
@@ -196,5 +198,6 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 - Rev3 Planner correction: reject unrelated new work while allowing validated continuations of accepted work; test T21; explicitly define run.bat restart as administrative return to STANDBY; STOP_BLOCKED overrides host-exit transition when stop unresolved.
 - Rev3 internal check: fixed Phase Goal present, CR-01…CR-07 mapped to tasks/tests, Native completion tracked before stop, future Job continuation only a minimal interface, canonical contract conversion gated before runtime edits.
 - Rev4 Reviewer findings: atomic accepted-work admission/journal, explicit terminal signal, native dispatcher lifetime separate from HTTP listener recovery and @rg behavior during drain. Corrected in rev4.
-- Rev5 Reviewer follow-up: a journal write failure must fail closed before native dispatch; end-to-end correlation must bridge the Python-generated request ID; failed boot-identity verification must not drop unresolved in-flight operations; an accepted multi-step Job may await human input while STOP_PENDING. Corrected in rev5, with T25–T27; duplicate test listing removed. **Pending final review; prior PASS does not transfer to new revision.**
+- Rev5 Reviewer follow-up: a journal write failure must fail closed before native dispatch; end-to-end correlation must bridge the Python-generated request ID; failed boot-identity verification must not drop unresolved in-flight operations; an accepted multi-step Job may await human input while STOP_PENDING. Corrected in rev5 with T25–T27; duplicate test listing removed.
+- Rev6 Reviewer finding: `Document.GetHashCode()` is used as a model/document key in native code. This may work in a host process but must be validated under wrapper churn and close/reopen; add audit A17, explicit gate P1-E17 and T28. **No claim that this is a proven bug; acceptance requires evidence.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
