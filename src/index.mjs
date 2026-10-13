@@ -8,7 +8,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
-import { createWorkTracker, createBlockedWorkTracker } from "./work-tracker.mjs";
+import { createWorkTracker, createBlockedWorkTracker, currentOperationId } from "./work-tracker.mjs";
 import { reconcileRecoveredSystemOperations } from "./system-reconciliation.mjs";
 import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
@@ -404,7 +404,16 @@ function createServer(sessionKey) {
           args: args || {},
           authority,
           ensureReady: ensureExplicitReadReady,
-          invoke: (tool, safeArgs) => revitUpstream.callTool(tool, safeArgs)
+          invoke: async (tool, safeArgs) => {
+            const workId=currentOperationId();
+            const bound=authority.summary();
+            // Persist the expected Native host/document BEFORE Python is
+            // invoked. Lost HTTP/Python responses cannot then be mistaken for
+            // a write on a replacement Revit.exe process.
+            if(workId && bound?.host_instance_id)
+              await workTracker.noteNativeHandoff(workId,bound);
+            return revitUpstream.callTool(tool, safeArgs);
+          }
         });
         await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
       } catch (error) {
