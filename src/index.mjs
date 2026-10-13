@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
 import { createWorkTracker, createBlockedWorkTracker } from "./work-tracker.mjs";
+import { reconcileRecoveredSystemOperations } from "./system-reconciliation.mjs";
 import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
@@ -57,6 +58,13 @@ try {
   await logError({source:"work-journal-init",error:String(error)}).catch(()=>undefined);
   workTracker = createBlockedWorkTracker(error);
 }
+// On a Node restart, restore observed SYSTEM post-state without executing an
+// old operation. Missing/mismatched evidence remains STOP_BLOCKED, never replay.
+const recoveredSystem = await reconcileRecoveredSystemOperations(workTracker);
+if (recoveredSystem.length)
+  await logControl({event:"system_reconciliation",results:recoveredSystem.map(x=>({
+    id:x.id,tool:x.tool,verdict:x.verdict,reason:x.reason
+  }))}).catch(()=>undefined);
 // Work was accepted on HTTP ingress even if a Streamable MCP transport must
 // serialize or recover before its actual tool callback becomes runnable.
 const requestContext = new AsyncLocalStorage();
@@ -267,8 +275,10 @@ function createServer(sessionKey) {
     async () => {
       const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);
       const upstream = revitUpstream.status();
-      const runtimeState = workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
-        !awakeIntent.isAwake() ? "STANDBY" :
+      // Reboot-safe: activation STANDBY is independent from a retained
+      // STOP_PENDING/STOP_BLOCKED journal from an earlier boot.
+      const runtimeState = !awakeIntent.isAwake() ? "STANDBY" :
+        workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
         upstream.connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE";
       return {
         content: [{
@@ -433,8 +443,8 @@ app.get("/health", async (_req, res) => {
     bridge,
     revit_process: revitProcess,
     revit_mcp: revitUpstream.status(),
-    runtime_state: workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
-      !awakeIntent.isAwake() ? "STANDBY" :
+    runtime_state: !awakeIntent.isAwake() ? "STANDBY" :
+      workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
       revitUpstream.status().connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE",
     awake_intent: awakeIntent.status(),
     work_status: workTracker.status(),
