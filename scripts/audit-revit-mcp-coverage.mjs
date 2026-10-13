@@ -106,8 +106,12 @@ export function auditSources({ manifest, capabilities, toolSources, mainSource, 
     expect(bridgeSource.includes(quoted(pathFromRoute(listed))), "missing Python bridge consumer: " + listed);
   }
   const hasBoundModelGuard = nativeSource.includes('binding.ReadDenial(Token(payload, "document_id"))') &&
+    nativeSource.includes('binding.ReadDocumentDenial(Token(payload, "document_id"))') &&
+    nativeSource.includes('bool uiScoped = path.StartsWith("/ui/", StringComparison.Ordinal)') &&
     nativeSource.includes('if (denial != null) return Error(409, denial);') &&
-    nativeSource.includes('var doc = FindDocument(app, payload);') &&
+    nativeSource.includes('var doc = FindDocument(app, payload, binding.Current.BoundId);') &&
+    nativeSource.includes('return matches.Count == 1 ? matches[0] : null;') &&
+    !nativeSource.includes('if (String.IsNullOrEmpty(id)) return app.ActiveUIDocument?.Document;') &&
     nativeSource.includes('if (doc == null) return Error(404, "Target Revit document is not open.");') &&
     !nativeSource.includes("writeAuthority.DenialOrConsume(") &&
     !paneSource.includes("Approve Write") &&
