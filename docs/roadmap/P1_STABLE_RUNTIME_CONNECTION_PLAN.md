@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNING REVIEW PASS — revision 7 (source-based internal review); independent CR re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 8 — CR-13/CR-14 incorporated; planning review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -75,6 +75,31 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 **CR-11 — No idle expiry does not imply orphan transport retention.** Keep workspace, awake intent and primary binding independent of transport idle age. Reclaim MCP transport/server resources only after proven protocol DELETE, confirmed closure, or verified replacement AND all its requests reach terminal state. Check sessions, pendingRecoveries, graceTimers and opChains; never close a live but quiet session on a wall-clock threshold or terminate accepted work during stale recovery. Retain recovery context, expose resource counters/cleanup reasons, stress-test connection/replacement/deletion/idle churn. Unknown liveness cannot justify silent eviction; report unverified accumulation.
 
 **CR-12 — Crash-safe dispatch handoff.** A durable Node admission record alone does not prove Python or Native received the request. Use stable cross-layer operation ID/receipt and explicit journal states INTENT_DURABLE → DISPATCH_ATTEMPTED → NATIVE_ACCEPTED → NATIVE_EXECUTING → NATIVE_TERMINAL, plus HANDOFF_UNKNOWN for a crash or lost acknowledgement. Reconcile only against the authoritative native host generation/operation-status record; absence of a record after crash is NOT proof the operation did not run. Never replay an unknown-outcome side effect. During STOP_PENDING retain the unresolved work and display STOP_BLOCKED if recovery cannot establish terminal status. Inject crashes before/after every Node→Python→Native receipt and execution boundary. This is a P1 safety journal, NOT a P3 Job Runtime.
+
+### 1.6 CR-13 — GSA Job authority reconciliation (read-only)
+
+Source: GSA Memory Repo `thebimhouseinfo-sudo/GSA-Projects`, Project `01a0f866-d3a2-71db-83f1-94a0bc367b89`, current Job JSON records (2026-10-13 snapshot). IN_PROGRESS means persisted lifecycle, **not proof that a Run is currently executing**. Before any code changes, refresh SHA, current Run/Verification/cursor and dependencies. This plan does not mutate Project Memory or supersede any Job.
+
+| Job | Persisted state / blob SHA prefix | Suggested plan disposition and conflict |
+|---|---|---|
+| J-8A2C (`01a10fb1-c725-702b-8a5d-32d12f2f8a2c`) | IN_PROGRESS / `6d39df6e2d54` | VERIFY_CONFLICT: old BROWSER_TTL=15m and ADDIN_MANAGED policy; reconcile with new no-idle workspace/binding policy; distinguish logical runtime from reclaimable transport |
+| J-A38C (`01a11765-45d0-7355-9707-696c6f7aa38c`) | IN_PROGRESS / `9bd19f29bf3c` | VERIFY / SUPERSEDE_CANDIDATE: old pyRevit vs Unified Native selection gate; current main already contains Unified Native source; audit historical evidence rather than rerunning a decided bridge choice |
+| J-8F46 (`01a129b9-c280-7233-a5a9-425defdc8f46`) | IN_PROGRESS / `9882ca57e3cb` | REUSE/VERIFY: R4.3 Phase0 read-only task reuse and gap audit; consume its available evidence, do not duplicate the full migration audit |
+| J-2C75 (`01a129b7-bac3-7b59-bc87-4528cdb02c75`) | READY / `46c7bedeb0c4` | REUSE/VERIFY: prior migration-map planning/evidence; cross-check before implementing same work |
+| J-2BBE (`01a116b8-a9b0-782a-8cd4-b83bdfb72bbe`) | DRAFT / `b1091beb6602` | VERIFY/DEFER: old P1B add-in design review, avoid duplicate or obsolete review gate |
+| J-28D5 (`01a124f2-a90b-72d5-85c2-b9e1a2eb28d5`) | DRAFT / `8ab2f892a024` | DEFER P2: complete MCP tool catalogue review does not belong in P1 |
+| J-428D (`01a12b7a-7c11-7542-a189-c6a801b6428d`) | DRAFT / `f7008d88dfff` | REUSE C0 diagnostics: distinguish observed SSE 429/ingress from local runtime; defer unrelated Scope Box capability to P2 |
+
+**Gate A requirement:** produce a small SHA-bound job-overlap matrix: Job ID, lifecycle, Run/Verification/cursor proof or UNKNOWN, current owner, conflicting Phase Goal clause, REUSE/VERIFY/SUPERSEDE_CANDIDATE/DEFER, next action and evidence. Do not close or supersede any Job automatically; any future disposition follows authorized GSA state-change procedures and checks active Runs/dependents first. The old 15-minute logical browser lease may not silently override the present P1 Phase Goal.
+
+### 1.7 CR-14 — Crash recovery for SYSTEM side effects
+
+- Track every SYSTEM side-effect operation (managed/dev tools, registry, library, import/export, knowledge/run-record append) with unique work ID, target path(s), pre-state, expected post-state/hash, subprocess identity if any, and a durable stage recorded before mutation. Reconcile after Node crash against actual disk/registry state; a missing response does not mean failure or permission to retry.
+- File create/edit: distinguish crash before staging, during temp write, after atomic rename and before response. Confirm final file contents/hash and matching operation provenance before terminal success. Unexpected content or concurrent external edits are outcome-unknown; do not overwrite them.
+- Asset import/registration and development source edits: trace staging copy, destination replacement, registry updates, and expected manifest. A crash between phases may produce PARTIAL/NEEDS_RECONCILIATION. Compare actual files and registry entries; never blindly re-import, delete staging, roll back or label partially registered capabilities successful.
+- Append operations (run_record_append, knowledge append): use an exact operation ID/marker/record evidence to detect already-appended content or partial records without duplicating a line. Keep pre-existing legacy records readable.
+- Validation subprocesses: a parent HTTP/Node failure does not prove spawned Python exited. Track process/terminal evidence; reconcile or retain UNKNOWN rather than assuming child completion.
+- During STOP_PENDING, SYSTEM work counts until verified terminal, including output/child-process state. Unresolved after crash means STOP_BLOCKED/NEEDS_RECONCILIATION with safe diagnostics. Do not declare STOPPED, force-retry or create a generic file rollback/Job Runtime in P1.
 
 ## 2. Source audit and exact brownfield disposition
 
