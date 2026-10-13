@@ -56,6 +56,11 @@ jobs:
         run: |
           node --test scripts/test-work-tracker.mjs
 
+      - name: Verify SYSTEM and Revit effect inventory plus same-session stop priority
+        shell: pwsh
+        run: |
+          node --test scripts/test-tool-effects-and-priority.mjs
+
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
         run: |
