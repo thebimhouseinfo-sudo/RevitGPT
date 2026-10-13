@@ -104,7 +104,10 @@ export function createSessionManager(port, createServer) {
   }
 
   function touch(id) {
+    // A valid new request proves the transport should no longer be considered
+    // an abandoned DELETE candidate. Do not close it when older work settles.
     clearGrace(id);
+    closed.delete(id);
     const session = sessions.get(id) || pendingRecoveries.get(id);
     if (session) session.lastAccessedAt = Date.now();
   }
