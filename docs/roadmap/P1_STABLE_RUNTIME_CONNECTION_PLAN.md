@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 6 — final review candidate; formal re-review pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNING REVIEW PASS — revision 6 (reviewed against actual source); independent CR re-review and real-host tests pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -200,4 +200,5 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 - Rev4 Reviewer findings: atomic accepted-work admission/journal, explicit terminal signal, native dispatcher lifetime separate from HTTP listener recovery and @rg behavior during drain. Corrected in rev4.
 - Rev5 Reviewer follow-up: a journal write failure must fail closed before native dispatch; end-to-end correlation must bridge the Python-generated request ID; failed boot-identity verification must not drop unresolved in-flight operations; an accepted multi-step Job may await human input while STOP_PENDING. Corrected in rev5 with T25–T27; duplicate test listing removed.
 - Rev6 Reviewer finding: `Document.GetHashCode()` is used as a model/document key in native code. This may work in a host process but must be validated under wrapper churn and close/reopen; add audit A17, explicit gate P1-E17 and T28. **No claim that this is a proven bug; acceptance requires evidence.**
+- **Planning review PASS (2026-10-13, rev6 blob 96ee37696359fa7365874c2ca456c1ecfe6db90b):** reviewed exact persisted plan against seven CR findings and main source contract; 28 identified negative/host test cases; paths of existing test fixtures verified; ordering and scope checked; the only changed repository path is this plan. No pending planning blocker found. **This is a same-turn internal Reviewer assessment, not a persisted independent GSA CRITIC_REVIEW record or implementation/CI/host PASS.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
