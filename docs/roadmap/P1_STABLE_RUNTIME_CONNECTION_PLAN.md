@@ -1,6 +1,6 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
-**Status:** PLANNER REVISION 3 — internal planning checks PASS; independent CR re-review REQUIRED; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
+**Status:** PLANNER REVISION 4 — reviewer corrections integrated; fresh plan review REQUIRED; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
 **Change scope:** plan file only. No implementation, merge, deployment or claim of real-host PASS.
@@ -30,14 +30,24 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 - **@rg** is idempotent and sets one **global awake intent**, not a per-chat model lease. Revit being opened alone never wakes a STANDBY workspace.
 - Revit's native add-in listener may exist whenever Revit is open; this is NOT the same as activating the Python MCP or workspace. Do not rewrite the already-installed add-in solely to suppress its idle listener.
 - Opening/closing/reloading WebView, changing active Revit view/tab, creating/deleting MCP transports and multiple browser chats must not alter global awake intent or binding.
-- **rg/stop** is global, not a per-chat close and not the administrative **run.bat stop**. Only explicit rg/stop enters STOP_PENDING. No automatic idle stop.
+- **rg/stop** is global, not a per-chat close and not the administrative **run.bat stop**. A stop with active work enters STOP_PENDING; idle stop may transition directly to STANDBY. No automatic idle stop. An **@rg** arriving during STOP_PENDING/STOP_BLOCKED returns the current draining/blocked status and cannot cancel stop or admit new work; after STANDBY, a fresh @rg may awaken.
 - During STOP_PENDING, give immediate visible result **BUSY — work in progress; stop after completion** with active/queued/unknown counts and current phase where known. Status/diagnostics remain available. Repeated stop requests are idempotent.
 - Work admitted **before** the stop fence must be allowed to finish, including work already accepted into the Revit dispatch queue. After the fence, reject **new unrelated work** (including another chat's new task), but allow **validated continuation steps belonging to a previously accepted work unit** until that unit finishes. Same chat/session alone is not evidence of valid continuation: require work identity, step lineage and terminal tracking. Status and reconciliation remain permitted. The stop command itself is not counted as active work.
 - Known terminal statuses are succeeded, failed or canceled **before starting**. Error completion does not mean success. **Unknown-outcome write remains unresolved** even if its upstream HTTP request ended.
 - If host has exited, an in-flight operation cannot be guaranteed to finish: report **STOP_BLOCKED/EXTERNAL_INTERRUPTION** with unresolved operation IDs, never falsely declare graceful completion. **STOP_BLOCKED takes precedence** over ordinary FULLY_AWAKE → WORKSPACE_AWAKE during an unresolved pending stop. Explicit administrative process termination is outside the graceful rg/stop guarantee.
 - Future P3 jobs integrate through a minimal active-work/quiescence and continuation-admission interface: begin accepted work → register follow-on steps to that work ID → complete terminally → notify stop drain. P1 tests this minimal interface with fixtures, but **does not implement P3 Job Runtime or workflow**. A new work unit cannot impersonate an existing continuation just by sharing a chat/session.
 
-### 1.2 Awake-intent persistence and manual commands
+### 1.2 Minimal stop-drain implementation boundary
+
+- P1 **must not infer multi-step work identity from conversational language, chat ID or MCP session ID**. Native tool operations are single-step units today. For a future P3 Job, its owner will explicitly register an accepted work unit (ID, owner scope, cancellation/continuation token, terminal marker) through a small P1 interface; a fixture tests this interface now. P1 does **not** attempt to detect when a user's future natural-language Job has finished.
+- At admission, atomically commit the stop-fence epoch and accepted work-unit identity before dispatch. Every tool request is marked either **new work** or **authorized continuation** of an already registered work unit. Continuations are allowed only while the parent remains nonterminal, and are included in the parent’s active count; a parent must explicitly close when terminal. No implicit “chat still open” ownership. Admission and stop cannot race into an uncounted accepted request.
+- **Durable, minimal execution journal** under managed LocalAppData stores stop epoch, accepted operation/work IDs, native host ID, request IDs, stage, known terminal marker and outcome-unknown disposition. This is a *control-plane safety journal*, not P3 Job storage, planning, progress model or capability registry. Persist before handing writes to native; reconcile from native operation status after Node/Python/tunnel restart, never replay a write as reconciliation.
+- Native operation status must outlive an individual HTTP request **and** a listener restart within the same Revit host: put completion accounting under add-in/dispatcher owner, not an HTTP response object. On listener recovery, never dispose/replace an active ExternalEvent dispatcher blindly. Preserve executing operations until terminal; safely resume listener only after assessing pending/executing queue and ownership. Host exit makes previously executing operations unresolved unless durable evidence proves termination.
+- **STOP_PENDING** means known active work exists; **STOP_BLOCKED** means an operation is unresolved and may have mutated Revit despite request timeout or host loss. A normal request timeout alone does not prove STOP_BLOCKED: first query the native operation status and keep STOP_PENDING while execution is confirmed ongoing. If recovery cannot resolve unknown work, expose a clear incident and stop remains blocked; do not invent a force-complete after a timer.
+- Quiescence to STANDBY is an **atomic** compare-and-transition: stop fence active AND all pre-fence work units terminal AND no registered continuation pending AND native in-flight queue drained for that epoch. Verify crash recovery before declaring STOPPED. Do not close bridge/upstream/tunnel until all required completions and status probes are observed.
+- **Status UX:** the initial rg/stop reply can be BUSY immediately; status subsequently updates automatically via control-plane monitoring. If the original chat closes, a different chat can query status; no repeated rg/stop is required.
+
+### 1.3 Awake-intent persistence and manual commands
 
 - **Owner:** one local control-plane authority coordinated with the tray. Do not persist per-chat awake ownership or establish a second registry.
 - Persist/reconstruct awake intent **only for the current Windows boot/logon generation**, using a verifiable boot/logon identity (not elapsed time or a stale PID alone). Recover from Node/tray crash, tunnel replacement and sleep/wake within the same generation; boot restart/logoff must invalidate old awake intent and return to STANDBY.
@@ -46,7 +56,7 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 - If boot/session identity cannot be verified at startup, fail to STANDBY; never silently recover stale awake intent.
 - A stop on an idle runtime returns STOPPED and STANDBY immediately. No new work is admitted during drain, and rg/stop is not an unconditional force-kill.
 
-### 1.3 Binding and host selection
+### 1.4 Binding and host selection
 
 - Maintain **one primary bound model** for a Revit host session. **Bind Current** is the intentional rebinding action; switching tabs does not rebind and does not release binding.
 - **Document-scoped** reads/writes must target the bound Document by exact host/document identity, even when another model tab is visible **where Revit API permits**. Do not accept global ACTIVE_MODEL_MISMATCH as sufficient success for these operations.
@@ -68,7 +78,7 @@ Support **STANDBY → WORKSPACE AWAKE → FULLY AWAKE**, single intentional prim
 | A08 | NativeModelBindingState.cs ReadDenial blocks when active != bound, router forwards denial | VERIFY/FIX distinct document/UI operation classes and no wrong-model writes | CR-02 |
 | A09 | BridgeHttpProtocol.cs read timeout 2500ms, write timeout 25s, 504 may mean execution continues | HIGH-PRIORITY FIX/TEST; bridge terminal-status tracking and stop drain | CR-01/05 |
 | A10 | runtimes/Revit-mcp/config.py default bridge timeout 3s; connection/bridge.py WRITE_TIMEOUT=10x | AUDIT cross-layer deadline interaction and 504/error classification | CR-01 |
-| A11 | BridgeDispatchQueue.cs distinguishes pending/executing and rejects non-Accepted Raise responses | KEEP/EXTEND observation; no cancellation once mutation begins; verify Pending/Denied isolation | CR-05 |
+| A11 | BridgeDispatchQueue.cs distinguishes pending/executing and rejects non-Accepted Raise responses | KEEP/EXTEND observation; preserve running dispatcher on listener recovery; verify Pending/Denied isolation | CR-05 |
 | A12 | BridgeHttpServer.cs fixed port 8765; Node process detection only checks any Revit.exe | ADAPT host identity and owner departure behavior; no silent takeover | CR-03 |
 | A13 | RevitGptApplication.cs native listener Idling recovery and pane Bind Current | KEEP/VERIFY with real-host failure injection | CR-03/07 |
 | A14 | src/index.mjs per-transport sessions share one upstream singleton | KEEP/VERIFY multi-chat faults and stop admission fence | CR-07 |
@@ -85,7 +95,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 ### P1-A — Baseline, architectural contract and conflict resolution
 
 1. Pin current branch/HEAD and inspect actual tray/tunnel, Node, Python bridge, native add-in, CI, tests and existing real-host logs. Produce KEEP/VERIFY/MODIFY/REMOVE/ADD checklist with file-to-evidence links. Do not rewrite installed add-in or tested features before targeted reproduction.
-2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, boot/logon epoch, process/restart, Revit host owner, multi-chat, validated accepted-work continuations and bound model). Choose one awake-intent authority; show failure recovery and stop fencing concurrency.
+2. Deliver a single explicit lifecycle transition matrix and stop policy (including STOP_PENDING/STOP_BLOCKED, @rg during drain, boot/logon epoch, process/restart, Revit host owner, multi-chat, validated accepted-work continuations and bound model). Choose one awake-intent authority; show failure recovery and the atomic admission/stop boundary. Derive minimal work-unit registration, durable control journal and terminal signal from actual P1/MCP implementation; do not infer Job completion from chat messages.
 3. **Before any runtime source edit**, converge AUTHORITY_LIFECYCLE.md and references: make the new state/authority contract canonical, mark browser 15m lease/ADDIN_MANAGED superseded, preserve historical artifacts as history, and make all active references point to one contract. No competing authority document.
 4. Inventory every timer and timeout using the cross-layer table above and classify as idle expiry, startup protection, transport/health probe, queued wait, execution wait or response wait. Identify which layer can truly cancel work.
 **Gate A:** one canonical contract, no contradictory live policy, recorded baseline and timeout matrix; NO fabricated host PASS.
@@ -100,19 +110,19 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 
 ### P1-C — Native work visibility and fault isolation (prerequisite to graceful stop)
 
-9. Instrument the existing native dispatch queue/protocol with correlation IDs and **minimal operation-state observation**: accepted, pending, executing, terminal success, terminal failure, canceled-before-start, outcome-unknown/interrupted. This is NOT a Job Runtime or capability registry. Expose a bounded safe status/quiescence probe without doing Revit API work on HTTP threads.
-10. Preserve status of a write that timed out at HTTP **after** Revit API execution began. Ensure native completion updates its operation state even if Python/Node/client departed. Make status query robust to missed responses, duplicate IDs and bridge owner replacement. Never re-run a write solely to discover its status.
+9. Instrument the existing native dispatch queue/protocol with correlation IDs and **minimal operation-state observation**: accepted, pending, executing, terminal success, terminal failure, canceled-before-start, outcome-unknown/interrupted. This is NOT a Job Runtime or capability registry. Expose a bounded safe status/quiescence probe without doing Revit API work on HTTP threads. Separate native host lifetime state from listener/HTTP request lifetime state.
+10. Preserve status of a write that timed out at HTTP **after** Revit API execution began. Ensure native completion updates operation state even if Python/Node/client departed or bridge listener needs recovery. Guard against disposing an active ExternalEvent dispatcher during listener restart. Make status query robust to missed responses, duplicate IDs, stale host identity and bridge owner replacement. Never re-run a write solely to discover its status.
 11. Separate application/validation errors, HTTP 4xx/5xx responses, read/write 504, SDK timeout, transport close, Python process exit, bridge listener death and Revit.exe exit in Node/Python/native. An ordinary tool exception (including native 504) must not call a global deactivate. Recovery may rebuild only a **confirmed failed** transport/process with bounded backoff.
 12. Audit timeout order and cancellation across all layers; preserve bounded detection where needed, but no healthy-layer reset on expiration. A pending queue operation may be canceled before execution when permitted; executing Revit write cannot be treated as canceled just because an HTTP waiter left.
 **Gate C:** isolated failure tests, 504-after-start test with continued execution, no write replay, native completion visible to controller, next independent tool request works.
 
 ### P1-D — Safe global stop and concurrency (depends on Gate C)
 
-13. Implement **atomic stop admission fence** and active-work accounting across multiple chats, Node/Python/native queue, including already accepted queued items. Stop itself is not active work. Reject new unrelated tasks; permit validated continuation calls belonging to already accepted work ID and deny same-chat attempts without that ID.
-14. **rg/stop on busy** returns BUSY immediately with work count/IDs where safe; keeps MCP/bridge alive; automatically transitions to STANDBY when all admitted operations have **known terminal outcomes**. A failed operation still counts as finished only once its terminal failure is known. No follow-up stop request is necessary.
+13. Implement **atomic stop admission fence** and accepted-work accounting across multiple chats, Node/Python/native queue and a minimal durable LocalAppData control journal, including queued and in-flight operations. Assign IDs and persist admission *before* dispatch. Stop itself is not active work. Reject new unrelated tasks; permit validated continuation calls for an explicitly registered and nonterminal work ID; same-chat requests without the ID cannot bypass the fence.
+14. **rg/stop on busy** returns BUSY immediately with work count/IDs where safe; keeps MCP/bridge alive; automatically transitions to STANDBY through an atomic quiescence check only after all admitted work units, their continuations and native operations have **known terminal outcomes**. A failed operation still counts as finished only once its terminal failure is known. @rg during drain is status-only; repeated stop requests are idempotent. No follow-up stop request is necessary.
 15. **Unknown outcome, lost native host or stuck execution** must surface STOP_BLOCKED and retain diagnostics. Do not force-stop, label graceful completion, auto-replay a write or wait forever without a visible state. Real host death is an external interruption, not successful drain. Administrative run.bat stop/restart remain clearly different commands.
 16. Provide a narrow quiescence **and validated continuation-admission** integration seam for future P3 active Jobs; test with a two-step accepted-work fixture. Do not build full P3 Job Runtime in P1.
-**Gate D:** offline concurrency tests with A running, B queued, stop from C, native 504 write still executing and an already accepted two-step work unit completing its second step during STOP_PENDING; new unrelated work denied; auto-stop exactly once after native/work terminal; external interruption visible.
+**Gate D:** offline concurrency tests with A running, B queued, stop from C, native 504 write still executing and an already accepted two-step work unit completing its second step during STOP_PENDING; atomic admission/stop race; @rg while draining; lost Node state reconstructed from journal+native; bridge listener restarts during execution without dispatch loss; unrelated new work denied; auto-stop exactly once after native/work terminal; external interruption visible.
 
 ### P1-E — Binding and host identity
 
@@ -155,6 +165,9 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | T19 | Same-boot Node/tray crash or Windows sleep/wake | Awake-intent restores in valid session; no zombie or reconnection storm |
 | T20 | Prolonged active work, then known terminal error | BUSY while active; error preserved; automatically stops only after terminal disposition |
 | T21 | Accepted two-step work unit invokes next step during STOP_PENDING | Continuation allowed only for validated admitted work identity; unrelated calls (even in same chat) denied; auto-stop after work terminal |
+| T22 | Admission races rg/stop or @rg arrives while draining | No accepted work is uncounted; stop cannot be canceled by @rg; no false STOPPED |
+| T23 | Listener/Node restarts while a native write runs | Native dispatcher continues, journal reconciles, terminal state visible, no replay or early stop |
+| T24 | Chat closes after receiving BUSY; another chat checks state | Work continues to terminal and auto-stop occurs without requiring another rg/stop |
 | H01–H06 | One real-host round: startup, long-session failure isolation, multi-chat, binding, recovery, graceful stop | Host PASS/FAIL recorded separately with evidence |
 
 **P1 PASS** requires zero unexpected global deactivation from normal tool errors, timeouts, idle or chat churn on healthy host; no wrong-model writes; no silent replay; correct BUSY→STOP_PENDING→STANDBY semantics; no idle expiry; verified intentional stop and actual failure recovery. It does **not** require all Revit MCP tools fully implemented or all P2/P3 Jobs.
@@ -169,7 +182,7 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 | CR-04 | Awake intent survives recoverable restart in same boot/logon, not Windows restart; distinct manual commands | P1-A2, B5/B8; T01/T19 |
 | CR-05 | **Human override: BUSY when work active, must finish admitted work before stop.** Native timeout is not completion | P1-C9/C10, D13–16; T08–T10/T20/T21 |
 | CR-06 | Converge canonical lifecycle architecture documentation before source runtime changes | P1-A3; Gate A |
-| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T21, H01–H06 |
+| CR-07 | Failure-injection, multiple chats, native timeout, prolonged idle and real-host acceptance with no false-green | P1-F20–23; T01–T24, H01–H06 |
 
 ## 6. Review history and outstanding evidence
 
@@ -178,5 +191,6 @@ ChatGPT/tunnel client timeouts (inspect actual packaged/configured behavior; do 
 - 2026-10-13 Planner rev2: addresses all CR-01…CR-07, incorporates the explicit human CR-05 stop semantics and does not extend P1 into P2/P3.
 - Rev2 Reviewer finding: a STOP_PENDING fence that blocks every tool call would interrupt a previously accepted multi-step Job. Administrative restart policy and STOP_BLOCKED precedence also needed clarification.
 - Rev3 Planner correction: reject unrelated new work while allowing validated continuations of accepted work; test T21; explicitly define run.bat restart as administrative return to STANDBY; STOP_BLOCKED overrides host-exit transition when stop unresolved.
-- Rev3 internal check: fixed Phase Goal present, CR-01…CR-07 mapped to tasks/tests, Native completion tracked before stop, future Job continuation only a minimal interface, canonical contract conversion gated before runtime edits. **Internal planning checks PASS; new independent CR verdict required.**
+- Rev3 internal check: fixed Phase Goal present, CR-01…CR-07 mapped to tasks/tests, Native completion tracked before stop, future Job continuation only a minimal interface, canonical contract conversion gated before runtime edits.
+- Rev4 Reviewer findings: need explicit atomic work admission/journal and parent completion signal, robust Native dispatcher lifetime separate from bridge listener recovery, and @rg semantics during STOP_PENDING. Planner corrected all with §§1.2, P1-A/C/D and T22–T24. **Review pending against rev4; earlier review verdict does not carry forward.**
 - No runtime code, CI or actual Revit test changed/executed in this planning revision.
