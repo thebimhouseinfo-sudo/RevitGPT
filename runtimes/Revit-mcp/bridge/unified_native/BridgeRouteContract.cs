@@ -10,6 +10,7 @@ namespace RevitGPT.Native
         private static readonly HashSet<string> Allowed = new HashSet<string>(StringComparer.Ordinal)
         {
             "GET /health",
+            "POST /operation/status",
             "GET /document/active",
             "GET /binding/status",
             "GET /documents",
