@@ -7,6 +7,8 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
 import { createAwakeIntent } from "./awake-intent.mjs";
+import { createWorkTracker } from "./work-tracker.mjs";
+import { wrapToolRegistration } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
 import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
@@ -35,6 +37,16 @@ if (!TOKEN) {
 let shuttingDown = false;
 const awakeIntent = await createAwakeIntent({
   filePath: path.join(getAppDataRoot(), "state", "awake-intent.json")
+});
+// The accepted-work fence and Native/SYSTEM completion journal are shared by
+// all MCP transports. A new Node process cannot silently discard unknown work.
+const workTracker = await createWorkTracker({
+  filePath: path.join(getAppDataRoot(), "state", "work-journal.json"),
+  onDrained: async () => {
+    await awakeIntent.clearAfterDrain();
+    await revitUpstream.deactivate();
+    await logControl({event:"graceful_stop_completed"});
+  }
 });
 
 const ensureExplicitReadReady = () => ensureReadRuntime({
@@ -118,6 +130,12 @@ function createServer(sessionKey) {
     }
   );
 
+  // Intercept ALL registrations (SYSTEM, dev and Revit tool adapters).
+  // No callback can escape work accounting by using a new MCP session.
+  wrapToolRegistration(server,{
+    tracker:workTracker,
+    isAwake:()=>awakeIntent.isAwake() && workTracker.status().mode==="OPEN"
+  });
   registerManagedTools(server);
   registerRevitMcpDevTools(server);
 
@@ -150,7 +168,20 @@ function createServer(sessionKey) {
     },
     async () => {
       const started = Date.now();
-      // Explicit @rg is an awake-intent transition even if Revit/Bridge are OFF.
+      const gate = workTracker.status();
+      if(gate.mode==="STOP_PENDING" || gate.safety_state==="STOP_BLOCKED"){
+        const text = "RevitGPT stop/recovery is not complete: " + gate.mode +
+          ", active=" + gate.active_count + ", unresolved=" + gate.unresolved_count +
+          ". New work is blocked until existing operations are reconciled.";
+        return {
+          content:[{type:"text",text}],
+          structuredContent:{status:"STOP_PENDING",bridge_available:false,
+            revit_mcp_on:revitUpstream.status().connected,tool_count:revitUpstream.cachedTools().length,
+            tool_names:[],text}
+        };
+      }
+      // @rg is the sole explicit global wake operation, not per-chat admission.
+      await workTracker.reopen();
       await awakeIntent.wake();
       const [revitProcess, bridge] = await Promise.all([
         revitProcessState(), bridgeHealth()
@@ -210,7 +241,8 @@ function createServer(sessionKey) {
     async () => {
       const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);
       const upstream = revitUpstream.status();
-      const runtimeState = !awakeIntent.isAwake() ? "STANDBY" :
+      const runtimeState = workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
+        !awakeIntent.isAwake() ? "STANDBY" :
         upstream.connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE";
       return {
         content: [{
@@ -228,6 +260,7 @@ function createServer(sessionKey) {
           revit_mcp: upstream,
           runtime_state: runtimeState,
           awake_intent: awakeIntent.status(),
+          work_status: workTracker.status(),
           admission_required_for_reads: true,
           authorization: "native_binding_verified_per_read"
         }
@@ -292,6 +325,17 @@ function createServer(sessionKey) {
       if (name.startsWith("rg/")) {
         if (args && (typeof args!=="object"||Array.isArray(args)||Object.keys(args).length))
           throw new Error("RG_COMMAND_ARGUMENTS_INVALID");
+        if (name.toLowerCase()==="rg/stop") {
+          const stop = await workTracker.requestStop();
+          return {content:[{type:"text",text:"RevitGPT "+stop.status+" active="+stop.active_count+
+            " unresolved="+stop.unresolved_count}],structuredContent:stop};
+        }
+        if (name.toLowerCase()==="rg/status") {
+          const status=workTracker.status();
+          return {content:[{type:"text",text:"RevitGPT "+status.mode+" active="+status.active_count+
+            " unresolved="+status.unresolved_count}],structuredContent:{
+            ...status,awake_intent:awakeIntent.status(),revit_mcp:revitUpstream.status()}};
+        }
         const command=await executeRevitCommand(name,{
           bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
         });
@@ -363,9 +407,11 @@ app.get("/health", async (_req, res) => {
     bridge,
     revit_process: revitProcess,
     revit_mcp: revitUpstream.status(),
-    runtime_state: !awakeIntent.isAwake() ? "STANDBY" :
+    runtime_state: workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
+      !awakeIntent.isAwake() ? "STANDBY" :
       revitUpstream.status().connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE",
     awake_intent: awakeIntent.status(),
+    work_status: workTracker.status(),
     active_mcp_sessions: sessions.count()
   });
 });
@@ -474,7 +520,8 @@ const revitProcessWatch = setInterval(async () => {
       }
       return;
     }
-    if (!awakeIntent.isAwake() || !revitProcess.observable || revitProcess.running !== true) return;
+    if (!awakeIntent.isAwake() || workTracker.status().mode!=="OPEN" ||
+        !revitProcess.observable || revitProcess.running !== true) return;
     if (revitUpstream.status().connected || Date.now() < nextActivationAttempt) return;
     const bridge = await bridgeHealth();
     if (!bridge.available) return;
