@@ -10,7 +10,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
  */
 const VERSION = 1;
 const EFFECTS = new Set(["READ_ONLY", "UI_SIDE_EFFECT", "MODEL_MUTATION", "SYSTEM_SIDE_EFFECT"]);
-const TERMINAL = new Set(["TERMINAL_SUCCESS", "TERMINAL_FAILURE", "NOT_STARTED"]);
+const TERMINAL = new Set(["TERMINAL_SUCCESS", "TERMINAL_FAILURE", "TERMINAL_COMPLETED", "NOT_STARTED"]);
 const RETAIN = 300;
 const operationContext = new AsyncLocalStorage();
 export function currentOperationId() { return operationContext.getStore()?.id ?? null; }
@@ -164,6 +164,22 @@ export async function createWorkTracker({
       op.executing_at=now();
     });
   }
+  async function noteNativeHandoff(id, host) {
+    if (!host || !/^[0-9a-f]{32}$/i.test(host.host_instance_id ?? "") ||
+        typeof host.bound_id !== "string" || !host.bound_id)
+      throw new Error("NATIVE_HANDOFF_IDENTITY_INVALID");
+    await transition(d=>{
+      const op=d.operations.find(x=>x.id===id);
+      if(!op||op.phase!=="EXECUTING")
+        throw new Error("NATIVE_HANDOFF_WORK_NOT_EXECUTING");
+      op.native={
+        host_instance_id:host.host_instance_id,
+        bound_id:host.bound_id,
+        revision:host.revision,
+        dispatch_attempted_at:now()
+      };
+    });
+  }
   async function settle(id,phase,reason){
     if(!TERMINAL.has(phase)&&phase!=="OUTCOME_UNKNOWN"&&phase!=="PARTIAL")
       throw new Error("WORK_INVALID_TERMINAL_STATE");
@@ -244,7 +260,7 @@ export async function createWorkTracker({
     });
     return status();
   }
-  return Object.freeze({status,unresolvedOperations,admit,begin,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
+  return Object.freeze({status,unresolvedOperations,admit,begin,noteNativeHandoff,settle,run,runAdmitted,cancelIfNotStarted,requestStop,reopen});
 }
 
 /**
@@ -261,7 +277,7 @@ export function createBlockedWorkTracker(error) {
   const deny=async()=>{throw new Error("WORK_JOURNAL_UNVERIFIED: "+reason);};
   return Object.freeze({
     status:()=>state,unresolvedOperations:()=>[],requestStop:async()=>({status:"STOP_BLOCKED",...state}),
-    admit:deny,begin:deny,settle:deny,run:deny,runAdmitted:deny,
+    admit:deny,begin:deny,noteNativeHandoff:deny,settle:deny,run:deny,runAdmitted:deny,
     cancelIfNotStarted:async()=>false,reopen:deny
   });
 }
