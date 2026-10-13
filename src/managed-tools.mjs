@@ -11,6 +11,7 @@ import {
   pythonDraftRoot,dynamoDraftRoot,jobDraftRoot,runDataRoot
 } from "./appdata.mjs";
 import { logToolCall, logError } from "./log-store.mjs";
+import { currentOperationId } from "./work-tracker.mjs";
 import { lookupRegistry } from "./capability-registry.mjs";
 
 const execFileAsync=promisify(execFile);
@@ -296,8 +297,16 @@ Draft only. Promote after validation and real Revit test.
   }));
 
   server.registerTool("run_record_append",{description:"Append structured evidence for a user Job/script/MCP run.",inputSchema:{kind:z.string(),id:z.string(),record:z.record(z.string(),z.unknown())}},async (a)=>guarded("run_record_append",a,async()=>{
-    const p=path.join(runDataRoot(),a.kind,a.id+".ndjson"); await fs.mkdir(path.dirname(p),{recursive:true});
-    await fs.appendFile(p,JSON.stringify({timestamp:new Date().toISOString(),...a.record})+"\n","utf8"); return textResult({path:p});
+    if(!/^[A-Za-z0-9._-]+$/.test(a.kind) || !/^[A-Za-z0-9._-]+$/.test(a.id) ||
+       a.kind==="." || a.kind===".." || a.id==="." || a.id==="..")
+      throw new Error("RUN_RECORD_PATH_INVALID");
+    const p=path.join(runDataRoot(),a.kind,a.id+".ndjson");
+    const operationId=currentOperationId();
+    await fs.mkdir(path.dirname(p),{recursive:true});
+    const stamped={timestamp:new Date().toISOString(),...a.record};
+    if(operationId)stamped.revitgpt_operation_id=operationId;
+    await fs.appendFile(p,JSON.stringify(stamped)+"\n","utf8");
+    return textResult({path:p});
   }));
 
 
@@ -325,13 +334,17 @@ Draft only. Promote after validation and real Revit test.
   server.registerTool("knowledge_failure_append",{description:"Append one real failure/workaround as raw improvement evidence in AppData knowledge/failures.",inputSchema:{title:z.string(),context:z.string(),observed:z.string(),expected:z.string(),evidence:z.string(),workaround:z.string().optional(),candidate_improvement:z.string().optional()}},async (a)=>guarded("knowledge_failure_append",a,async()=>{
     const p=path.join(getAppDataRoot(),"knowledge","failures","ERROR_LOG.md");
     const block=`\n---\n\n## ${new Date().toISOString()} — ${a.title}\n\n**Context:** ${a.context}\n\n**Observed:** ${a.observed}\n\n**Expected:** ${a.expected}\n\n**Evidence:** ${a.evidence}\n\n**Workaround:** ${a.workaround||"None"}\n\n**Candidate improvement:** ${a.candidate_improvement||"Unclassified"}\n\n**Status:** OPEN\n`;
-    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,block,"utf8"); return textResult({path:p});
+    const opId=currentOperationId();
+    const stamped=block+(opId ? "\n<!-- revitgpt-operation: "+opId+" -->\n" : "");
+    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,stamped,"utf8"); return textResult({path:p});
   }));
 
   server.registerTool("knowledge_promote",{description:"Promote a stable lesson from failure evidence into AppData Working Knowledge. This does not mutate MCP source.",inputSchema:{title:z.string(),lesson:z.string(),evidence_ref:z.string()}},async (a)=>guarded("knowledge_promote",a,async()=>{
     const p=path.join(getAppDataRoot(),"knowledge","revit","WORKING_KNOWLEDGE.md");
     const block=`\n## ${a.title}\n\n${a.lesson}\n\nEvidence: ${a.evidence_ref}\n`;
-    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,block,"utf8"); return textResult({path:p});
+    const opId=currentOperationId();
+    const stamped=block+(opId ? "\n<!-- revitgpt-operation: "+opId+" -->\n" : "");
+    await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,stamped,"utf8"); return textResult({path:p});
   }));
 
   server.registerTool("job_get",{description:"Read one registered Job record and source.",inputSchema:{id:z.string()}},async (a)=>guarded("job_get",a,async()=>{
