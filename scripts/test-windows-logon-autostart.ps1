@@ -58,7 +58,7 @@ try {
     $null = Remove-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two
     Assert ((Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two).Status -eq "MISSING") "owned stale removal"
 
-    $longPath = "C:\" + (("longsegment" * 23) + "\revitgpt-tray.vbs")
+    $longPath = "C:\" + (("x" * 232) + "\revitgpt-tray.vbs")
     Expect-Failure { Get-RevitGptStartupCommand $longPath } "STARTUP_COMMAND_TOO_LONG"
 
     # Actual tracked VBS -> PowerShell using only a disposable fake tray script.
@@ -82,9 +82,18 @@ try {
     Assert (Test-Path -LiteralPath $marker) "stub PowerShell launched"
     Assert ((Get-Content -LiteralPath $marker -Raw).Trim() -eq "LAUNCHED") "stub marker"
     $launchLog = Join-Path $env:LOCALAPPDATA "RevitGPT\logs\startup-launch.log"
+    $logDeadline = (Get-Date).AddSeconds(8)
+    $launchText = ""
+    do {
+        if (Test-Path -LiteralPath $launchLog) {
+            $launchText = Get-Content -LiteralPath $launchLog -Raw
+        }
+        if ($launchText -match 'wscript_invoked' -and $launchText -match 'powershell_dispatched') { break }
+        Start-Sleep -Milliseconds 150
+    } while ((Get-Date) -lt $logDeadline)
     Assert (Test-Path -LiteralPath $launchLog) "launcher log exists"
-    Assert ((Get-Content $launchLog -Raw) -match 'wscript_invoked') "launcher invocation logged"
-    Assert ((Get-Content $launchLog -Raw) -match 'powershell_dispatched') "dispatch logged"
+    Assert ($launchText -match 'wscript_invoked') "launcher invocation logged"
+    Assert ($launchText -match 'powershell_dispatched') "dispatch logged"
 
     Remove-Item -LiteralPath (Join-Path $testDir "revitgpt-tray.ps1") -Force
     & cscript.exe //nologo (Join-Path $testDir "revitgpt-tray.vbs") | Out-Null
