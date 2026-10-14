@@ -57,6 +57,16 @@ try {
     Assert ($stale.Status -eq "STALE") "matching value but missing launcher"
     $null = Remove-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two
     Assert ((Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two).Status -eq "MISSING") "owned stale removal"
+    # Old checkout was physically removed, but the obsolete Run value persists.
+    # This is not proof of ownership by file contents, so require explicit install.
+    New-ItemProperty -Path $key -Name RevitGPT -Value $migrated.Expected -PropertyType String -Force | Out-Null
+    $staleOther = Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
+    Assert ($staleOther.Status -eq "STALE_OTHER_CHECKOUT") "missing old launcher classified safely"
+    Expect-Failure { Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one } "STARTUP_STALE_MIGRATION_REQUIRES_APPROVAL"
+    $restored = Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one -AllowStaleMigration
+    Assert ($restored.Status -eq "INSTALLED") "explicit missing-checkout migration"
+    Assert ((Get-ItemProperty -LiteralPath $key).RevitGPT -eq $restored.Expected) "stale old path replaced"
+    $null = Remove-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
 
     $longPath = "C:\" + (("x" * 232) + "\revitgpt-tray.vbs")
     Expect-Failure { Get-RevitGptStartupCommand $longPath } "STARTUP_COMMAND_TOO_LONG"
