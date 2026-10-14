@@ -26,7 +26,7 @@ function assertListenerRecoveryInvariant(code) {
 }
 assertListenerRecoveryInvariant(source);
 // Red control: reproducing old coupling must trip the test.
-const unsafe = source.replace("DisposeListener();\n            try", "DisposeBridge();\n            try");
+const unsafe = source.replace(/(\/\/ listener crashed: timed-out writes may STILL BE EXECUTING\.\r?\n\s*)DisposeListener\(\);/, "$1DisposeBridge();");
 assert.notEqual(unsafe,source,"red control mutation should apply");
 assert.throws(()=>assertListenerRecoveryInvariant(unsafe),
   /listener retry must NEVER dispose running ExternalEvent queue/);
