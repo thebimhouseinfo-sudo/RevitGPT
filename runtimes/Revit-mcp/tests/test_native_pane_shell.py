@@ -6,13 +6,21 @@ ROOT = Path(__file__).resolve().parents[1] / "bridge" / "unified_native"
 
 
 class NativePaneShellTests(unittest.TestCase):
-    def test_pane_recreated_and_registered(self):
+    def test_pane_created_once_and_registered(self):
         provider = (ROOT / "RevitGptPaneProvider.cs").read_text(encoding="utf-8")
         host = (ROOT / "RevitGptApplication.cs").read_text(encoding="utf-8")
         self.assertIn("IFrameworkElementCreator", provider)
         self.assertIn("data.FrameworkElement = null", provider)
         self.assertIn("data.FrameworkElementCreator = this", provider)
-        self.assertIn("new RevitGptPane(_binding)", provider)
+        self.assertIn("private RevitGptPane _pane;", provider)
+        self.assertIn("if (_pane == null)", provider)
+        self.assertIn("_pane = new RevitGptPane(_binding)", provider)
+        self.assertIn("return _pane;", provider)
+        self.assertIn('NativePaneDiagnostics.Record("element_reused")', provider)
+        self.assertEqual(provider.count("new RevitGptPane(_binding)"), 1)
+        # Negative control: an unconditional new pane drops WebView2/chat state.
+        sabotaged_provider = provider.replace("return _pane;", "return new RevitGptPane(_binding);")
+        self.assertNotIn("return _pane;", sabotaged_provider)
         self.assertIn("public RevitGptPaneProvider(NativeModelBindingState binding)", provider)
         self.assertIn("RegisterDockablePane", host)
         self.assertIn("_initialPaneShowPending = true;", host)
@@ -57,6 +65,8 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn('Grid.SetRow(_status, 1);', source)
         self.assertNotIn('Grid.SetRow(_status, 2);', source)
         self.assertEqual(source.count('grid.RowDefinitions.Add('), 2)
+        self.assertEqual(source.count('_browser.CoreWebView2.Navigate(ChatUrl);'), 1)
+        self.assertIn('if (_starting || _browser.CoreWebView2 != null) return;', source)
         self.assertIn('VerticalAlignment = VerticalAlignment.Top', source)
         self.assertIn("CoreWebView2PreferredColorScheme", source)
         self.assertIn("ZoomFactor = 0.8", source)
@@ -72,6 +82,26 @@ class NativePaneShellTests(unittest.TestCase):
         for forbidden in ("ExecuteScriptAsync", "GetCookiesAsync",
                           "document.querySelector", "Lease + Bind Current"):
             self.assertNotIn(forbidden, source)
+
+    def test_manual_ribbon_reopens_registered_pane_without_browser_navigation(self):
+        host = (ROOT / "RevitGptApplication.cs").read_text(encoding="utf-8")
+        command = (ROOT / "OpenRevitGptPaneCommand.cs").read_text(encoding="utf-8")
+        self.assertIn('app.CreateRibbonPanel("RevitGPT")', host)
+        self.assertIn('typeof(OpenRevitGptPaneCommand).FullName', host)
+        self.assertIn('new PushButtonData(', host)
+        self.assertIn('GetDockablePane(RevitGptPaneProvider.PaneId)', command)
+        self.assertIn('if (!shownBefore) pane.Show();', command)
+        self.assertIn('bool shownAfter = pane.IsShown();', command)
+        self.assertIn('return Result.Failed;', command)
+        self.assertIn('NativePaneDiagnostics.Record("manual_open_result"', command)
+        for forbidden in ('new RevitGptPane(', '.Navigate(', '.Reload(',
+                          'RequestBindCurrent(', 'ConsumePendingBind(', 'rg/stop'):
+            self.assertNotIn(forbidden, command)
+        # Negative control: opening pane must not navigate a new conversation.
+        sabotaged = command.replace('if (!shownBefore) pane.Show();',
+            'if (!shownBefore) pane.Show(); /* _browser.Navigate(ChatUrl); */')
+        self.assertIn('_browser.Navigate(ChatUrl)', sabotaged)
+        self.assertNotIn('_browser.Navigate(ChatUrl)', command)
 
     def test_build_references(self):
         text = (ROOT / "RevitGPT.Native.csproj").read_text(encoding="utf-8")
