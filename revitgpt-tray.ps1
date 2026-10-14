@@ -107,7 +107,7 @@ function Show-StartupRegistrationStatus {
 }
 
 function Install-StartupRegistration {
-    $info = Install-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName -AllowOwnedMigration
+    $info = Install-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName -AllowOwnedMigration -AllowStaleMigration
     Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status) (registry value read back)."
 }
 
