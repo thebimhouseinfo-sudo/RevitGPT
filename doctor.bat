@@ -2,6 +2,9 @@
 setlocal
 cd /d "%~dp0"
 echo === RevitGPT Doctor ===
+echo --- Windows user logon startup ---
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0revitgpt-tray.ps1" -StartupStatusOnly
+if errorlevel 1 echo [WARN] Startup registration diagnostic could not complete.
 set "FAILED=0"
 set "RG_PORT=3300"
 for /f "tokens=2 delims==" %%A in ('findstr /B /C:"PORT=" ".env" 2^>nul') do set "RG_PORT=%%A"
