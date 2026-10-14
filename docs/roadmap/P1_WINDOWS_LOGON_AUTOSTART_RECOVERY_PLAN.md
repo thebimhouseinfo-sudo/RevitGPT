@@ -3,7 +3,7 @@
 ## GOAL
 Sau khi Windows restart **và người dùng Windows đã đăng nhập tương tác**, RevitGPT tự khởi chạy **một** Tray, Slim MCP và Secure Tunnel của đúng checkout/profile, không cần chạy thủ công `run.bat start`. Control plane ở **STANDBY** trước khi có `@rg`, Native/full Python MCP không tự awake, không tự mở Revit, không tự chạy lại thao tác hay Job còn dang dở. Lỗi khởi động phải có bằng chứng chẩn đoán rõ ràng, không được âm thầm mất kết nối. Giữ nguyên cơ chế một model bind và các journal an toàn.
 
-**Status:** R2 CANDIDATE / PLANNING REVIEW IN PROGRESS. **Working repo:** `thebimhouseinfo-sudo/RevitGPT`, base `main@4150466c357826f79a6c86f00ee9c361d0bbddc2`. **Implementation:** NOT STARTED. **Machine registry/log evidence:** NOT AVAILABLE. This document is a plan, not proof the fault is fixed.
+**Status:** PLANNING REVIEW PASS (R2) — IMPLEMENTATION NOT STARTED; REAL BOOT NOT VERIFIED. **Working repo:** `thebimhouseinfo-sudo/RevitGPT`, base `main@4150466c357826f79a6c86f00ee9c361d0bbddc2`. **Implementation:** NOT STARTED. **Machine registry/log evidence:** NOT AVAILABLE. This document is a plan, not proof the fault is fixed.
 
 ### Scope boundary
 - P1 only: installed Windows logon startup, launch observability, safe retry via existing tray loop, contract tests and one real Windows login acceptance.
@@ -90,6 +90,7 @@ Prove the exact corrected revision via repeatable isolated Windows CI and one ge
 
 ## Planning review log
 - R1 (blob `4d5307027e9ff4aa680db1da3af9439622d87846`): **CHANGES_REQUIRED** in source-grounded plan review. Findings: (R1-F1 IMPORTANT) differentiate registry-present from Startup Apps actually running; (R1-F2 IMPORTANT) avoid widening `setup.bat` into a new Native installer/implicit registry install; (R1-F3 IMPORTANT) cap HKCU Run command length, owned-collision rollback and realistic OS delay; (R1-F4 MINOR) CI WScript simulation is not real Explorer logon. R2 addresses all four.
+- R2 (reviewed blob `7649782cb6bedc7b71c848f7c5839586bb57771c`): **PLANNING REVIEW PASS** — all four R1 findings resolved, top-level + Phase A–D GOAL anchors present, source/unknown distinctions preserved, no false CI/real-host claims, one bounded startup objective with separate PR #3/Host Takeover backlog. PASS applies only to plan consistency and readiness for explicit implementation approval; not proof of Windows boot behavior.
 - Code implementation/merge/deploy: NOT AUTHORIZED by this plan review alone.
 
 ## External Windows semantics reference
