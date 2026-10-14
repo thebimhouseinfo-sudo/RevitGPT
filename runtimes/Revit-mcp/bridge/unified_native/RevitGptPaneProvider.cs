@@ -7,10 +7,26 @@ namespace RevitGPT.Native
     public sealed class RevitGptPaneProvider : IDockablePaneProvider, IFrameworkElementCreator
     {
         private readonly NativeModelBindingState _binding;
-        // One pane and one embedded WebView2 per Revit process. Revit may ask
-        // IFrameworkElementCreator again when a document/layout is recreated;
-        // creating a new Page would navigate to ChatGPT Home and lose the chat.
-        private RevitGptPane _pane;
+        // Autodesk may re-create the WPF host for a document/layout change.
+        // Browser controls cannot be cached safely across those host views.
+        // Keep only a privacy-trimmed conversation route, never the WebView2,
+        // so any recreated pane resumes the same chat instead of ChatGPT Home.
+        private string _lastConversationUrl;
+
+        private void RememberConversationUrl(string candidate)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out uri) ||
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !String.Equals(uri.Host, "chatgpt.com", StringComparison.OrdinalIgnoreCase))
+                return;
+            string path = uri.AbsolutePath;
+            int marker = path.IndexOf("/c/", StringComparison.OrdinalIgnoreCase);
+            if (marker < 0 || path.Length <= marker + 3) return;
+            // Retain only the in-memory path, not query strings, fragments or tokens.
+            _lastConversationUrl = uri.GetLeftPart(UriPartial.Path);
+        }
+
         public RevitGptPaneProvider(NativeModelBindingState binding)
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
@@ -33,16 +49,10 @@ namespace RevitGPT.Native
             NativePaneDiagnostics.Record("element_create");
             try
             {
-                if (_pane == null)
-                {
-                    _pane = new RevitGptPane(_binding);
-                    NativePaneDiagnostics.Record("element_created");
-                }
-                else
-                {
-                    NativePaneDiagnostics.Record("element_reused");
-                }
-                return _pane;
+                var pane = new RevitGptPane(_binding,
+                    () => _lastConversationUrl, RememberConversationUrl);
+                NativePaneDiagnostics.Record("element_created");
+                return pane;
             }
             catch (Exception error)
             {
