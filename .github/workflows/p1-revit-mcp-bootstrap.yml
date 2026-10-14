@@ -136,7 +136,9 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/test-windows-logon-autostart.ps1
-          if ($LASTEXITCODE -ne 0) { throw "PowerShell 7 autostart test failed" }
+          # Do not inspect inherited LASTEXITCODE: the test intentionally
+          # invokes a negative cscript case returning 3 and asserts it.
+          # PowerShell terminating script errors fail the step automatically.
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-windows-logon-autostart.ps1"
           if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 autostart test failed" }
 
