@@ -6,21 +6,23 @@ ROOT = Path(__file__).resolve().parents[1] / "bridge" / "unified_native"
 
 
 class NativePaneShellTests(unittest.TestCase):
-    def test_pane_created_once_and_registered(self):
+    def test_creator_preserves_chat_route_not_disposable_browser(self):
         provider = (ROOT / "RevitGptPaneProvider.cs").read_text(encoding="utf-8")
         host = (ROOT / "RevitGptApplication.cs").read_text(encoding="utf-8")
         self.assertIn("IFrameworkElementCreator", provider)
         self.assertIn("data.FrameworkElement = null", provider)
         self.assertIn("data.FrameworkElementCreator = this", provider)
-        self.assertIn("private RevitGptPane _pane;", provider)
-        self.assertIn("if (_pane == null)", provider)
-        self.assertIn("_pane = new RevitGptPane(_binding)", provider)
-        self.assertIn("return _pane;", provider)
-        self.assertIn('NativePaneDiagnostics.Record("element_reused")', provider)
-        self.assertEqual(provider.count("new RevitGptPane(_binding)"), 1)
-        # Negative control: an unconditional new pane drops WebView2/chat state.
-        sabotaged_provider = provider.replace("return _pane;", "return new RevitGptPane(_binding);")
-        self.assertNotIn("return _pane;", sabotaged_provider)
+        self.assertIn("new RevitGptPane(_binding,", provider)
+        self.assertIn("() => _lastConversationUrl, RememberConversationUrl", provider)
+        self.assertIn('uri.Host, "chatgpt.com"', provider)
+        self.assertIn('path.IndexOf("/c/"', provider)
+        self.assertIn("uri.GetLeftPart(UriPartial.Path)", provider)
+        self.assertNotIn("private RevitGptPane _pane;", provider)
+        self.assertNotIn("return _pane;", provider)
+        # Red control: without the remembered URL the next page loses chat history.
+        sabotaged_provider = provider.replace("() => _lastConversationUrl, RememberConversationUrl",
+                                              "() => null, RememberConversationUrl")
+        self.assertNotIn("() => _lastConversationUrl, RememberConversationUrl", sabotaged_provider)
         self.assertIn("public RevitGptPaneProvider(NativeModelBindingState binding)", provider)
         self.assertIn("RegisterDockablePane", host)
         self.assertIn("_initialPaneShowPending = true;", host)
@@ -65,7 +67,14 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn('Grid.SetRow(_status, 1);', source)
         self.assertNotIn('Grid.SetRow(_status, 2);', source)
         self.assertEqual(source.count('grid.RowDefinitions.Add('), 2)
-        self.assertEqual(source.count('_browser.CoreWebView2.Navigate(ChatUrl);'), 1)
+        self.assertIn("CoreWebView2.SourceChanged +=", source)
+        self.assertIn("_rememberConversationUrl(_browser.CoreWebView2.Source)", source)
+        self.assertIn("string destination = _restoreConversationUrl();", source)
+        self.assertEqual(source.count("Navigate(resuming ? destination : ChatUrl);"), 1)
+        self.assertNotIn("_browser.CoreWebView2.Navigate(ChatUrl);", source)
+        # No silent reset to ChatGPT Home when a conversation route is available.
+        sabotaged_source = source.replace("resuming ? destination : ChatUrl", "ChatUrl")
+        self.assertNotIn("Navigate(resuming ? destination : ChatUrl);", sabotaged_source)
         self.assertIn('if (_starting || _browser.CoreWebView2 != null) return;', source)
         self.assertIn('VerticalAlignment = VerticalAlignment.Top', source)
         self.assertIn("CoreWebView2PreferredColorScheme", source)
