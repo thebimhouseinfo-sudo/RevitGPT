@@ -1,6 +1,5 @@
 # RevitGPT per-user Windows logon registration. No executable is launched here.
 # Callers supply the HKCU key for isolated tests; production always supplies HKCU Run.
-Set-StrictMode -Version Latest
 
 function Get-RevitGptStartupCommand([string]$LauncherPath) {
     if ([string]::IsNullOrWhiteSpace($LauncherPath)) { throw "STARTUP_LAUNCHER_PATH_REQUIRED" }
