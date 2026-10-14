@@ -57,8 +57,14 @@ function Get-RevitGptStartupRegistration {
     # launcher + companion source marker, never by filename alone.
     $m = [regex]::Match($value, '^wscript(?:[.]exe)?\s+"([^"]+\\revitgpt-tray[.]vbs)"$', 'IgnoreCase')
     if ($m.Success) {
-        if (Test-RevitGptOwnedLauncher $m.Groups[1].Value) {
+        $previousLauncher = $m.Groups[1].Value
+        if (Test-RevitGptOwnedLauncher $previousLauncher) {
             return [pscustomobject]@{ Status='OWNED_OTHER_CHECKOUT'; Reason='MANUAL_MIGRATION_REQUIRED'; Value=$value; Expected=$expected }
+        }
+        if (-not (Test-Path -LiteralPath $previousLauncher)) {
+            # Exact RevitGPT-named Run launcher now absent: repair only after
+            # explicit runtime install, not from a read/status probe.
+            return [pscustomobject]@{ Status='STALE_OTHER_CHECKOUT'; Reason='MISSING_OLD_LAUNCHER_REQUIRES_EXPLICIT_INSTALL'; Value=$value; Expected=$expected }
         }
         return [pscustomobject]@{ Status='CONFLICT'; Reason='UNVERIFIED_OTHER_LAUNCHER'; Value=$value; Expected=$expected }
     }
@@ -70,7 +76,8 @@ function Install-RevitGptStartupRegistration {
         [Parameter(Mandatory=$true)][string]$RegistryPath,
         [Parameter(Mandatory=$true)][string]$LauncherPath,
         [string]$Name = 'RevitGPT',
-        [switch]$AllowOwnedMigration
+        [switch]$AllowOwnedMigration,
+        [switch]$AllowStaleMigration
     )
     if (-not (Test-RevitGptOwnedLauncher $LauncherPath)) { throw 'STARTUP_LAUNCHER_INVALID' }
     $before = Get-RevitGptStartupRegistration -RegistryPath $RegistryPath -LauncherPath $LauncherPath -Name $Name
@@ -81,7 +88,10 @@ function Install-RevitGptStartupRegistration {
     if ($before.Status -eq 'OWNED_OTHER_CHECKOUT' -and -not $AllowOwnedMigration) {
         throw 'STARTUP_OWNED_MIGRATION_REQUIRES_APPROVAL'
     }
-    if ($before.Status -notin @('MISSING','STALE','OWNED_OTHER_CHECKOUT')) {
+    if ($before.Status -eq 'STALE_OTHER_CHECKOUT' -and -not $AllowStaleMigration) {
+        throw 'STARTUP_STALE_MIGRATION_REQUIRES_APPROVAL'
+    }
+    if ($before.Status -notin @('MISSING','STALE','OWNED_OTHER_CHECKOUT','STALE_OTHER_CHECKOUT')) {
         throw ('STARTUP_STATE_UNSUPPORTED: ' + $before.Status)
     }
     $hadValue = ($null -ne $before.Value)
