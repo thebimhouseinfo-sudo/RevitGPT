@@ -1,14 +1,22 @@
 import "dotenv/config";
 import express from "express";
+import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { revitUpstream } from "./revit-upstream.mjs";
+import { createAwakeIntent, getWindowsBootSessionId } from "./awake-intent.mjs";
+import { createNativeHostIdentity } from "./native-host-identity.mjs";
+import { createWorkTracker, createBlockedWorkTracker, currentOperationId } from "./work-tracker.mjs";
+import { reconcileRecoveredSystemOperations } from "./system-reconciliation.mjs";
+import { reconcileNativeOutcomes } from "./native-reconciliation.mjs";
+import { wrapToolRegistration, effectForTool } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
 import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
-import { createSessionManager, extractRequestId, isInitializeRequest } from "./mcp-session-manager.mjs";
+import { createSessionManager, extractRequestId, isInitializeRequest, isPriorityControlRequest } from "./mcp-session-manager.mjs";
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
@@ -31,11 +39,54 @@ if (!TOKEN) {
 }
 
 let shuttingDown = false;
+const bootSessionId=await getWindowsBootSessionId();
+const awakeIntent = await createAwakeIntent({
+  filePath: path.join(getAppDataRoot(), "state", "awake-intent.json"),
+  sessionIdProvider:async()=>bootSessionId
+});
+const nativeHostIdentity=await createNativeHostIdentity({
+  filePath:path.join(getAppDataRoot(),"state","native-host-identity.json"),
+  sessionIdProvider:async()=>bootSessionId
+});
+// The accepted-work fence and Native/SYSTEM completion journal are shared by
+// all MCP transports. A new Node process cannot silently discard unknown work.
+let workTracker;
+try {
+  workTracker = await createWorkTracker({
+    filePath: path.join(getAppDataRoot(), "state", "work-journal.json"),
+    onDrained: async () => {
+      await awakeIntent.clearAfterDrain();
+      await revitUpstream.deactivate();
+      await logControl({event:"graceful_stop_completed"});
+    }
+  });
+} catch (error) {
+  // A corrupt/missing-authority journal is a safety incident, not an excuse to
+  // mark STOPPED or render the minimal status/control surface unreachable.
+  await logError({source:"work-journal-init",error:String(error)}).catch(()=>undefined);
+  workTracker = createBlockedWorkTracker(error);
+}
+// On a Node restart, restore observed SYSTEM post-state without executing an
+// old operation. Missing/mismatched evidence remains STOP_BLOCKED, never replay.
+const recoveredSystem = await reconcileRecoveredSystemOperations(workTracker);
+if (recoveredSystem.length)
+  await logControl({event:"system_reconciliation",results:recoveredSystem.map(x=>({
+    id:x.id,tool:x.tool,verdict:x.verdict,reason:x.reason
+  }))}).catch(()=>undefined);
+const recoveredNative=await reconcileNativeOutcomes(workTracker,{bridgeUrl:BRIDGE_URL});
+if (recoveredNative.length)
+  await logControl({event:"native_reconciliation_at_boot",results:recoveredNative.map(x=>({
+    id:x.id,tool:x.tool,verdict:x.verdict,reason:x.reason
+  }))}).catch(()=>undefined);
+// Work was accepted on HTTP ingress even if a Streamable MCP transport must
+// serialize or recover before its actual tool callback becomes runnable.
+const requestContext = new AsyncLocalStorage();
 
 const ensureExplicitReadReady = () => ensureReadRuntime({
   upstream: revitUpstream,
   processState: revitProcessState,
-  bridgeState: bridgeHealth
+  bridgeState: bridgeHealth,
+  awakeIntent
 });
 
 async function revitProcessState() {
@@ -91,15 +142,15 @@ function createServer(sessionKey) {
   // Each tool request may be routed through a new/recovered MCP transport.
   // Model operation permission comes from native binding on THIS request, not a
   // previously executed revitgpt_admission call in another server instance.
-  const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL));
+  const authority = new SessionModelAuthority(() => fetchNativeBindingStatus(BRIDGE_URL),nativeHostIdentity);
   const server = new McpServer(
     { name: "revitgpt", version: "0.1.0" },
     {
       instructions: [
         "RevitGPT P1 bootstrap surface.",
         "Bare @rg may call revitgpt_admission for an explicit status/connection report.",
-        "An explicit model tool call initializes the full Revit MCP when Revit and the native bridge are ready.",
-        "Revit being ON by itself must not auto-start the full Revit MCP.",
+        "Only explicit @rg awakens the workspace; model tool calls verify global awake intent plus native binding.",
+        "Opening Revit in STANDBY does not awaken MCP. After explicit @rg, later Revit arrival upgrades to FULLY_AWAKE automatically.",
         "With exactly one open project, Revit binds it automatically. On multiple projects, use Bind Current only to switch models.",
         "Each model operation, including writes, verifies native binding and requires the bound model to be active.",
         "P2E removed revitgpt_pair_panel and revitgpt_lease_bound_model. These old commands MUST NOT be used, even if an old connector description mentions them.",
@@ -112,6 +163,13 @@ function createServer(sessionKey) {
     }
   );
 
+  // Intercept ALL registrations (SYSTEM, dev and Revit tool adapters).
+  // No callback can escape work accounting by using a new MCP session.
+  wrapToolRegistration(server,{
+    tracker:workTracker,
+    isAwake:()=>awakeIntent.isAwake(),
+    reservationIdProvider:()=>requestContext.getStore()?.reservedId??null
+  });
   registerManagedTools(server);
   registerRevitMcpDevTools(server);
 
@@ -120,6 +178,19 @@ function createServer(sessionKey) {
     description:"Read-only command router rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Uses effective registry; never executes scripts or edits RVT.",
     inputSchema:{command:z.string().min(3)}
   },async({command})=>{
+    const text=String(command||"").trim().toLowerCase();
+    if(text==="rg/stop"){
+      const stopped=await workTracker.requestStop();
+      return {content:[{type:"text",text:"RevitGPT "+stopped.status+
+        " active="+stopped.active_count+" unresolved="+stopped.unresolved_count}],
+        structuredContent:stopped};
+    }
+    if(text==="rg/status"){
+      const state=workTracker.status();
+      return {content:[{type:"text",text:"RevitGPT "+state.mode+
+        " active="+state.active_count+" unresolved="+state.unresolved_count}],
+        structuredContent:{...state,awake_intent:awakeIntent.status(),revit_mcp:revitUpstream.status()}};
+    }
     const result=await executeRevitCommand(command,{
       bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
     });
@@ -131,7 +202,7 @@ function createServer(sessionKey) {
     "revitgpt_admission",
     {
       title: "RevitGPT Admission",
-      description: "Connect this ChatGPT session to the live Revit bridge and lazily activate the full Revit MCP only when the bridge is available.",
+      description: "Explicitly awaken the globally shared RevitGPT workspace; Revit may be OFF and can arrive later without another @rg.",
       inputSchema: {},
       outputSchema: {
         status: z.string(),
@@ -143,59 +214,69 @@ function createServer(sessionKey) {
       }
     },
     async () => {
-      const started=Date.now();
+      const started = Date.now();
+      const gate = workTracker.status();
+      if(gate.mode==="STOP_PENDING" || gate.safety_state==="STOP_BLOCKED"){
+        const text = "RevitGPT stop/recovery is not complete: " + gate.mode +
+          ", active=" + gate.active_count + ", unresolved=" + gate.unresolved_count +
+          ". New work is blocked until existing operations are reconciled.";
+        return {
+          content:[{type:"text",text}],
+          structuredContent:{status:"STOP_PENDING",bridge_available:false,
+            revit_mcp_on:revitUpstream.status().connected,tool_count:revitUpstream.cachedTools().length,
+            tool_names:[],text}
+        };
+      }
+      // @rg is the sole explicit global wake operation, not per-chat admission.
+      await workTracker.reopenWithWake({
+        wake:()=>awakeIntent.wake(),
+        clear:()=>awakeIntent.clearAfterDrain(),
+        isAwake:()=>awakeIntent.isAwake()
+      });
       const [revitProcess, bridge] = await Promise.all([
-        revitProcessState(),
-        bridgeHealth()
+        revitProcessState(), bridgeHealth()
       ]);
 
       if (!revitProcess.observable || revitProcess.running !== true) {
-        await logToolCall({tool:"revitgpt_admission",ok:true,status:"REVIT_OFF",duration_ms:Date.now()-started});
-        await revitUpstream.deactivate();
+        if (revitUpstream.status().connected) await revitUpstream.deactivate();
+        await logToolCall({tool:"revitgpt_admission",ok:true,status:"WORKSPACE_AWAKE",duration_ms:Date.now()-started});
+        const message = "RevitGPT WORKSPACE AWAKE. Revit is OFF. SYSTEM tools remain available; opening Revit will automatically activate full MCP.";
         return {
-          content: [{ type: "text", text: "RevitGPT\nREVIT OFF\nREVIT MCP OFF" }],
-          structuredContent: {
-            status: "REVIT_OFF",
-            bridge_available: bridge.available,
-            revit_mcp_on: false,
-            tool_count: 0,
-            tool_names: [],
-            text: "Revit is not running. Start Revit, then invoke RevitGPT again."
-          }
+          content:[{type:"text",text:message}],
+          structuredContent:{status:"WORKSPACE_AWAKE",bridge_available:Boolean(bridge.available),
+            revit_mcp_on:false,tool_count:0,tool_names:[],text:message}
         };
       }
-
       if (!bridge.available) {
-        await logToolCall({tool:"revitgpt_admission",ok:true,status:"BRIDGE_OFF",duration_ms:Date.now()-started});
+        await logToolCall({tool:"revitgpt_admission",ok:true,status:"WORKSPACE_AWAKE_BRIDGE_OFF",duration_ms:Date.now()-started});
+        const message = "RevitGPT WORKSPACE AWAKE; Revit is running but the Native Bridge is not healthy yet. No second @rg required.";
         return {
-          content: [{ type: "text", text: "RevitGPT\nREVIT ON\nBRIDGE OFF\nREVIT MCP OFF" }],
-          structuredContent: {
-            status: "BRIDGE_OFF",
-            bridge_available: false,
-            revit_mcp_on: false,
-            tool_count: 0,
-            tool_names: [],
-            text: bridge.status
-              ? `Revit bridge answered HTTP ${bridge.status} to /health. Check protocol compatibility; do not start a second bridge.`
-              : "Revit is running, but the Revit bridge is not reachable yet. Check its listener/port before invoking RevitGPT again."
-          }
+          content:[{type:"text",text:message}],
+          structuredContent:{status:"WORKSPACE_AWAKE",bridge_available:false,
+            revit_mcp_on:false,tool_count:0,tool_names:[],text:message}
         };
       }
-
-      const tools = await revitUpstream.activate();
-      await logToolCall({tool:"revitgpt_admission",ok:true,status:"READY",tool_count:tools.length,duration_ms:Date.now()-started});
-      const names = tools.map((tool) => tool.name);
+      let tools;
+      try {
+        tools = await revitUpstream.activate();
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        await logError({source:"awake-activation",error:detail});
+        await logToolCall({tool:"revitgpt_admission",ok:true,status:"WORKSPACE_AWAKE_RETRY",duration_ms:Date.now()-started});
+        const message = "RevitGPT WORKSPACE AWAKE; full MCP startup failed. Retrying only this layer: " + detail;
+        return {
+          content:[{type:"text",text:message}],
+          structuredContent:{status:"WORKSPACE_AWAKE",bridge_available:true,
+            revit_mcp_on:false,tool_count:0,tool_names:[],text:message}
+        };
+      }
+      const names = tools.map(tool=>tool.name);
+      await logToolCall({tool:"revitgpt_admission",ok:true,status:"FULLY_AWAKE",tool_count:names.length,duration_ms:Date.now()-started});
+      const message = "RevitGPT FULLY AWAKE. Revit MCP is ON with "+names.length+" tools. Binding remains controlled by Revit; no manual Pair/lease.";
       return {
-        content: [{ type: "text", text:
-          `RevitGPT READY\nREVIT MCP ON\nTOOLS ${names.length}\nPAIR/LEASE NOT REQUIRED. For Levels: revitgpt_call(name='revit_list_levels', arguments={}). Never call revitgpt_pair_panel or revitgpt_lease_bound_model.` }],
-        structuredContent: {
-          status: "READY",
-          bridge_available: true,
-          revit_mcp_on: true,
-          tool_count: names.length,
-          tool_names: names,
-          text: "RevitGPT is connected. Model reads need no Pair or manual lease. Use revitgpt_call with name='revit_list_levels', arguments={}. The older revitgpt_pair_panel and revitgpt_lease_bound_model commands are retired."
-        }
+        content:[{type:"text",text:message}],
+        structuredContent:{status:"FULLY_AWAKE",bridge_available:true,
+          revit_mcp_on:true,tool_count:names.length,tool_names:names,text:message}
       };
     }
   );
@@ -210,6 +291,11 @@ function createServer(sessionKey) {
     async () => {
       const [bridge, revitProcess] = await Promise.all([bridgeHealth(), revitProcessState()]);
       const upstream = revitUpstream.status();
+      // Reboot-safe: activation STANDBY is independent from a retained
+      // STOP_PENDING/STOP_BLOCKED journal from an earlier boot.
+      const runtimeState = !awakeIntent.isAwake() ? "STANDBY" :
+        workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
+        upstream.connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE";
       return {
         content: [{
           type: "text",
@@ -224,7 +310,11 @@ function createServer(sessionKey) {
           bridge,
           revit_process: revitProcess,
           revit_mcp: upstream,
-          admission_required_for_reads: false,
+          runtime_state: runtimeState,
+          awake_intent: awakeIntent.status(),
+          work_status: workTracker.status(),
+          native_host_identity: nativeHostIdentity.status(),
+          admission_required_for_reads: true,
           authorization: "native_binding_verified_per_read"
         }
       };
@@ -288,6 +378,17 @@ function createServer(sessionKey) {
       if (name.startsWith("rg/")) {
         if (args && (typeof args!=="object"||Array.isArray(args)||Object.keys(args).length))
           throw new Error("RG_COMMAND_ARGUMENTS_INVALID");
+        if (name.toLowerCase()==="rg/stop") {
+          const stop = await workTracker.requestStop();
+          return {content:[{type:"text",text:"RevitGPT "+stop.status+" active="+stop.active_count+
+            " unresolved="+stop.unresolved_count}],structuredContent:stop};
+        }
+        if (name.toLowerCase()==="rg/status") {
+          const status=workTracker.status();
+          return {content:[{type:"text",text:"RevitGPT "+status.mode+" active="+status.active_count+
+            " unresolved="+status.unresolved_count}],structuredContent:{
+            ...status,awake_intent:awakeIntent.status(),revit_mcp:revitUpstream.status()}};
+        }
         const command=await executeRevitCommand(name,{
           bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
         });
@@ -320,7 +421,16 @@ function createServer(sessionKey) {
           args: args || {},
           authority,
           ensureReady: ensureExplicitReadReady,
-          invoke: (tool, safeArgs) => revitUpstream.callTool(tool, safeArgs)
+          invoke: async (tool, safeArgs) => {
+            const workId=currentOperationId();
+            const bound=authority.summary();
+            // Persist the expected Native host/document BEFORE Python is
+            // invoked. Lost HTTP/Python responses cannot then be mistaken for
+            // a write on a replacement Revit.exe process.
+            if(workId && bound?.host_instance_id)
+              await workTracker.noteNativeHandoff(workId,bound);
+            return revitUpstream.callTool(tool, safeArgs);
+          }
         });
         await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
       } catch (error) {
@@ -359,17 +469,39 @@ app.get("/health", async (_req, res) => {
     bridge,
     revit_process: revitProcess,
     revit_mcp: revitUpstream.status(),
+    runtime_state: !awakeIntent.isAwake() ? "STANDBY" :
+      workTracker.status().mode==="STOP_PENDING" ? "STOP_PENDING" :
+      revitUpstream.status().connected && revitProcess.running === true ? "FULLY_AWAKE" : "WORKSPACE_AWAKE",
+    awake_intent: awakeIntent.status(),
+    work_status: workTracker.status(),
+    native_host_identity: nativeHostIdentity.status(),
     active_mcp_sessions: sessions.count()
   });
 });
 
 async function handleMcpPost(req, res) {
+  let reservedId=null;
   try {
     const sessionId =
       typeof req.headers["mcp-session-id"] === "string"
         ? req.headers["mcp-session-id"]
         : undefined;
     const requestId = extractRequestId(req.body);
+    const body=req.body;
+    if(sessionId && body?.jsonrpc==="2.0" && body.method==="tools/call" &&
+       !isPriorityControlRequest(body) && body.params?.name){
+      const name=body.params.name;
+      const inputs=body.params.arguments??{};
+      const effect=effectForTool(name,inputs);
+      if(effect!=="CONTROL"){
+        if(!awakeIntent.isAwake())throw new Error("WORKSPACE_STANDBY: explicit @rg required");
+        const toolName=name==="revitgpt_call"?inputs.name:name;
+        const toolArgs=name==="revitgpt_call"?inputs.arguments??{}:inputs;
+        reservedId=await workTracker.admit(toolName,effect,toolArgs);
+      }
+    }
+    return await requestContext.run({reservedId},async()=>{
+      try {
 
     const discoverFallback = buildLegacyDiscoverFallback(req.body);
     if (discoverFallback) {
@@ -401,6 +533,13 @@ async function handleMcpPost(req, res) {
       "Bad Request: Mcp-Session-Id header is required",
       requestId
     );
+      } finally {
+        // If the SDK rejected a message before tool callback admission,
+        // its operation is proven NOT_STARTED; otherwise it is in progress
+        // or terminal. Never erase an unknown/started operation.
+        if(reservedId) await workTracker.cancelIfNotStarted(reservedId);
+      }
+    });
   } catch (error) {
     console.error("[MCP POST]", error);
     const message = error instanceof Error ? error.message : String(error);
@@ -453,12 +592,56 @@ app.post(route, handleMcpPost);
 app.get(route, handleMcpGet);
 app.delete(route, handleMcpDelete);
 
+// Status-only polling for requests whose final HTTP response was lost.
+// Never wakes Python, rebinds a model or issues a Revit API action.
+let nativeRecoveryRunning=false;
+const nativeRecoveryWatch=setInterval(async()=>{
+  if(shuttingDown||nativeRecoveryRunning||
+     !workTracker.status().unresolved_count)return;
+  nativeRecoveryRunning=true;
+  try{
+    const reports=await reconcileNativeOutcomes(workTracker,{bridgeUrl:BRIDGE_URL});
+    if(reports.some(x=>x.verdict==="TERMINAL_PROVEN"))
+      await logControl({event:"native_reconciliation_terminal",
+        results:reports.filter(x=>x.verdict==="TERMINAL_PROVEN").map(x=>({id:x.id,phase:x.phase}))});
+  }catch(error){
+    await logError({source:"native-reconciliation",error:String(error)}).catch(()=>undefined);
+  }finally{nativeRecoveryRunning=false;}
+},15000);
+nativeRecoveryWatch.unref?.();
+
+let processWatchRunning = false;
+let nextActivationAttempt = 0;
 const revitProcessWatch = setInterval(async () => {
-  if (!revitUpstream.status().connected) return;
-  const revitProcess = await revitProcessState();
-  if (revitProcess.observable && revitProcess.running === false) {
-    console.log("[RevitGPT] Revit.exe is no longer running; stopping full Revit MCP.");
-    await revitUpstream.deactivate();
+  if (processWatchRunning || shuttingDown) return;
+  processWatchRunning = true;
+  try {
+    const revitProcess = await revitProcessState();
+    if (revitProcess.observable && revitProcess.running === false) {
+      if (revitUpstream.status().connected) {
+        console.log("[RevitGPT] Revit exited; only Revit MCP layer deactivated.");
+        await revitUpstream.deactivate();
+      }
+      return;
+    }
+    if (!awakeIntent.isAwake() || workTracker.status().mode!=="OPEN" ||
+        !revitProcess.observable || revitProcess.running !== true) return;
+    if (revitUpstream.status().connected || Date.now() < nextActivationAttempt) return;
+    const bridge = await bridgeHealth();
+    if (!bridge.available) return;
+    try {
+      await revitUpstream.activate();
+      nextActivationAttempt = 0;
+      await logControl({event:"revit_mcp_auto_activated",cause:"revit_arrived_after_global_awake"});
+    } catch (error) {
+      nextActivationAttempt = Date.now() + 15000;
+      await logError({source:"revit-auto-activation",error:error instanceof Error ? error.message : String(error)});
+    }
+  } catch (error) {
+    nextActivationAttempt = Date.now() + 15000;
+    await logError({source:"revit-process-watcher",error:String(error)}).catch(()=>undefined);
+  } finally {
+    processWatchRunning = false;
   }
 }, 5000);
 revitProcessWatch.unref?.();
@@ -467,13 +650,14 @@ const httpServer = app.listen(PORT, HOST, () => {
   console.log("=== RevitGPT Control Plane ===");
   console.log(`MCP:    http://${HOST}:${PORT}${route}`);
   console.log(`Health: http://${HOST}:${PORT}/health`);
-  console.log("Full Revit MCP stays OFF until @rg/revitgpt_admission is invoked while Revit is running. Revit process absence shuts it down; Revit being ON alone never auto-starts it.");
+  console.log("STANDBY until @rg. After explicit awake, Revit arrival automatically activates the full Revit MCP layer.");
 });
 
 async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   clearInterval(revitProcessWatch);
+  clearInterval(nativeRecoveryWatch);
   console.log("[RevitGPT] " + signal + ": shutting down");
   await revitUpstream.deactivate().catch(() => undefined);
   sessions.stopCleanup();

@@ -63,32 +63,32 @@ def _send_request(
             error_result = json.loads(exc.read().decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
             error_result = None
+        # Preserve the actual Native X-Request-ID all the way back to Node.
+        # On 504 the write/UI action may still run inside ExternalEvent.
+        if exc.code == 504:
+            raise RevitBridgeError(
+                f"native_operation_id={request_id}; Bridge HTTP 504: "
+                "side-effect outcome unknown; do not retry automatically."
+            ) from exc
         if isinstance(error_result, dict):
             error_info = error_result.get("error")
             if isinstance(error_info, dict) and isinstance(error_info.get("message"), str):
                 raise RevitBridgeError(
-                    f"Bridge HTTP {exc.code}: {error_info['message']}"
+                    f"native_operation_id={request_id}; Bridge HTTP {exc.code}: {error_info['message']}"
                 ) from exc
-        if exc.code == 504:
-            # A write may have committed despite a gateway timeout.
-            # Fail closed even when the response body is missing/malformed.
-            raise RevitBridgeError(
-                "Bridge HTTP 504: request timed out; outcome unknown; "
-                "do not retry automatically."
-            ) from exc
         if 400 <= exc.code < 500:
             raise RevitBridgeError(f"Bridge returned HTTP {exc.code}") from exc
         raise RevitBridgeUnavailableError(
-            f"Cannot reach Revit bridge at {url}: {exc}"
+            f"native_operation_id={request_id}; Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except (URLError, TimeoutError, OSError) as exc:
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
         raise RevitBridgeUnavailableError(
-            f"Cannot reach Revit bridge at {url}: {exc}"
+            f"native_operation_id={request_id}; Cannot reach Revit bridge at {url}: {exc}"
         ) from exc
     except ValueError as exc:
         log_runtime("bridge_response", endpoint=endpoint, method=method, request_id=request_id, ok=False, error=repr(exc))
-        raise RevitBridgeError(f"Invalid JSON response from bridge: {exc}") from exc
+        raise RevitBridgeError(f"native_operation_id={request_id}; Invalid JSON response from bridge: {exc}") from exc
 
     if not isinstance(result, dict):
         raise RevitBridgeError("Bridge response must be a JSON object.")
@@ -96,7 +96,7 @@ def _send_request(
     if "error" in result:
         error_info = result["error"]
         raise RevitBridgeError(
-            f"Bridge error: {error_info.get('message', 'Unknown error')}"
+            f"native_operation_id={request_id}; Bridge error: {error_info.get('message', 'Unknown error')}"
         )
 
     return result
@@ -116,6 +116,22 @@ def health_check() -> dict:
             "bridge_url": BRIDGE_URL,
             "error": str(exc),
         }
+
+
+def get_native_operation_status(operation_id: str) -> dict:
+    """Query a previously submitted Native operation without executing/replaying it.
+
+    An absent status after client/host recovery is NOT evidence a write was
+    never executed; callers must preserve HANDOFF_UNKNOWN until authoritative
+    host-generation proof is available.
+    """
+    import re
+    if not isinstance(operation_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", operation_id):
+        raise ValueError("Invalid Native operation ID")
+    result = _send_request(
+        "/operation/status", payload={"operation_id": operation_id}, method="POST"
+    )
+    return result.get("data", result)
 
 
 def get_binding_status() -> dict:
@@ -236,13 +252,13 @@ def set_selection(element_ids: list[str], document_id: str | None = None,
     if mode != "replace":
         payload["mode"] = mode
     if document_id: payload["document_id"] = document_id
-    return _send_request("/ui/selection/set", payload=payload, method="POST")["data"]
+    return _send_request("/ui/selection/set", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def show_elements(element_ids: list[str], document_id: str | None = None) -> dict:
     payload = {"element_ids": _valid_ui_ids(element_ids, allow_empty=False)}
     if document_id: payload["document_id"] = document_id
-    return _send_request("/ui/show", payload=payload, method="POST")["data"]
+    return _send_request("/ui/show", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def select_related(element_id: str, relation: str, apply: bool = False,
@@ -256,7 +272,8 @@ def select_related(element_id: str, relation: str, apply: bool = False,
     payload = {"element_id": element_id, "relation": relation, "apply": apply}
     if document_id:
         payload["document_id"] = document_id
-    return _send_request("/ui/select-related", payload=payload, method="POST")["data"]
+    return _send_request("/ui/select-related", payload=payload, method="POST",
+                         timeout=WRITE_TIMEOUT if apply else None)["data"]
 
 
 def temporary_visibility(mode: str, element_ids: list[str] | None = None,
@@ -298,7 +315,7 @@ def activate_view(view_id: str, document_id: str | None = None) -> dict:
     payload = {"view_id": view_id}
     if document_id:
         payload["document_id"] = document_id
-    return _send_request("/ui/view/activate", payload=payload, method="POST")["data"]
+    return _send_request("/ui/view/activate", payload=payload, method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
 def query_elements(category: str | None = None,

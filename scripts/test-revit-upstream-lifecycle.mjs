@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { RevitUpstream } from "../src/revit-upstream.mjs";
+import { RevitUpstream, isUpstreamTransportFailure } from "../src/revit-upstream.mjs";
 
 function makeFixture({ hangConnect = false, hangList = false, breakConnect = false } = {}) {
-  const calls = { connect: 0, list: 0, close: 0 };
+  const calls = { connect: 0, list: 0, close: 0, tool: 0 };
+  let toolFailure = null;
   const inventory = [{ name: "revit_get_active_document" }, { name: "revit_list_levels" }];
   const transport = {
     stderr: null,
@@ -18,6 +19,11 @@ function makeFixture({ hangConnect = false, hangList = false, breakConnect = fal
       calls.list++;
       if (hangList) await new Promise(() => {});
       return { tools: inventory };
+    },
+    callTool: async ({name}) => {
+      calls.tool++;
+      if (toolFailure) throw toolFailure;
+      return {content:[{type:"text",text:name}]};
     }
   };
   const manager = new RevitUpstream({
@@ -25,7 +31,9 @@ function makeFixture({ hangConnect = false, hangList = false, breakConnect = fal
     createTransport: () => transport,
     initialDeadlineMs: 80
   });
-  return { manager, calls, inventory };
+  return { manager, calls, inventory,
+    failTool: (error) => { toolFailure = error; }
+  };
 }
 
 const ok = makeFixture();
@@ -64,4 +72,39 @@ await assert.rejects(badConnect.manager.activate(), /Mock Python startup failed/
 assert.equal(badConnect.calls.close, 1);
 assert.equal(badConnect.manager.status().phase, "sleeping");
 
-console.log("[PASS] Revit MCP upstream cold/warm admission invokes tools/list once; startup hangs fail closed with transport cleanup.");
+// Regression: a failed Revit API request or Native HTTP timeout must not
+// deactivate the shared Python process while other chats still use it.
+const shared = makeFixture();
+await shared.manager.activate();
+shared.failTool(new Error("Bridge HTTP 504: request timed out; outcome unknown; do not retry automatically."));
+await assert.rejects(shared.manager.callTool("revit_set_parameter", {}), /outcome unknown/);
+assert.equal(shared.manager.status().connected, true, "Native 504 is NOT MCP process death");
+assert.equal(shared.calls.close, 0);
+assert.equal(shared.manager.status().phase, "active");
+shared.failTool(new Error("MODEL_BINDING_NOT_CURRENT"));
+await assert.rejects(shared.manager.callTool("revit_list_levels", {}), /MODEL_BINDING_NOT_CURRENT/);
+assert.equal(shared.calls.close, 0, "native model error must leave other chats connected");
+shared.failTool(new Error("Python tool raised ValueError"));
+await assert.rejects(shared.manager.callTool("revit_list_levels", {}), /ValueError/);
+assert.equal(shared.calls.close, 0, "ordinary tool errors must not reset MCP");
+shared.failTool(null);
+const later = await shared.manager.callTool("revit_list_levels", {});
+assert.equal(later.content[0].text, "revit_list_levels");
+assert.equal(shared.calls.connect, 1, "healthy transport reused after error");
+assert.equal(shared.calls.list, 1, "no duplicate tools/list on tool errors");
+
+assert.equal(isUpstreamTransportFailure(new Error("Bridge HTTP 504: outcome unknown")), false);
+assert.equal(isUpstreamTransportFailure(new Error("Socket timeout")), false);
+assert.equal(isUpstreamTransportFailure(new Error("MCP error -32000: Connection closed")), true);
+assert.equal(isUpstreamTransportFailure(Object.assign(new Error("broken"),{code:"EPIPE"})), true);
+shared.failTool(Object.assign(new Error("broken pipe"), {code:"EPIPE"}));
+await assert.rejects(shared.manager.callTool("revit_list_levels", {}), /broken pipe/);
+assert.equal(shared.calls.close, 1, "only actual transport failure invalidates Python MCP");
+assert.equal(shared.manager.status().connected, false);
+assert.equal(shared.manager.status().phase, "sleeping");
+shared.failTool(null);
+await shared.manager.activate();
+assert.equal(shared.calls.connect, 2, "next explicit activation recovers dead layer");
+assert.equal(shared.manager.status().connected, true);
+
+console.log("[PASS] Revit MCP upstream cold/warm admission and tool-failure isolation invokes tools/list once; startup hangs fail closed with transport cleanup.");

@@ -1,5 +1,8 @@
 # RevitGPT roadmap
 
+> **P1 execution update (2026-10-13):** The approved [P1 Stable Runtime & Connection Rev9](P1_STABLE_RUNTIME_CONNECTION_PLAN.md) and [current canonical authority lifecycle](../architecture/AUTHORITY_LIFECYCLE.md) override all older P0/P1B/R4 statements below **for P1 runtime/stop/binding ownership**. Old `BROWSER_TTL=15m`, per-chat model authority, immediate `rg/stop` release and obsolete E-PY/pyRevit gates are preserved **only as historical records**, not current implementation requirements. Source implementation branch: `work/p1-stable-runtime-20261013`. GSA Job states are not changed by this note. Current focus: P1-A baseline/document convergence → P1-B/C/D/E code only after respective verified gates → consolidated P1-F host test. Broader Brain/Job/Dynamo roadmap remains intact and is **not executed as part of P1**.
+
+
 ## Direction reset — HUMAN 2026-10-11 (CadGPT-aligned)
 
 The previous P1B implementation sequence and E-PY-as-a-global-development-blocker are **superseded as execution plans**. Preserve their evidence, open issues and safety constraints as historical input; do not treat old milestone order as authority for new work. GSA job/cursor records require separate reconciliation before their state is changed. This decision does not certify any Revit host capability.

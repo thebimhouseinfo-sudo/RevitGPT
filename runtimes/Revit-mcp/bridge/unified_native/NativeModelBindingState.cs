@@ -17,6 +17,7 @@ namespace RevitGPT.Native
             public string BoundTitle { get; internal set; }
             public long Revision { get; internal set; }
             public string HostInstanceId { get; internal set; }
+            public bool ManualBinding { get; internal set; }
         }
 
         private readonly string _hostInstanceId = Guid.NewGuid().ToString("N");
@@ -24,6 +25,7 @@ namespace RevitGPT.Native
         private HashSet<string> _open = new HashSet<string>(StringComparer.Ordinal);
         private string _activeId, _activeTitle, _boundId, _boundTitle, _requestedId;
         private bool _boundLost;
+        private bool _manualBound;
         private bool _observationUnavailable;
         private long _revision;
 
@@ -45,7 +47,8 @@ namespace RevitGPT.Native
                         BoundId = _boundId,
                         BoundTitle = _boundTitle ?? "",
                         Revision = _revision,
-                        HostInstanceId = _hostInstanceId
+                        HostInstanceId = _hostInstanceId,
+                        ManualBinding = _manualBound
                     };
                 }
             }
@@ -72,6 +75,7 @@ namespace RevitGPT.Native
                     _boundId = _activeId;
                     _boundTitle = _activeTitle;
                     _boundLost = false;
+                    _manualBound = false; // automatic single-project bootstrap only
                     ++_revision;
                 }
             }
@@ -108,6 +112,22 @@ namespace RevitGPT.Native
             }
         }
 
+        // Document-scoped operations may target the explicitly bound, still
+        // open project even when another model tab is active. This method
+        // never grants UI selection/view activation on an inactive document.
+        public string ReadDocumentDenial(string requestedId)
+        {
+            lock (_gate)
+            {
+                if (_boundId == null) return "MODEL_NOT_BOUND";
+                if (_boundLost || !_open.Contains(_boundId)) return "BOUND_MODEL_CLOSED";
+                if (_observationUnavailable) return "DOCUMENTS_UNAVAILABLE";
+                if (!String.IsNullOrEmpty(requestedId) && requestedId != _boundId)
+                    return "DOCUMENT_ID_MISMATCH";
+                return null;
+            }
+        }
+
         public bool RequestBindCurrent()
         {
             lock (_gate)
@@ -130,6 +150,7 @@ namespace RevitGPT.Native
                 _boundId = requested;
                 _boundTitle = _activeTitle;
                 _boundLost = false;
+                _manualBound = true; // explicit panel Bind Current
                 ++_revision;
                 return true;
             }
@@ -145,6 +166,7 @@ namespace RevitGPT.Native
                 _boundTitle = null;
                 _requestedId = null;
                 _boundLost = false;
+                _manualBound = false;
                 _observationUnavailable = false;
                 _open.Clear();
             }

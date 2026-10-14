@@ -56,9 +56,21 @@ class HostPreviewTests(unittest.TestCase):
         # Red control: removing the branch must be detected by this assertion.
         removed_guard = source.replace("if (_server != null && _server.IsRunning)", "if (false)", 1)
         self.assertNotRegex(removed_guard, healthy_branch)
-        idle_body = source.split("private void OnFirstIdle", 1)[1].split("private void DisposeBridge", 1)[0]
+        idle_body = source.split("private void OnFirstIdle", 1)[1].split("private void TryShowInitialPane", 1)[0]
+        shutdown = source.split("public Result OnShutdown", 1)[1]
         self.assertNotIn("_application.Idling -= OnFirstIdle", idle_body)
-        self.assertIn("DisposeBridge();", idle_body)
+        self.assertIn("DisposeListener();", idle_body)
+        self.assertNotIn("DisposeBridge();", idle_body,
+                         "Listener recovery must preserve executing ExternalEvent work")
+        self.assertIn("if (_dispatcher == null)", idle_body)
+        self.assertIn("var dispatcher = _dispatcher;", idle_body)
+        self.assertIn("dispatcher.OperationPhase(id)", idle_body)
+        self.assertIn("DisposeBridge();", shutdown,
+                      "Explicit Revit shutdown still releases the dispatcher")
+        unsafe = idle_body.replace("DisposeListener();", "DisposeBridge();", 1)
+        self.assertNotEqual(unsafe, idle_body)
+        with self.assertRaises(AssertionError):
+            self.assertNotIn("DisposeBridge();", unsafe)
         self.assertNotIn(".Wait()", source)
         self.assertNotIn("GetAwaiter().GetResult()", source)
         self.assertNotIn("StartBridgeCommand", source)
@@ -89,7 +101,11 @@ class HostPreviewTests(unittest.TestCase):
         self.assertIn('mutations_ready = true', source)
         self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', source)
         self.assertIn('if (denial != null) return Error(409, denial);', source)
-        self.assertIn('var doc = FindDocument(app, payload);', source)
+        self.assertIn('binding.ReadDocumentDenial(Token(payload, "document_id"))', source,
+                      "Document-scoped operations must validate the bound model even on another tab")
+        self.assertIn('var doc = FindDocument(app, payload, binding.Current.BoundId);', source,
+                      "Document lookups must target the verified primary bound document")
+        self.assertIn('bool uiScoped = path.StartsWith("/ui/", StringComparison.Ordinal)', source)
         self.assertIn('if (doc == null) return Error(404, "Target Revit document is not open.");', source)
         self.assertNotIn("writeAuthority.DenialOrConsume(", source)
         self.assertNotIn('NativeWriteAuthority', source)
@@ -99,11 +115,16 @@ class HostPreviewTests(unittest.TestCase):
         self.assertNotIn('Native write route not yet validated', source)
         self.assertIn('Int64.Parse', source)
         # Red control: dropping the bound-model check is detected.
-        mutant = source.replace('binding.ReadDenial(Token(payload, "document_id"))',
+        mutant = source.replace('binding.ReadDocumentDenial(Token(payload, "document_id"))',
                                 'null', 1)
-        self.assertNotIn('binding.ReadDenial(Token(payload, "document_id"))', mutant)
+        self.assertNotEqual(mutant, source)
         with self.assertRaises(AssertionError):
-            self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', mutant)
+            self.assertIn('binding.ReadDocumentDenial(Token(payload, "document_id"))', mutant)
+        unsafe_target = source.replace('FindDocument(app, payload, binding.Current.BoundId)',
+                                       'FindDocument(app, payload)', 1)
+        self.assertNotEqual(unsafe_target, source)
+        with self.assertRaises(AssertionError):
+            self.assertIn('FindDocument(app, payload, binding.Current.BoundId)', unsafe_target)
 
 
 if __name__ == "__main__":

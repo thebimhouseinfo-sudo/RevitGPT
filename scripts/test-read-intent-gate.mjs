@@ -11,13 +11,15 @@ const upstream={
   status(){return {connected:this.connected};},
   cachedTools(){return this.connected?[
     {name:"revit_list_levels"},{name:"revit_get_active_document"},
-    {name:"revit_delete_elements"}
+    {name:"revit_get_active_view"},{name:"revit_delete_elements"}
   ]:[];},
   async activate(){counts.activations++;this.connected=true;return this.cachedTools();}
 };
 const processState=async()=>{counts.preflight++;return {observable:true,running:true};};
 const bridgeState=async()=>({available:true});
-const ensureReady=()=>ensureReadRuntime({upstream,processState,bridgeState});
+let workspaceAwake = true; // explicit @rg already occurred in these existing model-tool cases
+const awakeIntent = {isAwake:()=>workspaceAwake};
+const ensureReady=()=>ensureReadRuntime({upstream,processState,bridgeState,awakeIntent});
 const invoke=async(name,args)=>{counts.call++;return {name,args};};
 const session=()=>new SessionModelAuthority(async()=>{counts.read++;return native;});
 const fail=async(fn,match)=>assert.rejects(fn,new RegExp(match));
@@ -51,12 +53,15 @@ await fail(()=>callReadOnlyTool({name:"revit_list_levels",args:{document_id:"OTH
   authority:session(),ensureReady,invoke}),"DOCUMENT_ID_MISMATCH");
 const performed=counts.call;
 native={...native,status:"BOUND_OTHER_ACTIVE",active_id:"B"};
-await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
+const offTab = await callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke});
+assert.equal(offTab.args.document_id,"M",
+  "model reads may target bound M after switching active tab to B");
+await fail(()=>callReadOnlyTool({name:"revit_get_active_view",authority:session(),ensureReady,invoke}),
   "MODEL_BINDING_NOT_CURRENT");
 native={...native,status:"BOUND_CLOSED",active_id:"B"};
 await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
   "MODEL_BINDING_NOT_CURRENT");
-assert.equal(counts.call,performed,"denied reads MUST NOT reach Python");
+assert.equal(counts.call,performed+1,"only document-scoped off-tab read reaches Python; UI and closed binding deny");
 upstream.connected=false;
 const wakeBefore=counts.activations;
 await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),
@@ -77,18 +82,30 @@ await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),
   ensureReady:revitOff,invoke}),"REVIT_OFF");
 assert.equal(counts.activations,wakeBefore,"Revit off blocks Python wake");
 
+// Global workspace intent is independent of MCP transport: a warm Python client
+// cannot authorize a call after explicit stop/STANDBY, nor can a cold call wake it.
+workspaceAwake = false;
+upstream.connected = true;
+await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),"WORKSPACE_STANDBY");
+upstream.connected = false;
+await fail(()=>callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke}),"WORKSPACE_STANDBY");
+assert.equal(counts.activations,wakeBefore,"STANDBY must block all cold activation");
+workspaceAwake = true;
 await callReadOnlyTool({name:"revit_list_levels",authority:session(),ensureReady,invoke});
-assert.equal(counts.activations,wakeBefore+1,"valid next read recovers safely");
+assert.equal(counts.activations,wakeBefore+1,"valid global awake next read recovers safely");
 
 // Structural regression gate: no hidden 'admitted' boolean gating a read call.
 // This is an important negative control for connector tools whose individual
 // requests create different MCP transport instances.
 const source=readFileSync(new URL("../src/index.mjs",import.meta.url),"utf8");
 assert.ok(source.includes("await callReadOnlyTool({"),"proxy must use gate");
+assert.ok(source.includes("await workTracker.reopenWithWake({") && source.includes("wake:()=>awakeIntent.wake()"),
+  "explicit awake and stop fence must share one serialized control transition");
+assert.ok(source.includes("cause:\"revit_arrived_after_global_awake\""),"Revit arrival must auto-enable full MCP after awake");
 assert.ok(!source.includes('if (!admitted || !revitUpstream.status().connected)'),
   "old session-local admission guard must never be restored");
 const legacy=source.replace("await callReadOnlyTool({",
   'if (!admitted || !revitUpstream.status().connected) throw new Error("REVITGPT_ADMISSION_REQUIRED"); await callReadOnlyTool({');
 assert.notEqual(legacy,source);
 assert.ok(legacy.includes("REVITGPT_ADMISSION_REQUIRED"),"negative control identifies regression");
-console.log("[PASS] Fresh MCP sessions can call read and write tools on the bound model without a lease; mismatches/unknown tools/closed/bridge-off fail closed.");
+console.log("[PASS] Across fresh MCP sessions, bound tools require explicit global awake intent; STANDBY, unknown tools, mismatches and bridge failures fail closed.");

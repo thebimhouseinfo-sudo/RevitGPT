@@ -61,12 +61,12 @@ class UiSelectionContractTests(unittest.TestCase):
     @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": [], "active_view_id": "3"}})
     def test_clear_selection(self, send):
         self.assertEqual(bridge.set_selection([])["element_ids"], [])
-        send.assert_called_once_with("/ui/selection/set", payload={"element_ids": []}, method="POST")
+        send.assert_called_once_with("/ui/selection/set", payload={"element_ids": []}, method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request", return_value={"data": {"shown": 1}})
     def test_show(self, send):
         self.assertEqual(bridge.show_elements(["42"])["shown"], 1)
-        send.assert_called_once_with("/ui/show", payload={"element_ids": ["42"]}, method="POST")
+        send.assert_called_once_with("/ui/show", payload={"element_ids": ["42"]}, method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_invalid_targets_rejected_before_transport(self, send):
@@ -84,7 +84,7 @@ class UiSelectionContractTests(unittest.TestCase):
     def test_activate_valid_view(self, send):
         self.assertEqual(bridge.activate_view("17")["active_view_id"], "17")
         send.assert_called_once_with("/ui/view/activate",
-            payload={"view_id": "17"}, method="POST")
+            payload={"view_id": "17"}, method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_reject_invalid_view_id(self, send):
@@ -98,13 +98,13 @@ class UiSelectionContractTests(unittest.TestCase):
     def test_selection_add_mode(self, send):
         bridge.set_selection(["15"], mode="add")
         send.assert_called_once_with("/ui/selection/set",
-            payload={"element_ids": ["15"], "mode": "add"}, method="POST")
+            payload={"element_ids": ["15"], "mode": "add"}, method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request", return_value={"data": {"element_ids": []}})
     def test_selection_remove_mode(self, send):
         bridge.set_selection(["15"], mode="remove")
         send.assert_called_once_with("/ui/selection/set",
-            payload={"element_ids": ["15"], "mode": "remove"}, method="POST")
+            payload={"element_ids": ["15"], "mode": "remove"}, method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_invalid_selection_mode_fail_closed(self, send):
@@ -143,7 +143,16 @@ class UiSelectionContractTests(unittest.TestCase):
         result = bridge.select_related("42", "connected")
         self.assertFalse(result["applied"])
         send.assert_called_once_with("/ui/select-related", payload={
-            "element_id": "42", "relation": "connected", "apply": False}, method="POST")
+            "element_id": "42", "relation": "connected", "apply": False}, method="POST", timeout=None)
+
+    @patch.object(bridge, "_send_request", return_value={"data": {
+        "element_ids": ["77"], "applied": True}})
+    def test_apply_related_selection_uses_side_effect_timeout(self, send):
+        result = bridge.select_related("42", "connected", apply=True)
+        self.assertTrue(result["applied"])
+        send.assert_called_once_with("/ui/select-related", payload={
+            "element_id": "42", "relation": "connected", "apply": True},
+            method="POST", timeout=bridge.WRITE_TIMEOUT)
 
     @patch.object(bridge, "_send_request")
     def test_reject_unsupported_relationship(self, send):

@@ -106,6 +106,31 @@ internal static class NativeProtocolTests
             Check(result.StatusCode == entry.status && result.Body.Contains("\"error\""),"reject " + entry.status);
         }
         Check(called == 2,"rejected requests never run API");
+
+        // CR-01/12: the /operation/status control route must not go through
+        // ExternalEvent or require another mutating request to become visible.
+        var operationProbe = new BridgeHttpProtocol(
+            (id,m,p,b,ct) => throw new Exception("operation status may not dispatch to Revit"),
+            operationStatusProbe: opId =>
+                "{\"data\":{\"operation_id\":\"" + opId +
+                "\",\"phase\":\"EXECUTING\",\"host_instance_id\":\"host-test\"}}");
+        var observed = await operationProbe.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-1","{\"operation_id\":\"write-123\"}");
+        Check(observed.StatusCode == 200 &&
+              observed.Body.Contains("\"phase\":\"EXECUTING\"") &&
+              observed.Body.Contains("\"host_instance_id\":\"host-test\""),
+              "native operation status reports authoritative phase and host identity without UI dispatch");
+        var invalidProbe = await operationProbe.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-2","{\"operation_id\":\"bad id\"}");
+        Check(invalidProbe.StatusCode == 400,
+              "invalid operation ID is rejected before native probe");
+        var unavailable = new BridgeHttpProtocol(
+            (id,m,p,b,ct)=>throw new Exception("unexpected API dispatch"));
+        var noStatus = await unavailable.ProcessAsync("POST","/operation/status",H,null,
+            "application/json","probe-3","{\"operation_id\":\"write-123\"}");
+        Check(noStatus.StatusCode == 503,
+              "no native status provider is not proof work did not execute");
+
         var big = await run("POST","/elements",H,null,"application/json",ID,
             new string('a', BridgeHttpProtocol.MaximumBodyBytes + 1),CancellationToken.None);
         Check(big.StatusCode == 413,"bounded request body");
@@ -118,6 +143,31 @@ internal static class NativeProtocolTests
         var resultWrite = await timedRead.ProcessAsync("POST","/delete",H,null,"application/json",ID,"{}");
         Check(resultWrite.StatusCode == 504 &&
               resultWrite.Body.Contains("outcome unknown"),"write timeout does not lie about mutation");
+        // CR-09: UI selection/view effects are NOT pure reads. The HTTP
+        // deadline must reflect an operation that may have completed despite
+        // a lost response, including conditional select-related(apply=true).
+        Check(BridgeHttpProtocol.IsWrite("/ui/selection/set") &&
+              BridgeHttpProtocol.IsWrite("/ui/show") &&
+              BridgeHttpProtocol.IsWrite("/ui/view/activate"),
+            "UI side-effect routes require write-safe timeout");
+        Check(BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{\"apply\":true}") &&
+              !BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{\"apply\":false}") &&
+              !BridgeHttpProtocol.HasSideEffect("/ui/select-related", "{}"),
+            "conditional related selection depends on payload apply");
+        Check(BridgeHttpProtocol.HasSideEffect("/ui/select-related", "not-json"),
+            "invalid payload classification fails conservative");
+        var timedUI = await timedRead.ProcessAsync("POST","/ui/selection/set",H,null,
+            "application/json",ID,"{\"element_ids\":[]}");
+        Check(timedUI.StatusCode == 504 && timedUI.Body.Contains("outcome unknown"),
+            "selection side-effect timeout must not claim read-only");
+        var timedApply = await timedRead.ProcessAsync("POST","/ui/select-related",H,null,
+            "application/json",ID,"{\"apply\":true}");
+        Check(timedApply.StatusCode == 504 && timedApply.Body.Contains("outcome unknown"),
+            "applied related selection timeout is ambiguous");
+        var timedPreview = await timedRead.ProcessAsync("POST","/ui/select-related",H,null,
+            "application/json",ID,"{\"apply\":false}");
+        Check(timedPreview.StatusCode == 504 && timedPreview.Body.Contains("read timed out"),
+            "non-applying related preview retains read classification");
         delay.TrySetResult("{\"data\":true}");
 
         // Concurrency: simulated requests await independent ExternalEvent results,

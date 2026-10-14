@@ -42,6 +42,14 @@ class RouteParityTests(unittest.TestCase):
         actual = set(re.findall(r'"(GET|POST) (/[^"]+)"', code))
         self.assertEqual(expected, actual)
 
+    def test_native_operation_status_client_is_read_only_reconciliation(self):
+        """Native status must be a declared client path, not an orphan route."""
+        source = CLIENT.read_text(encoding="utf-8")
+        self.assertIn("def get_native_operation_status(operation_id: str)", source)
+        self.assertIn('"/operation/status", payload={"operation_id": operation_id}, method="POST"', source)
+        self.assertIn("HANDOFF_UNKNOWN", source)
+        self.assertIn('"POST /operation/status"', NATIVE.read_text(encoding="utf-8"))
+
     def test_annotation_native_handlers_are_reachable(self):
         router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
         operations = (BASE / "bridge" / "unified_native" / "NativeWriteOperations.cs").read_text(encoding="utf-8")
@@ -94,6 +102,14 @@ class RouteParityTests(unittest.TestCase):
         native = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
         binding = (BASE / "bridge" / "unified_native" / "NativeModelBindingState.cs").read_text(encoding="utf-8")
         self.assertIn('binding.ReadDenial(Token(payload, "document_id"))', native)
+        self.assertIn('binding.ReadDocumentDenial(Token(payload, "document_id"))', native)
+        self.assertIn('bool uiScoped = path.StartsWith("/ui/", StringComparison.Ordinal)', native)
+        self.assertIn('FindDocument(app, payload, binding.Current.BoundId)', native)
+        self.assertIn('string id = Token(payload, "document_id") ?? boundId;', native)
+        self.assertIn('return matches.Count == 1 ? matches[0] : null;', native)
+        self.assertNotIn('if (String.IsNullOrEmpty(id)) return app.ActiveUIDocument?.Document;', native)
+        self.assertIn('public string ReadDocumentDenial(string requestedId)', binding)
+
         self.assertIn('if (denial != null) return Error(409, denial);', native)
         self.assertIn('if (doc == null) return Error(404, "Target Revit document is not open.");', native)
         self.assertIn('if (_activeId != _boundId) return "ACTIVE_MODEL_MISMATCH";', binding)

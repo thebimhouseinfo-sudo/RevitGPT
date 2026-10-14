@@ -24,25 +24,54 @@ namespace RevitGPT.Native
         private readonly Func<string, string, string, string, CancellationToken, Task<string>> _dispatch;
         private readonly TimeSpan _readTimeout;
         private readonly TimeSpan _writeTimeout;
+        private readonly Func<string, string> _operationStatusProbe;
         public const int MaximumBodyBytes = 1024 * 1024;
 
         public BridgeHttpProtocol(
             Func<string, string, string, string, CancellationToken, Task<string>> dispatch,
             TimeSpan? readTimeout = null,
-            TimeSpan? writeTimeout = null)
+            TimeSpan? writeTimeout = null,
+            Func<string, string> operationStatusProbe = null)
         {
             _dispatch = dispatch ?? throw new ArgumentNullException(nameof(dispatch));
             _readTimeout = readTimeout ?? TimeSpan.FromMilliseconds(2500);
             _writeTimeout = writeTimeout ?? TimeSpan.FromSeconds(25);
+            _operationStatusProbe = operationStatusProbe;
             if (_readTimeout <= TimeSpan.Zero || _writeTimeout <= TimeSpan.Zero)
                 throw new ArgumentOutOfRangeException(nameof(readTimeout));
         }
 
+        // "Write" here means an externally observable Revit UI or model
+        // side effect, not necessarily a DB transaction. Timeout of either
+        // is ambiguous once ExternalEvent started execution.
         public static bool IsWrite(string path)
         {
-            return path == "/ui/visibility/temporary" || path == "/dynamo/load" || path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
+            return path == "/ui/selection/set" || path == "/ui/show" ||
+                   path == "/ui/view/activate" ||
+                   path == "/ui/visibility/temporary" || path == "/dynamo/load" || path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                    path == "/parameter/set" || path == "/delete" || path == "/move" ||
                    (path.StartsWith("/annotation/", StringComparison.Ordinal) && path != "/annotation/get");
+        }
+
+        // Conditional UI mutation. Read-only select-related(apply=false)
+        // must retain the bounded read deadline, but apply=true can change
+        // selection even when the RVT document does not enter a transaction.
+        // Invalid payload is classified conservatively as a side effect;
+        // the Revit router is still the authority for input validation.
+        public static bool HasSideEffect(string path, string body)
+        {
+            if (IsWrite(path)) return true;
+            if (path != "/ui/select-related") return false;
+            if (String.IsNullOrWhiteSpace(body)) return false;
+            try
+            {
+                var input = JObject.Parse(body);
+                var apply = input["apply"];
+                if (apply == null) return false;
+                return apply.Type == JTokenType.Boolean
+                    ? apply.Value<bool>() : true;
+            }
+            catch (JsonException) { return true; }
         }
 
         public async Task<BridgeHttpResponse> ProcessAsync(
@@ -74,6 +103,41 @@ namespace RevitGPT.Native
             if (stopping.IsCancellationRequested)
                 return Error(503, "Bridge shutting down.");
 
+            // A pure metadata query. Never dispatch into Revit UI context and
+            // never use a delayed native side-effect response as cancellation.
+            if (method == "POST" && path == "/operation/status")
+            {
+                if (_operationStatusProbe == null)
+                    return Error(503, "Native operation status unavailable.");
+                string operationId;
+                try
+                {
+                    var request = JObject.Parse(body ?? "");
+                    operationId = request.Value<string>("operation_id");
+                }
+                catch (JsonException)
+                {
+                    return Error(400, "Malformed operation status request.");
+                }
+                if (String.IsNullOrWhiteSpace(operationId) || operationId.Length > 128)
+                    return Error(400, "Operation ID required.");
+                foreach (char ch in operationId)
+                    if (!(Char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.'))
+                        return Error(400, "Invalid operation ID.");
+                try
+                {
+                    var statusJson = _operationStatusProbe(operationId);
+                    if (String.IsNullOrWhiteSpace(statusJson) ||
+                        JObject.Parse(statusJson)["data"] == null)
+                        return Error(503, "Invalid operation status response.");
+                    return new BridgeHttpResponse(200, statusJson);
+                }
+                catch (Exception)
+                {
+                    return Error(503, "Native operation status probe failed.");
+                }
+            }
+
             // The timeout cancels a PENDING queue item; once an API operation
             // starts, cancellation cannot roll back a Revit transaction.
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(stopping))
@@ -85,7 +149,8 @@ namespace RevitGPT.Native
                 catch (Exception) { return Error(500, "Dispatch initialization failed."); }
 
                 if (dispatched == null) return Error(500, "Dispatch returned no task.");
-                var delay = Task.Delay(IsWrite(path) ? _writeTimeout : _readTimeout);
+                bool hasSideEffect = HasSideEffect(path, body);
+                var delay = Task.Delay(hasSideEffect ? _writeTimeout : _readTimeout);
                 var completed = await Task.WhenAny(dispatched, delay).ConfigureAwait(false);
                 if (completed != dispatched)
                 {
@@ -94,8 +159,8 @@ namespace RevitGPT.Native
                     _ = dispatched.ContinueWith(t => { var ignored = t.Exception; },
                         CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted,
                         TaskScheduler.Default);
-                    return Error(504, IsWrite(path)
-                        ? "Revit write timed out; outcome unknown; do not retry automatically."
+                    return Error(504, hasSideEffect
+                        ? "Revit side-effect timed out; outcome unknown; do not retry automatically."
                         : "Revit read timed out.");
                 }
                 try

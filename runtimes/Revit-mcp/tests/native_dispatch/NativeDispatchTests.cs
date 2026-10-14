@@ -51,8 +51,9 @@ internal static class NativeDispatchTests
         True(single.Current.Status == "NOT_BOUND", "no active model cannot bootstrap");
         single.Observe("A", "Test A", new[] { "A" });
         True(single.Current.Status == "BOUND_CURRENT" &&
-            single.Current.BoundId == "A" && single.Current.Revision == 1,
-            "one active project is automatically bound");
+            single.Current.BoundId == "A" && single.Current.Revision == 1 &&
+            !single.Current.ManualBinding,
+            "one active project auto-binds but is NOT manual takeover evidence");
         True(single.ReadDenial(null) == null, "single project may be read immediately");
         single.ObserveUnavailable();
         True(single.Current.Status == "BOUND_UNVERIFIED" &&
@@ -72,7 +73,10 @@ internal static class NativeDispatchTests
         single.Observe("B", "Test B", new[] { "A", "B" });
         True(single.Current.Status == "BOUND_OTHER_ACTIVE" &&
             single.ReadDenial(null) == "ACTIVE_MODEL_MISMATCH",
-            "different active tab blocks access");
+            "different active tab blocks UI-scoped access");
+        True(single.ReadDocumentDenial("A") == null &&
+            single.ReadDocumentDenial("B") == "DOCUMENT_ID_MISMATCH",
+            "off-tab document operations still target exact bound A, never active B");
         single.Observe("B", "Test B", new[] { "B" });
         True(single.Current.Status == "BOUND_CLOSED" &&
             single.ReadDenial(null) == "BOUND_MODEL_CLOSED",
@@ -105,8 +109,9 @@ internal static class NativeDispatchTests
         True(!binding.ConsumePendingBind() && binding.Current.Status == "NOT_BOUND",
             "switch before Idling rejects stale click");
         True(binding.RequestBindCurrent(), "bind Model B explicitly");
-        True(binding.ConsumePendingBind() && binding.Current.BoundId == "200",
-            "only requested Model B becomes bound");
+        True(binding.ConsumePendingBind() && binding.Current.BoundId == "200" &&
+            binding.Current.ManualBinding,
+            "only requested Model B becomes bound with explicit-user evidence");
         binding.Observe("100", "MAGS", new[] { "100", "200" });
         True(binding.Current.Status == "BOUND_OTHER_ACTIVE" &&
             binding.Current.BoundId == "200", "switch does not rebind");
@@ -140,7 +145,10 @@ internal static class NativeDispatchTests
         True(!String.IsNullOrWhiteSpace(instance), "host instance identifier present");
         enforce.Observe("B", "Test B", new[] { "A", "B" });
         True(enforce.ReadDenial("A") == "ACTIVE_MODEL_MISMATCH",
-            "tab mismatch blocks even explicit bound document id");
+            "tab mismatch blocks UI-scoped calls even with bound document id");
+        True(enforce.ReadDocumentDenial("A") == null &&
+            enforce.ReadDocumentDenial("B") == "DOCUMENT_ID_MISMATCH",
+            "document scope ignores active-tab mismatch but rejects cross-model ID");
         enforce.Observe("B", "Test B", new[] { "B" });
         True(enforce.ReadDenial(null) == "BOUND_MODEL_CLOSED", "closed binding blocked");
         enforce.Observe("A", "Reopened A", new[] { "A", "B" });

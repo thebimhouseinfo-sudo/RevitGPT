@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - work/J-AFC4-p1-revit-mcp-bootstrap
+      - work/p1-stable-runtime-20261013
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -42,6 +46,36 @@ jobs:
         run: |
           ./scripts/check-node-syntax.ps1
 
+      - name: Test explicit global awake intent, Windows boot/logon and stale-state negative controls
+        shell: pwsh
+        run: |
+          node scripts/test-awake-intent.mjs
+
+      - name: Test SYSTEM poststate crash reconciliation without replay
+        shell: pwsh
+        run: |
+          node scripts/test-system-reconciliation.mjs
+
+      - name: Test Native host-scoped operation reconciliation after lost HTTP response
+        shell: pwsh
+        run: |
+          node scripts/test-native-reconciliation.mjs
+
+      - name: Test graceful stop durable operation journal under crash and timeout
+        shell: pwsh
+        run: |
+          node --test scripts/test-work-tracker.mjs
+
+      - name: Verify SYSTEM and Revit effect inventory plus same-session stop priority
+        shell: pwsh
+        run: |
+          node --test scripts/test-tool-effects-and-priority.mjs
+
+      - name: Test actual MCP same-session stop priority and accepted-work drain
+        shell: pwsh
+        run: |
+          node scripts/test-mcp-stop-integration.mjs
+
       - name: Test bridge health request-id and real HTTP 400 negative control
         shell: pwsh
         run: |
@@ -51,6 +85,11 @@ jobs:
         shell: pwsh
         run: |
           node scripts/test-revit-upstream-lifecycle.mjs
+
+      - name: Test authoritative Native host and explicit rebind across Revit processes
+        shell: pwsh
+        run: |
+          node scripts/test-native-host-identity.mjs
 
       - name: Test P2E automatically bound model authority
         shell: pwsh
@@ -106,6 +145,11 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/check-powershell-syntax.ps1
+
+      - name: Verify Native listener recovery keeps in-flight ExternalEvent and host-scoped status
+        shell: pwsh
+        run: |
+          node scripts/test-native-listener-continuity.mjs
 
       - name: Compile native RevitGPT against Revit 2024 API
         if: matrix.node-version == '24'

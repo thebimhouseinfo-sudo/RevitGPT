@@ -21,13 +21,18 @@ export async function callReadOnlyTool({ name, args = {}, authority, ensureReady
   return invoke(name, safeArgs);
 }
 
-export async function ensureReadRuntime({ upstream, processState, bridgeState }) {
+export async function ensureReadRuntime({ upstream, processState, bridgeState, awakeIntent }) {
   if (!upstream || typeof upstream.status !== "function" ||
       typeof upstream.activate !== "function")
     throw new Error("REVIT_MCP_READ_RUNTIME_INVALID");
+  if (awakeIntent && (typeof awakeIntent.isAwake !== "function" || !awakeIntent.isAwake()))
+    throw new Error("WORKSPACE_STANDBY: invoke @rg to awaken RevitGPT");
+  // A cold tool request or reconstructed MCP session must never bypass the
+  // global awake intent. An active Python transport also cannot override it.
   if (upstream.status().connected) return upstream.cachedTools();
 
-  // Cold: run both live checks. Revit being ON alone never starts Python MCP.
+  // Cold: run live Revit and bridge checks only AFTER explicit global @rg.
+  // Revit being ON alone is not authority to awaken a stopped workspace.
   const [revit, bridge] = await Promise.all([processState(), bridgeState()]);
   if (revit.observable !== true || revit.running !== true)
     throw new Error("REVIT_OFF: open Revit before requesting model data");

@@ -36,7 +36,14 @@ try {
   await fails(()=>first.authorize("revit_list_levels",{document_id:null}),"DOCUMENT_ID_MISMATCH");
   await fails(()=>first.authorize("revit_list_levels",null),"MODEL_TOOL_ARGUMENTS_INVALID");
   state={...state,status:"BOUND_OTHER_ACTIVE",active_id:"B"};
-  await fails(()=>first.authorize("revit_list_levels"),"MODEL_BINDING_NOT_CURRENT");
+  assert.equal((await first.authorize("revit_list_levels")).document_id,"A",
+    "document read still targets primary bound A while tab B is active");
+  assert.equal((await second.authorize("revit_set_parameter",{element_id:"7"})).document_id,"A",
+    "document mutation cannot silently retarget active tab B");
+  await fails(()=>first.authorize("revit_get_active_view"),"MODEL_BINDING_NOT_CURRENT");
+  await fails(()=>first.authorize("revit_set_selection",{element_ids:["7"]}),"MODEL_BINDING_NOT_CURRENT");
+  await fails(()=>first.authorize("revit_load_dyn_file",{path:"test.dyn"}),"MODEL_BINDING_NOT_CURRENT");
+  await fails(()=>first.authorize("revit_list_levels",{document_id:"B"}),"DOCUMENT_ID_MISMATCH");
   state={...state,status:"BOUND_CURRENT",active_id:"A"};
   assert.equal((await first.authorize("revit_list_levels")).document_id,"A");
   state={...state,status:"BOUND_CLOSED",active_id:"B"};
@@ -55,7 +62,7 @@ try {
   })}),"NATIVE_BINDING_UNAVAILABLE");
   assert.ok(calls.every(c=>c.path==="/binding/status"&&c.id));
   assert.equal(new Set(calls.map(c=>c.id)).size,calls.length);
-  console.log("[PASS] Bound-model read/write admission; mismatch, closed model and restart fail closed.");
+  console.log("[PASS] Document-scoped operations use bound model across tabs; UI actions require active bound; closed/unknown/restart fail closed.");
 } finally {
   await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
 }
