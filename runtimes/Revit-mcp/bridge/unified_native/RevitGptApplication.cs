@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using Newtonsoft.Json;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -45,6 +46,25 @@ namespace RevitGPT.Native
             {
                 NativePaneDiagnostics.Record("register_failed", error: error);
                 Debug.WriteLine("[RevitGPT] Pane unavailable: " + error);
+            }
+            // The initial pane auto-show is intentionally one-shot. Users also
+            // need a permanent manual reopen action after closing the last RVT.
+            // Ribbon failure cannot bring down the native listener or binding.
+            try
+            {
+                var panel = app.CreateRibbonPanel("RevitGPT"); // Add-Ins tab
+                var open = new PushButtonData("RevitGPT_OpenPane", "Open\nRevitGPT",
+                    Assembly.GetExecutingAssembly().Location,
+                    typeof(OpenRevitGptPaneCommand).FullName);
+                var button = panel.AddItem(open) as PushButton;
+                if (button != null)
+                    button.ToolTip = "Show the existing RevitGPT panel without rebinding or restarting ChatGPT.";
+                NativePaneDiagnostics.Record("ribbon_registered");
+            }
+            catch (Exception error)
+            {
+                NativePaneDiagnostics.Record("ribbon_failed", error: error);
+                Debug.WriteLine("[RevitGPT] Manual pane command unavailable: " + error);
             }
             app.Idling += OnFirstIdle;
             return Result.Succeeded;
