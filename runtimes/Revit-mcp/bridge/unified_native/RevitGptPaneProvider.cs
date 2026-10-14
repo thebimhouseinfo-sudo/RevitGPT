@@ -7,6 +7,10 @@ namespace RevitGPT.Native
     public sealed class RevitGptPaneProvider : IDockablePaneProvider, IFrameworkElementCreator
     {
         private readonly NativeModelBindingState _binding;
+        // One pane and one embedded WebView2 per Revit process. Revit may ask
+        // IFrameworkElementCreator again when a document/layout is recreated;
+        // creating a new Page would navigate to ChatGPT Home and lose the chat.
+        private RevitGptPane _pane;
         public RevitGptPaneProvider(NativeModelBindingState binding)
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
@@ -29,9 +33,16 @@ namespace RevitGPT.Native
             NativePaneDiagnostics.Record("element_create");
             try
             {
-                var pane = new RevitGptPane(_binding);
-                NativePaneDiagnostics.Record("element_created");
-                return pane;
+                if (_pane == null)
+                {
+                    _pane = new RevitGptPane(_binding);
+                    NativePaneDiagnostics.Record("element_created");
+                }
+                else
+                {
+                    NativePaneDiagnostics.Record("element_reused");
+                }
+                return _pane;
             }
             catch (Exception error)
             {
