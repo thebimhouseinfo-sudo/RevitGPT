@@ -54,7 +54,7 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("https://chatgpt.com/", source)
         self.assertIn('"webview", "revit"', source)
         self.assertIn('NativePaneDiagnostics.Record("wpf_loaded")', source)
-        self.assertIn('NativePaneDiagnostics.Record("webview_ready")', source)
+        self.assertIn('NativePaneDiagnostics.Record("webview_ready",', source)
         self.assertIn('NativePaneDiagnostics.Record("webview_failed"', source)
         self.assertIn("CoreWebView2Environment.CreateAsync", source)
         self.assertIn("EnsureCoreWebView2Async", source)
