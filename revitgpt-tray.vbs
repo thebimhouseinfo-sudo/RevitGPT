@@ -10,6 +10,7 @@ Sub StartupLog(stage)
     On Error Resume Next
     localData = WshShell.ExpandEnvironmentStrings("%LOCALAPPDATA%")
     If Len(localData) = 0 Or InStr(localData, "%") > 0 Then Exit Sub
+    If Not fso.FolderExists(localData) Then fso.CreateFolder localData
     logRoot = localData & "\RevitGPT"
     logDir = logRoot & "\logs"
     If Not fso.FolderExists(logRoot) Then fso.CreateFolder logRoot
