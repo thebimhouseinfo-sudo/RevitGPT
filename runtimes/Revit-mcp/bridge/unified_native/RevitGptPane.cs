@@ -23,15 +23,22 @@ namespace RevitGPT.Native
         private readonly TextBlock _status;
         private readonly DispatcherTimer _bindingTimer;
         private readonly NativeModelBindingState _binding;
+        private readonly Func<string> _restoreConversationUrl;
+        private readonly Action<string> _rememberConversationUrl;
         private bool _starting;
 
         internal static string ProfileDirectory => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "RevitGPT", "webview", "revit");
 
-        public RevitGptPane(NativeModelBindingState binding)
+        public RevitGptPane(NativeModelBindingState binding,
+            Func<string> restoreConversationUrl, Action<string> rememberConversationUrl)
         {
             _binding = binding ?? throw new ArgumentNullException(nameof(binding));
+            _restoreConversationUrl = restoreConversationUrl ??
+                throw new ArgumentNullException(nameof(restoreConversationUrl));
+            _rememberConversationUrl = rememberConversationUrl ??
+                throw new ArgumentNullException(nameof(rememberConversationUrl));
             var grid = new Grid();
             // Two rows only: no reserved footer strip under the WebView.
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -199,8 +206,16 @@ namespace RevitGPT.Native
                 await _browser.EnsureCoreWebView2Async(environment);
                 _browser.ZoomFactor = 0.8;
                 ApplyTheme();
-                _browser.CoreWebView2.Navigate(ChatUrl);
-                NativePaneDiagnostics.Record("webview_ready");
+                // SourceChanged includes ChatGPT SPA route changes (history APIs).
+                // Remember only the conversation route in the provider, never
+                // log URL, chat content, cookies or credentials to disk.
+                _browser.CoreWebView2.SourceChanged += (sender, args) =>
+                    _rememberConversationUrl(_browser.CoreWebView2.Source);
+                string destination = _restoreConversationUrl();
+                bool resuming = !String.IsNullOrWhiteSpace(destination);
+                _browser.CoreWebView2.Navigate(resuming ? destination : ChatUrl);
+                NativePaneDiagnostics.Record("webview_ready",
+                    "resumed_conversation=" + resuming);
                 ShowStatus(null);
             }
             catch (Exception error)
