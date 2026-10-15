@@ -158,8 +158,10 @@ namespace RevitGPT.Native
         {
             var snap = _binding.Current; // UI reads snapshots only
             bool dark = _theme.IsChecked == true;
+            // An automatic single-model binding is not explicit host takeover.
+            // Allow Bind Current until the user confirms this Revit host.
             _bind.IsEnabled = !String.IsNullOrEmpty(snap.ActiveId) &&
-                snap.Status != "BOUND_CURRENT";
+                (snap.Status != "BOUND_CURRENT" || !snap.ManualBinding);
             _modelName.Text = String.IsNullOrEmpty(snap.BoundTitle)
                 ? "No model bound"
                 : snap.Status == "BOUND_CLOSED" ? "Closed: " + snap.BoundTitle
