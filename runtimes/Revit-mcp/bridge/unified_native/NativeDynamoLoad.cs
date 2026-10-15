@@ -78,8 +78,8 @@ namespace RevitGPT.Native
                 var edges = graph["Connectors"] as JArray;
                 if (nodes == null || edges == null || nodes.Count > 1000 || edges.Count > 4000)
                     return Error(400, "Invalid/bounded Dynamo graph structure.");
-                var banned = new[] { "pythonscript", "pythonnode", "codeblocknode",
-                    "scriptevaluator", "zerotouch", "process.start",
+                var banned = new[] { "pythonscript", "pythonnode",
+                    "scriptevaluator", "process.start",
                     "system.io", "file.write", "webrequest" };
                 foreach (JToken item in nodes)
                 {
@@ -91,6 +91,14 @@ namespace RevitGPT.Native
                     }.Select(key => node[key]?.ToString() ?? "")).ToLowerInvariant();
                     if (banned.Any(identity.Contains))
                         return Error(403, "Dynamo graph has unsafe executable/custom nodes.");
+                    // Built-in DynamoCore ZeroTouch and DesignScript CodeBlocks
+                    // are normal .dyn nodes. Unknown external executable
+                    // assemblies must not pass the unattended runner.
+                    string concrete = node.Value<string>("ConcreteType") ?? "";
+                    if (identity.Contains("zerotouch") &&
+                        (!concrete.Trim().EndsWith(", DynamoCore", StringComparison.Ordinal) ||
+                         String.IsNullOrWhiteSpace(node.Value<string>("FunctionSignature"))))
+                        return Error(403, "Unreviewed ZeroTouch function.");
                 }
 
                 // DynamoRevit executes in its own engine. Never perform graph
