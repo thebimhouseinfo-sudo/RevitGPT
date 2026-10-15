@@ -394,8 +394,22 @@ namespace RevitGPT.Native
             }
             if (mode == "reset" && (ids.Count != 0 || category != null))
                 return Error(400, "reset requires no targets.");
+            // A category request can be perfectly valid even when nothing
+            // of that category is currently present. Report a truthful no-op,
+            // rather than treating an empty result as a broken MCP operation.
             if (mode != "reset" && ids.Count == 0)
-                return Error(404, "No matching elements in the active view.");
+            {
+                if (category == null)
+                    return Error(404, "No matching elements in the active view.");
+                return Data(new {
+                    mode, category, count = 0,
+                    view_id = view.Id.Value.ToString(CultureInfo.InvariantCulture),
+                    view_name = view.Name,
+                    temporary_hide_isolate_active = view.IsTemporaryHideIsolateActive(),
+                    no_matching_elements = true,
+                    changed = false, complete = true
+                });
+            }
             using (var t = new Transaction(doc, "RevitGPT Temporary Visibility"))
             {
                 t.Start();
