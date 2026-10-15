@@ -5,14 +5,14 @@ const READ_ONLY = new Set([
   "library_list", "registry_list", "registry_search", "registry_get",
   "job_list", "job_get", "skill_list", "skill_get", "knowledge_search",
   "revit_mcp_dev_root", "revit_mcp_dev_list", "revit_mcp_dev_read", "revit_mcp_dev_search",
-  "revitgpt_command", "revitgpt_list_tools"
+  "revitgpt_command", "revitgpt_list_tools", "dynamo_draft_validate"
 ]);
 
 const SYSTEM_SIDE_EFFECT = new Set([
   "file_create", "file_edit", "library_create", "asset_import",
   "asset_register_external", "asset_export", "python_checkout",
   "python_scaffold", "python_validate", "python_promote_draft",
-  "dynamo_register", "job_draft_new", "job_draft_validate",
+  "dynamo_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
   "job_promote_draft", "run_record_append", "knowledge_failure_append",
   "knowledge_promote", "revit_mcp_dev_snapshot", "revit_mcp_dev_edit",
   "revit_mcp_dev_create", "revit_mcp_dev_delete", "revit_mcp_dev_rollback",
