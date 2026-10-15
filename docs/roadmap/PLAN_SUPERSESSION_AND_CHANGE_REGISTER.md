@@ -3,7 +3,7 @@
 ## GOAL
 Ngăn plan cũ và các vòng review tạo thêm requirement, dependency hoặc Human/CI gate không phục vụ mục tiêu CAD/BIM Assistant. Ghi lại **chính xác thay đổi về quyền hạn của tài liệu**, không coi việc sửa plan là lệnh xóa/sửa code.
 
-**Nguồn quyết định phạm vi mới:** [PRODUCT_GOAL_AND_PHASE_PLAN.md](PRODUCT_GOAL_AND_PHASE_PLAN.md). Các nội dung cũ xung đột với nguồn này có trạng thái **SUPERSEDED AS REQUIREMENT** ngay cả khi chúng còn tồn tại trong code hoặc test.
+**Nguồn quyết định phạm vi mới:** [PRODUCT_GOAL_AND_PHASE_PLAN.md](PRODUCT_GOAL_AND_PHASE_PLAN.md). Với P1, dùng [P1_STABLE_CONNECTION_CURRENT.md](P1_STABLE_CONNECTION_CURRENT.md). Các nội dung cũ xung đột với nguồn này có trạng thái **SUPERSEDED AS REQUIREMENT** ngay cả khi chúng còn tồn tại trong code hoặc test. **P3 detailed plan được hoãn tới khi P1/P2 được làm rõ.**
 
 ## Quy tắc đọc tài liệu
 
