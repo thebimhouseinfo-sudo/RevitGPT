@@ -33,8 +33,9 @@ not manually click together graphs for each Job.
 - Stage an immutable content-addressed `.dyn` under
   `%LOCALAPPDATA%/RevitGPT/dynamo/staging/` before dispatch.
 - Validation is static; a valid JSON graph is **not** host-compatibility PASS.
-- Current safe-node policy excludes Python/CodeBlock/ZeroTouch; support for
-  those requires a separate implementation review and tests. Do not silently
+- Current safe-node policy allows official DynamoCore ZeroTouch and CodeBlock
+  nodes, but blocks Python scripts and unreviewed external executables.
+  Host validation of exact node versions and package dependencies is still required. Do not silently
   downgrade to fake nodes or turn execution into hundreds of MCP calls.
 
 ## Phase 3 — Native Dynamo execution
