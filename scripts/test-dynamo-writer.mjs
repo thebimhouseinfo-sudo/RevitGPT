@@ -14,6 +14,17 @@ assert.equal(valid.nodes,2);
 assert.equal(valid.connectors,1);
 assert.equal(valid.execution_requested,false);
 assert.equal(valid.host_compatibility_verified,false);
+const official=JSON.stringify({Nodes:[
+  {Id:"code",NodeType:"CodeBlockNode",
+   ConcreteType:"Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+   Code:"1+1;"},
+  {Id:"func",NodeType:"FunctionNode",
+   ConcreteType:"Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+   FunctionSignature:"DSCore.List.Count@var[]..[]"}
+],Connectors:[]});
+assert.equal(validateDynamoDraft(official).nodes,2);
+assert.throws(()=>validateDynamoDraft(official.replace(", DynamoCore\",\n   FunctionSignature", ", BadDLL\",\n   FunctionSignature")), /UNREVIEWED/);
+
 for(const change of [
   {Nodes:[{Id:"a",NodeType:"PythonScriptNode"}],Connectors:[]},
   {Nodes:[{Id:"a"},{Id:"a"}],Connectors:[]},
