@@ -296,7 +296,16 @@ function Start-RevitGptRuntime {
     }
 
     $occupied = Get-PortOwnerPid -TargetPort $Port
-    if ($occupied) { throw "Port $Port is occupied by PID $occupied." }
+    if ($occupied) {
+        if (Test-OwnedRuntime -ProcessId $occupied) {
+            # A transient /health failure is not evidence that our Node host died.
+            # Preserve the owning process and allow the next health check to recover.
+            $script:RuntimePid = $occupied
+            Write-TrayLog ("Owned runtime PID $occupied is listening on port $Port but /health is unavailable; preserving process.")
+            return
+        }
+        throw "Port $Port is occupied by an unverified PID $occupied."
+    }
 
     $stdout = Join-Path $LogDir "revitgpt.out.log"
     $stderr = Join-Path $LogDir "revitgpt.err.log"
