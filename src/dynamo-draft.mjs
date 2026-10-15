@@ -6,8 +6,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 const MAX_BYTES=2*1024*1024;
-const UNSAFE=["pythonscript","pythonnode","codeblocknode","scriptevaluator",
-              "zerotouch","process.start","system.io","file.write","webrequest"];
+const UNSAFE=["pythonscript","pythonnode","scriptevaluator",
+              "process.start","system.io","file.write","webrequest"];
 const hash=b=>crypto.createHash("sha256").update(b).digest("hex");
 
 export function validateDynamoDraft(content){
@@ -29,6 +29,14 @@ export function validateDynamoDraft(content){
       .map(k=>String(node[k]??"")).join(" ").toLowerCase();
     if(UNSAFE.some(key=>identity.includes(key)))
       throw new Error("DYN_UNREVIEWED_EXECUTABLE_NODE");
+    // Official DynamoDS graph samples use DynamoCore ZeroTouch functions
+    // and DesignScript CodeBlock nodes; rejecting either disables routine
+    // graph authoring. Unknown executable assemblies remain unreviewed.
+    if(identity.includes("zerotouch") &&
+       (!String(node.ConcreteType??"").trim().endsWith(", DynamoCore") ||
+        typeof node.FunctionSignature!=="string" || !node.FunctionSignature.trim()))
+      throw new Error("DYN_UNREVIEWED_ZEROTOUCH");
+
   }
   const links=new Set();
   for(const edge of graph.Connectors){
