@@ -28,7 +28,7 @@ Ngăn plan cũ và các vòng review tạo thêm requirement, dependency hoặc 
 | `RG-CG-ADDIN-PLAN.md` | **RG lifecycle parts SUPERSEDED** | Add-in tiện ích, panel UI, bound model; phần CadGPT không thay đổi | Pair/lease/rg-stop/gates cũ cho RevitGPT |
 | `docs/superpowers/plans/2026-10-07-*` và `2026-10-08-*` | **HISTORICAL PLANS** | Evidence về UI/bridge/host tests | Không biến từng P2A/B/C/D/E hoặc P3A/B/C thành gate mới |
 | `2026-10-10-full-bim-mcp-v1-implementation-plan.md` | **ALREADY SUPERSEDED** | Historical Revit MCP design | Không hồi sinh combined Brain+MCP+Job scope |
-| `2026-10-10-revit-mcp-v1-implementation-only.md` và `...-detailed-implementation-plan.md` | **P2 TOOL REFERENCE (REVIEW SCOPE FIRST)** | Bộ MCP tool được người dùng yêu cầu, verification tools, Revit Transaction, kiểm tra theo nhóm và một đợt human test | Không lấy yêu cầu long-running operation journal/Job recovery làm P2 dependency; không lấy câu `NOT IMPLEMENTED` lịch sử để coi code hôm nay chưa có |
+| `docs/superpowers/plans/2026-10-10-revit-mcp-v1-implementation-only.md` và `docs/superpowers/plans/2026-10-10-revit-mcp-v1-detailed-implementation-plan.md` | **P2 TOOL REFERENCE (REVIEW SCOPE FIRST)** | Bộ MCP tool được người dùng yêu cầu, verification tools, Revit Transaction, kiểm tra theo nhóm và một đợt human test | Không lấy yêu cầu long-running operation journal/Job recovery làm P2 dependency; không lấy câu `NOT IMPLEMENTED` lịch sử để coi code hôm nay chưa có |
 | `SHARED_WINDOWS_TRAY_AUTOSTART_INTEGRATION_PLAN.md` (nếu PR #6 được merge) | **SEPARATE STARTUP WORK** | Log startup/phân biệt lỗi của ba app | Không mở rộng sang sửa CadGPT hoặc GPTWorker nếu chưa có yêu cầu |
 
 ## CHANGE REQUIRED — các bước thực hiện kế tiếp khi có yêu cầu sửa code
