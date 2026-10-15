@@ -23,7 +23,9 @@ const official=JSON.stringify({Nodes:[
    FunctionSignature:"DSCore.List.Count@var[]..[]"}
 ],Connectors:[]});
 assert.equal(validateDynamoDraft(official).nodes,2);
-assert.throws(()=>validateDynamoDraft(official.replace(", DynamoCore\",\n   FunctionSignature", ", BadDLL\",\n   FunctionSignature")), /UNREVIEWED/);
+const unknown=JSON.parse(official);
+unknown.Nodes[1].ConcreteType="Bad.ZeroTouch, ExternalPackage";
+assert.throws(()=>validateDynamoDraft(JSON.stringify(unknown)), /UNREVIEWED/);
 
 for(const change of [
   {Nodes:[{Id:"a",NodeType:"PythonScriptNode"}],Connectors:[]},
