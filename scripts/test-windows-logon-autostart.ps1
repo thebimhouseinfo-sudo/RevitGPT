@@ -27,21 +27,54 @@ try {
     New-Item -ItemType Directory -Force -Path $temp | Out-Null
     $one = Write-FakeOwnedCheckout (Join-Path $temp "One checkout")
     $two = Write-FakeOwnedCheckout (Join-Path $temp "Two checkout")
+
+    # The real failure: installing RevitGPT erased other startup values already
+    # present under the shared HKCU Run key. Reproduce in an isolated TEST key.
+    # $key has a unique GUID and is never the production Run registry key.
+    New-Item -Path $key -Force -ErrorAction Stop | Out-Null
+    $cadValue = 'wscript.exe "C:\Apps\CadGPT\cadgpt-tray.vbs"'
+    $workerValue = 'wscript.exe "C:\Apps\GPTWorker\gptworker-tray.vbs"'
+    New-ItemProperty -Path $key -Name "CadGPT" -Value $cadValue -PropertyType String -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path $key -Name "GPTWorker" -Value $workerValue -PropertyType String -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path $key -Name "ThirdPartyApp" -Value 42 -PropertyType DWord -ErrorAction Stop | Out-Null
+
+    function Assert-OtherStartupValues([string]$Why) {
+        $values = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
+        $regKey = Get-Item -LiteralPath $key -ErrorAction Stop
+        Assert ($values.CadGPT -ceq $cadValue) "CadGPT registration preserved: $Why"
+        Assert ($values.GPTWorker -ceq $workerValue) "GPTWorker registration preserved: $Why"
+        Assert ($values.ThirdPartyApp -eq 42) "third-party DWORD preserved: $Why"
+        Assert ($regKey.GetValueKind("CadGPT").ToString() -eq "String") "CadGPT type preserved: $Why"
+        Assert ($regKey.GetValueKind("GPTWorker").ToString() -eq "String") "GPTWorker type preserved: $Why"
+        Assert ($regKey.GetValueKind("ThirdPartyApp").ToString() -eq "DWord") "third-party type preserved: $Why"
+    }
     $initial = Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
-    Assert ($initial.Status -eq "MISSING") "fresh isolated Run value absent"
+    Assert ($initial.Status -eq "MISSING") "RevitGPT absent but siblings already registered"
+    Assert-OtherStartupValues "before install"
 
     $installed = Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
-    Assert ($installed.Status -eq "INSTALLED") "fresh install + readback"
+    Assert ($installed.Status -eq "INSTALLED") "install to existing key + readback"
+    Assert-OtherStartupValues "initial RevitGPT install"
+
     $before = (Get-ItemProperty -LiteralPath $key).RevitGPT
     $repeat = Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
     Assert ($repeat.Status -eq "INSTALLED") "idempotent registration"
     Assert ((Get-ItemProperty -LiteralPath $key).RevitGPT -eq $before) "no changes on repeat"
+    Assert-OtherStartupValues "idempotent reinstall"
+
+    # Missing-key path remains supported without recreating an existing key.
+    $freshKey = Join-Path $key "New-Key"
+    $fresh = Install-RevitGptStartupRegistration -RegistryPath $freshKey -LauncherPath $one
+    Assert ($fresh.Status -eq "INSTALLED") "missing isolated Registry key created safely"
+    Assert ((Get-ItemProperty -LiteralPath $freshKey).RevitGPT -eq $fresh.Expected) "fresh key readback"
+    Assert-OtherStartupValues "creating a missing child key"
 
     $other = Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two
     Assert ($other.Status -eq "OWNED_OTHER_CHECKOUT") "owned other checkout"
     Expect-Failure { Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two } "STARTUP_OWNED_MIGRATION_REQUIRES_APPROVAL"
     $migrated = Install-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $two -AllowOwnedMigration
     Assert ($migrated.Status -eq "INSTALLED") "explicit owned migration"
+    Assert-OtherStartupValues "owned checkout migration"
     Expect-Failure { Remove-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one } "STARTUP_REMOVE_REFUSED"
     Assert ((Get-ItemProperty -LiteralPath $key).RevitGPT -eq $migrated.Expected) "old checkout cannot remove new owner"
 
@@ -67,6 +100,8 @@ try {
     Assert ($restored.Status -eq "INSTALLED") "explicit missing-checkout migration"
     Assert ((Get-ItemProperty -LiteralPath $key).RevitGPT -eq $restored.Expected) "stale old path replaced"
     $null = Remove-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one
+    Assert-OtherStartupValues "uninstall"
+    Assert ((Get-RevitGptStartupRegistration -RegistryPath $key -LauncherPath $one).Status -eq "MISSING") "only RevitGPT value removed"
 
     $longPath = "C:\" + (("x" * 232) + "\revitgpt-tray.vbs")
     Expect-Failure { Get-RevitGptStartupCommand $longPath } "STARTUP_COMMAND_TOO_LONG"
