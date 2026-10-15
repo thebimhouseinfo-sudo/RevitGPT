@@ -99,8 +99,8 @@ assert.equal(counts.activations,wakeBefore+1,"valid global awake next read recov
 // requests create different MCP transport instances.
 const source=readFileSync(new URL("../src/index.mjs",import.meta.url),"utf8");
 assert.ok(source.includes("await callReadOnlyTool({"),"proxy must use gate");
-assert.ok(source.includes("await workTracker.reopenWithWake({") && source.includes("wake:()=>awakeIntent.wake()"),
-  "explicit awake and stop fence must share one serialized control transition");
+assert.ok(source.includes("await awakeIntent.wake();") && !source.includes("workTracker"),
+  "explicit awake intent must not depend on application-level Job stop or crash recovery");
 assert.ok(source.includes("cause:\"revit_arrived_after_global_awake\""),"Revit arrival must auto-enable full MCP after awake");
 assert.ok(!source.includes('if (!admitted || !revitUpstream.status().connected)'),
   "old session-local admission guard must never be restored");
