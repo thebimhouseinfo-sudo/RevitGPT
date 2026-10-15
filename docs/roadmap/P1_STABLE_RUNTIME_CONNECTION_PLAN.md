@@ -1,5 +1,7 @@
 # P1 — Stable Runtime & Connection | Detailed Implementation Plan
 
+> **SUPERSEDED AS P1 IMPLEMENTATION AND ACCEPTANCE AUTHORITY — 15/10/2026.** [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md) is the current user-level contract. Keep connection, binding, multi-chat, idle and Sleep/Wake requirements; **do not execute** the P1-C/P1-D durable work journal, crash-reconciliation, STOP_PENDING/STOP_BLOCKED, continuation-admission and required A→B→C→D→F dependency chain as product gates. Revit MCP write/tool correctness is P2, and no application-level Job resume is required. See [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Content below is retained as historical technical evidence, not implementation instructions.
+
 **Status:** PLANNING REVIEW PASS — Rev9 (internal source-bound review of CR Rev8 follow-up); independent CR on Rev9 pending; implementation NOT STARTED; CI/real-Revit acceptance NOT RUN.
 **Date:** 2026-10-13.
 **Baseline:** RevitGPT main at 1803660b853ad9d376c065baa63b356dddd6083a; preceding P1 plan commit 16837e6106694f6cc31989eca0a320fd6d50ba96.
