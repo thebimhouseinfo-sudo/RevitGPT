@@ -28,7 +28,7 @@ export function effectForTool(name, args={}) {
   if(CONTROL.has(name))return "CONTROL";
   if(name==="revitgpt_command"){
     const command=String(args?.command??"").trim().toLowerCase();
-    if(command==="rg/stop"||command==="rg/status")return "CONTROL";
+    if(command==="rg/status")return "CONTROL";
     return "READ_ONLY";
   }
   if(READ_ONLY.has(name))return "READ_ONLY";
@@ -37,7 +37,7 @@ export function effectForTool(name, args={}) {
     const target=args?.name;
     if(typeof target!=="string" || !target)throw new Error("MODEL_TOOL_NAME_REQUIRED");
     const command=target.toLowerCase();
-    if(command==="rg/stop" || command==="rg/status" || target==="revitgpt_binding_status")
+    if(command==="rg/status" || target==="revitgpt_binding_status")
       return "CONTROL";
     if(command.startsWith("rg/")||RETIRED_READ_ONLY.has(target))return "READ_ONLY";
     const result=classifyModelOperation(target,args?.arguments??{});
@@ -51,8 +51,8 @@ export function effectForTool(name, args={}) {
 export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvider=()=>null}){
   if(!server || typeof server.registerTool!=="function")
     throw new Error("TOOL_REGISTER_INVALID");
-  if(!tracker || typeof tracker.run!=="function")
-    throw new Error("TOOL_TRACKER_REQUIRED");
+  if(tracker && typeof tracker.run!=="function")
+    throw new Error("TOOL_TRACKER_INVALID");
   const raw=server.registerTool.bind(server);
   server.registerTool=(name,config,callback)=>{
     if(typeof callback!=="function")throw new Error("TOOL_CALLBACK_MISSING");
@@ -63,10 +63,10 @@ export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvid
       const effect=effectForTool(name,args);
       if(effect==="CONTROL")return callback(args,...rest);
       const reservedId=reservationIdProvider();
-      // Previously admitted/queued requests are allowed to finish even if
-      // STOP_PENDING has already fenced off unrelated business requests.
+      // Runtime gate is per execution; no application-wide Job resume.
       if(!isAwake() && !reservedId)
         throw new Error("WORKSPACE_STANDBY: invoke @rg before business tools");
+      if(!tracker)return callback(args,...rest);
       const tool=name==="revitgpt_call"?String(args.name):name;
       const inputs=name==="revitgpt_call"?args.arguments??{}:args??{};
       if(reservedId)return tracker.runAdmitted(reservedId,tool,effect,

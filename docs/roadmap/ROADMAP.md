@@ -1,5 +1,7 @@
 # RevitGPT roadmap
 
+> **CURRENT PRODUCT AND PHASE AUTHORITY — 15/10/2026:** [Product Goal & P1/P2/P3](PRODUCT_GOAL_AND_PHASE_PLAN.md), with [Supersession & Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md), **supersedes the execution scope and gates below** whenever they contradict the model-based CAD/BIM Assistant goal. Everything below remains historical planning/evidence only; specifically, durable Job resume/journal, STOP_PENDING/STOP_BLOCKED, old GSA cursor gates and phase-to-phase blockers cannot be used to expand the next implementation. The P2 Revit MCP tool coverage already approved remains in scope, and real write safety remains mandatory. Do not use the prior P1 Rev9 as the latest plan authority.
+
 > **P1 execution update (2026-10-13):** The approved [P1 Stable Runtime & Connection Rev9](P1_STABLE_RUNTIME_CONNECTION_PLAN.md) and [current canonical authority lifecycle](../architecture/AUTHORITY_LIFECYCLE.md) override all older P0/P1B/R4 statements below **for P1 runtime/stop/binding ownership**. Old `BROWSER_TTL=15m`, per-chat model authority, immediate `rg/stop` release and obsolete E-PY/pyRevit gates are preserved **only as historical records**, not current implementation requirements. Source implementation branch: `work/p1-stable-runtime-20261013`. GSA Job states are not changed by this note. Current focus: P1-A baseline/document convergence → P1-B/C/D/E code only after respective verified gates → consolidated P1-F host test. Broader Brain/Job/Dynamo roadmap remains intact and is **not executed as part of P1**.
 
 

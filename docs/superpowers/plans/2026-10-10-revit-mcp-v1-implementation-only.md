@@ -1,5 +1,7 @@
 # Revit MCP V1 — Implementation Plan (separate tool subsystem)
 
+> **P2 TOOL REFERENCE — 15/10/2026:** Use [Product Goal & Phase Plan](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md) as product authority. Keep actual Revit MCP tool capability, write correctness and one consolidated host test; do not turn timeout uncertainty into **cross-crash Job resume/journal**, or use historic MCP checkpoint gates to block independent P3 authoring. See [Supersession Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
+
 Status: IMPLEMENTATION PLAN ONLY. Revit MCP is one component used by RevitGPT, not the RevitGPT brain.
 Architecture authority: docs/architecture/REVITGPT_BRAIN_MCP_KNOWLEDGE.md.
 Target host: Revit 2024 with stable installed panel. No runtime change in this plan commit.

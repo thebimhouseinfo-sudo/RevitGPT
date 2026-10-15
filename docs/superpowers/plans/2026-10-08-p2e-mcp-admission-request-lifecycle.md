@@ -1,5 +1,7 @@
 # P2E hotfix — Cross-request MCP admission is not a model lease
 
+> **HISTORICAL / SUPERSEDED AS A DEVELOPMENT GATE — 15/10/2026.** Retain evidence and any still-applicable Revit host details only. Current user-level scope is [Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md); see [Change Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Old milestone dependencies, checkpoint/resume, stop/recovery and mandatory test gates below do not govern new implementation. Do not infer current code status from historical plan status.
+
 ## Real runtime failure reproduced
 Live `revitgpt_status` returned native Revit ON, bridge ON, Python 23 tools,
 but `admitted:false` immediately after `revitgpt_admission=READY`. A separate

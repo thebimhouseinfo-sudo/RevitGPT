@@ -1,5 +1,7 @@
 # RevitGPT Detailed Execution Plan — J-8A2C rev2
 
+> **SUPERSEDED — NO LONGER EXECUTABLE AS A PHASE/GATE PLAN (15/10/2026).** The old J-8A2C topology, E-PY/E1/E2/E3/E4/E4J gates, P3 Job checkpoint/resume and prior branch requirements are preserved as historical evidence only. The current product goal, P1/P2/P3 delivery scope and review constraints are in [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md); precise dispositions are in [Supersession & Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Do not instantiate old gates, replay/recovery requirements, or mandatory test fixtures from the text below. This notice does not delete code or GSA records.
+
 > **ARCHIVED IMPLEMENTATION GUIDANCE for P1 (2026-10-13).** J-8A2C is preserved as historical evidence; its GitHub Job state remains untouched. **Do not execute its old TTL/pairing/lease, branch, phase-order or install instructions for P1.** Follow the [approved P1 Rev9 plan](P1_STABLE_RUNTIME_CONNECTION_PLAN.md), [current lifecycle authority](../architecture/AUTHORITY_LIFECYCLE.md) and dedicated `work/p1-stable-runtime-20261013` branch. Other historical content in this document is not a competing authority. No installed add-in or tested connection should be rewritten without evidence.
 
 

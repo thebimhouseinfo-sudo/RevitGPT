@@ -1,5 +1,7 @@
 # Revit MCP V1 — Detailed Implementation Plan
 
+> **P2 REFERENCE, NOT A CROSS-PHASE GATE — 15/10/2026:** Revit MCP tool coverage already requested by the user and grouped offline testing plus one consolidated real Revit Human Test remain relevant. This historical implementation detail may not add P1 durable journal/Job recovery, application-level resume or a requirement that **all P2 tool groups PASS before independent P3 authoring work**. See [Current Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md) and [Supersession Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Tool-specific Revit Transaction, binding and correctness obligations still apply. Treat old `NOT IMPLEMENTED` as historical, not proof of current code status.
+
 Status: PLANNER R2 / PENDING REVIEW / NOT IMPLEMENTED. CR: J-28D5 verification 01a124f4-8508-7208-a1ba-f49b23d557c9. Section 4A–4C overrides earlier discretionary coverage/release wording.
 Date: 2026-10-10.
 Canonical work branch: work/J-AFC4-p1-revit-mcp-bootstrap.

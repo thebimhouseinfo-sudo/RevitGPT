@@ -1,5 +1,7 @@
 # Decision and evidence register
 
+> **DECISION OVERRIDE — 15/10/2026:** User-approved [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md) supersedes any old D-01…D-38 P1/J-8A2C work-recovery, stop-drain, durable journal, chat lease or artificial phase gate. Existing rows remain historical evidence and do not authorize new scope. Do not automatically mutate GSA records or app code. See [Supersession Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
+
 **CURRENT P1 AUTHORITY:** [`docs/architecture/AUTHORITY_LIFECYCLE.md`](../architecture/AUTHORITY_LIFECYCLE.md) (P1 Rev9, 2026-10-13). Entries D-01–D-26 below are preserved as historical provenance for earlier GSA J-8A2C/E0/E4 decisions; any conflict with current entries D-27–D-38 is **superseded for P1**, not a reason to reinstate chat TTL, pairing gates or immediate `rg/stop` release. No GSA Job lifecycle has been changed.
 
 **Current P1 decisions** are listed after the archival rows. The canonical contract governs behavior; this register records traceability. “Approved P1 target” means reviewed plan, **not current implemented/tested behavior**.

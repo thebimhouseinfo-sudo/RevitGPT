@@ -1,5 +1,7 @@
 # P2D — Pair once, one-click read-only lease
 
+> **HISTORICAL / SUPERSEDED AS A DEVELOPMENT GATE — 15/10/2026.** Retain evidence and any still-applicable Revit host details only. Current user-level scope is [Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md); see [Change Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Old milestone dependencies, checkpoint/resume, stop/recovery and mandatory test gates below do not govern new implementation. Do not infer current code status from historical plan status.
+
 P2A (6/6), P2B (6/6) and P2C sleep/wake (5/5): user-reported host PASS.
 
 ## Protocol and security

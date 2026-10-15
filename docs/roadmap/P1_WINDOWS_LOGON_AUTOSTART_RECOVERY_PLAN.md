@@ -1,5 +1,7 @@
 # P1 — Windows Logon Auto-start Recovery (14/10/2026)
 
+> **SCOPE OVERRIDE — 15/10/2026:** Keep Windows auto-start, launcher diagnostics, error logging, owned-process isolation and real sign-in verification as useful P1 connectivity work. Historical instructions about unresolved SYSTEM/Native journals, cross-boot reconciliation or Job replay are **not required success conditions** and must not become additional code/CI gates. Current scope: [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md); [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). This does not replace the separately reviewed startup diagnostics PR.
+
 ## GOAL
 Sau khi Windows restart **và người dùng Windows đã đăng nhập tương tác**, RevitGPT tự khởi chạy **một** Tray, Slim MCP và Secure Tunnel của đúng checkout/profile, không cần chạy thủ công `run.bat start`. Control plane ở **STANDBY** trước khi có `@rg`, Native/full Python MCP không tự awake, không tự mở Revit, không tự chạy lại thao tác hay Job còn dang dở. Lỗi khởi động phải có bằng chứng chẩn đoán rõ ràng, không được âm thầm mất kết nối. Giữ nguyên cơ chế một model bind và các journal an toàn.
 
