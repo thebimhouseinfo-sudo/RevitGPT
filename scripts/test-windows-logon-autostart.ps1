@@ -115,7 +115,9 @@ try {
     $env:REVITGPT_AUTOSTART_TEST_MARKER = $marker
     $stub = @'
 # RevitGPT Windows tray host.
-[IO.File]::WriteAllText($env:REVITGPT_AUTOSTART_TEST_MARKER, "LAUNCHED")
+param([string]$Echo)
+$value = if ($Echo) { "LAUNCHED:$Echo" } else { "LAUNCHED" }
+[IO.File]::WriteAllText($env:REVITGPT_AUTOSTART_TEST_MARKER, $value)
 '@
     Set-Content -LiteralPath (Join-Path $testDir "revitgpt-tray.ps1") -Value $stub -Encoding UTF8
     & cscript.exe //nologo (Join-Path $testDir "revitgpt-tray.vbs") | Out-Null
@@ -126,6 +128,16 @@ try {
     }
     Assert (Test-Path -LiteralPath $marker) "stub PowerShell launched"
     Assert ((Get-Content -LiteralPath $marker -Raw).Trim() -eq "LAUNCHED") "stub marker"
+    # VBS must keep all arguments, including a single value with spaces.
+    Remove-Item -LiteralPath $marker -Force
+    & cscript.exe //nologo (Join-Path $testDir "revitgpt-tray.vbs") -Echo "value with spaces" | Out-Null
+    Assert ($LASTEXITCODE -eq 0) "VBS parameter dispatch"
+    $argDeadline = (Get-Date).AddSeconds(12)
+    while (-not (Test-Path -LiteralPath $marker) -and (Get-Date) -lt $argDeadline) {
+        Start-Sleep -Milliseconds 200
+    }
+    Assert (Test-Path -LiteralPath $marker) "parameter marker exists"
+    Assert ((Get-Content -LiteralPath $marker -Raw).Trim() -eq "LAUNCHED:value with spaces") "VBS arguments with spaces preserved"
     $launchLog = Join-Path $env:LOCALAPPDATA "RevitGPT\logs\startup-launch.log"
     $logDeadline = (Get-Date).AddSeconds(8)
     $launchText = ""
