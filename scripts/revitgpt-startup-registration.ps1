@@ -96,7 +96,12 @@ function Install-RevitGptStartupRegistration {
     }
     $hadValue = ($null -ne $before.Value)
     try {
-        New-Item -Path $RegistryPath -Force | Out-Null
+        # Never re-create a shared existing Registry Run key with New-Item -Force.
+        # On Windows that operation can discard OTHER applications' startup values.
+        if (-not (Test-Path -LiteralPath $RegistryPath)) {
+            New-Item -Path $RegistryPath -ErrorAction Stop | Out-Null
+        }
+        # -Force is safe here: this changes only the RevitGPT-named value.
         New-ItemProperty -Path $RegistryPath -Name $Name -Value $before.Expected -PropertyType String -Force -ErrorAction Stop | Out-Null
         $after = Get-RevitGptStartupRegistration -RegistryPath $RegistryPath -LauncherPath $LauncherPath -Name $Name
         if ($after.Status -ne 'INSTALLED') { throw ('STARTUP_READBACK_FAILED: ' + $after.Status) }
