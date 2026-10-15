@@ -50,6 +50,8 @@ export class RevitUpstream {
     this.tools = [];
     this.lastError = null;
     this.connecting = null;
+    this.activation = null;
+    this.generation = 0;
   }
 
   get python() {
@@ -71,18 +73,29 @@ export class RevitUpstream {
   }
 
   async activate() {
-    this.phase = "active";
-    const started = Date.now();
+    // Admission and process watcher share one activation outcome. In
+    // particular, a losing caller must not deactivate the winner.
+    if (this.activation) return this.activation;
+    const activation = (async () => {
+      this.phase = "active";
+      const started = Date.now();
+      try {
+        await this.connect();
+        this.lastError = null;
+        return this.cachedTools();
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : String(error);
+        await this.deactivate();
+        throw error;
+      } finally {
+        this.lastActivationMs = Date.now() - started;
+      }
+    })();
+    this.activation = activation;
     try {
-      await this.connect(); // connect() populated the tool cache once.
-      this.lastError = null;
-      return this.cachedTools();
-    } catch (error) {
-      this.lastError = error instanceof Error ? error.message : String(error);
-      await this.deactivate();
-      throw error;
+      return await activation;
     } finally {
-      this.lastActivationMs = Date.now() - started;
+      if (this.activation === activation) this.activation = null;
     }
   }
 
@@ -94,6 +107,7 @@ export class RevitUpstream {
     if (this.connecting) return this.connecting;
 
     this.connecting = (async () => {
+      const generation = this.generation;
       const client = this.createClient();
       const transport = this.createTransport({
         command: this.python,
@@ -115,6 +129,9 @@ export class RevitUpstream {
           Math.max(1, deadline - Date.now()), "Revit MCP connection");
         const listed = await withinDeadline(client.listTools(),
           Math.max(1, deadline - Date.now()), "Revit MCP initial tools/list");
+        if (generation !== this.generation || this.phase !== "active") {
+          throw new Error("REVIT_MCP_ACTIVATION_CANCELLED");
+        }
         this.client = client;
         this.transport = transport;
         this.tools = listed.tools || [];
@@ -162,6 +179,7 @@ export class RevitUpstream {
   }
 
   async deactivate() {
+    this.generation++;
     const transport = this.transport;
     this.phase = "sleeping";
     this.client = null;
