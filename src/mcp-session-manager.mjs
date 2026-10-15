@@ -33,14 +33,14 @@ export function isPriorityControlRequest(body) {
   if(params.name==="revitgpt_call"){
     const c=params.arguments;
     return !!c&&typeof c==="object"&&!Array.isArray(c)&&
-      typeof c.name==="string"&&["rg/stop","rg/status"].includes(c.name.toLowerCase()) &&
+      typeof c.name==="string"&&["rg/status"].includes(c.name.toLowerCase()) &&
       (c.arguments===undefined || (c.arguments&&
         typeof c.arguments==="object"&&!Array.isArray(c.arguments)&&
         Object.keys(c.arguments).length===0));
   }
   if(params.name==="revitgpt_command"){
     const cmd=params.arguments?.command;
-    return typeof cmd==="string" && ["rg/stop","rg/status"].includes(cmd.trim().toLowerCase());
+    return typeof cmd==="string" && ["rg/status"].includes(cmd.trim().toLowerCase());
   }
   return false;
 }
@@ -335,7 +335,7 @@ export function createSessionManager(port, createServer) {
 
     async closeAll(reason = "shutdown") {
       this.stopCleanup();
-      // Administrative shutdown, not graceful rg/stop; preserve work journal.
+      // Administrative shutdown closes owned transport sessions.
       const all = [...sessions.entries()];
       sessions.clear();
       pendingRecoveries.clear();
