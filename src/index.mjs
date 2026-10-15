@@ -135,7 +135,6 @@ function createServer(sessionKey) {
     description:"Read-only command router rg/, rg/status, rg/tools, rg/job, rg/dynamo, rg/knowledge, rg/help. Uses effective registry; never executes scripts or edits RVT.",
     inputSchema:{command:z.string().min(3)}
   },async({command})=>{
-    const text=String(command||"").trim().toLowerCase();
     const result=await executeRevitCommand(command,{
       bindingReader:()=>fetchNativeBindingStatus(BRIDGE_URL)
     });
@@ -335,7 +334,7 @@ function createServer(sessionKey) {
           authority,
           ensureReady: ensureExplicitReadReady,
           invoke: (tool, safeArgs) => revitUpstream.callTool(tool, safeArgs)
-                });
+        });
         await logToolCall({tool:"revitgpt_call",upstream:name,ok:true,duration_ms:Date.now()-started});
       } catch (error) {
         const message=error instanceof Error?error.message:String(error);
