@@ -51,8 +51,8 @@ export function effectForTool(name, args={}) {
 export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvider=()=>null}){
   if(!server || typeof server.registerTool!=="function")
     throw new Error("TOOL_REGISTER_INVALID");
-  if(!tracker || typeof tracker.run!=="function")
-    throw new Error("TOOL_TRACKER_REQUIRED");
+  if(tracker && typeof tracker.run!=="function")
+    throw new Error("TOOL_TRACKER_INVALID");
   const raw=server.registerTool.bind(server);
   server.registerTool=(name,config,callback)=>{
     if(typeof callback!=="function")throw new Error("TOOL_CALLBACK_MISSING");
@@ -67,6 +67,7 @@ export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvid
       // STOP_PENDING has already fenced off unrelated business requests.
       if(!isAwake() && !reservedId)
         throw new Error("WORKSPACE_STANDBY: invoke @rg before business tools");
+      if(!tracker)return callback(args,...rest);
       const tool=name==="revitgpt_call"?String(args.name):name;
       const inputs=name==="revitgpt_call"?args.arguments??{}:args??{};
       if(reservedId)return tracker.runAdmitted(reservedId,tool,effect,
