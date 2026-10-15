@@ -77,7 +77,9 @@ try {
     $expected = Get-RevitGptTaskLauncher $launcher
     Assert ($script:mockTask.Actions[0].Execute -eq $expected.Execute) 'wscript rather than PowerShell task action'
     Assert ($script:mockTask.Actions[0].Arguments -eq $expected.Arguments) 'quoted VBS path'
-    Assert ($script:mockTask.Actions[0].WorkingDirectory -eq $dir) 'correct working directory'
+    $actualDir = [IO.Path]::GetFullPath($script:mockTask.Actions[0].WorkingDirectory).TrimEnd('\')
+    $expectedDir = [IO.Path]::GetFullPath($dir).TrimEnd('\')
+    Assert ($actualDir -eq $expectedDir) "correct working directory (actual=$actualDir expected=$expectedDir)"
 
     Install-RevitGptStartupTask $launcher
     Assert ((Get-RevitGptStartupTaskStatus $launcher) -eq 'INSTALLED') 'reinstall idempotent'
