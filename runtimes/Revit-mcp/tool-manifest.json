@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generated_from": "runtimes/Revit-mcp/tools/*_tools.py",
-  "entry_count": 64,
+  "entry_count": 65,
   "entries": [
     {
       "id": "mcp.revit_activate_view",
@@ -1256,6 +1256,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_run_dyn_file",
+      "name": "revit_run_dyn_file",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.mep",
+      "title": "run Dynamo graph",
+      "summary": "Dispatch a checksum-verified managed .dyn to run using the native DynamoRevit engine. Dispatch is not completion evidence.",
+      "when_to_use": "When the user has requested execution of an approved Dynamo graph in the currently active bound Revit model.",
+      "tags": [
+        "dynamo",
+        "run",
+        "autorun",
+        "revit-engine"
+      ],
+      "source_tool": "revit_run_dyn_file",
+      "execution": "revitgpt_call",
+      "mode": "write_bound_model",
+      "risk": "high",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
