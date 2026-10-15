@@ -23,9 +23,12 @@ correct node/connector IDs.
    `%LOCALAPPDATA%\RevitGPT\workspace\dynamo-draft\**`.
 2. Preserve existing .dyn graph headers, Dynamo model metadata, Port data
    and all untouched nodes when editing a proven source graph.
-3. Until a separately reviewed executable-node contract is available,
-   Python/CodeBlock/ZeroTouch/script evaluator nodes do not pass safe staging.
-   Do not disguise them as innocuous nodes.
+3. Official DynamoCore ZeroTouch functions (with a valid FunctionSignature)
+   and DesignScript CodeBlock nodes are supported, using exact signatures
+   observed from trustworthy Dynamo/Revit 2024 samples. PythonScript,
+   external/custom ZeroTouch assemblies, process/filesystem/network execution
+   and arbitrary evaluators remain blocked pending separate review.
+   Do not disguise unreviewed node types as built-ins.
 4. Use `dynamo_draft_validate` on the final path; this proves bounded JSON,
    node identity and connector references, NOT that Dynamo accepts the graph.
 5. Save the SHA-256 returned by validation.
