@@ -13,6 +13,7 @@ import {
 import { logToolCall, logError } from "./log-store.mjs";
 import { currentOperationId } from "./work-tracker.mjs";
 import { lookupRegistry } from "./capability-registry.mjs";
+import { validateDynamoDraftFile, stageDynamoDraft } from "./dynamo-draft.mjs";
 
 const execFileAsync=promisify(execFile);
 const REPO_ROOT=path.resolve(process.cwd());
@@ -164,6 +165,22 @@ export function registerManagedTools(server){
     if(sha256(before)!==a.expected_sha256) throw new Error("SHA256_MISMATCH");
     await atomicWrite(p,a.content); return textResult({path:p,sha256:sha256(a.content)});
   }));
+
+  // Dynamo Writer uses the existing managed file_create/file_edit for drafts.
+  // Validation and immutable staging are separate; neither runs a graph.
+  server.registerTool("dynamo_draft_validate",{
+    description:"Validate a managed Dynamo .dyn draft (structure, links, unsafe nodes); no Revit execution.",
+    inputSchema:{path:z.string()}
+  },async(a)=>guarded("dynamo_draft_validate",a,async()=>
+    textResult(await validateDynamoDraftFile(dynamoDraftRoot(),a.path))
+  ));
+  server.registerTool("dynamo_draft_stage",{
+    description:"Stage a hash-verified Dynamo draft for explicit native DynamoRevit load/run; never executes.",
+    inputSchema:{path:z.string(),expected_sha256:z.string().length(64)}
+  },async(a)=>guarded("dynamo_draft_stage",a,async()=>
+    textResult(await stageDynamoDraft(dynamoDraftRoot(),
+      path.join(getAppDataRoot(),"dynamo","staging"),a.path,a.expected_sha256))
+  ));
 
   server.registerTool("library_list",{description:"List Python, Dynamo and Job libraries in RevitGPT AppData.",inputSchema:{}},async()=>guarded("library_list",{},async()=>{
     const reg=await readJson(registryLibrariesPath(),{version:1,libraries:[]});
