@@ -54,6 +54,17 @@ internal static class NativeDispatchTests
             single.Current.BoundId == "A" && single.Current.Revision == 1 &&
             !single.Current.ManualBinding,
             "one active project auto-binds but is NOT manual takeover evidence");
+        // Same-model Bind Current is required to explicitly confirm a new
+        // Native host after old-host identity is pinned by the control plane.
+        var hostConfirm = new NativeModelBindingState();
+        hostConfirm.Observe("A", "Test A", new[] { "A" });
+        True(hostConfirm.Current.Status == "BOUND_CURRENT" &&
+            !hostConfirm.Current.ManualBinding,
+            "automatic bootstrap is never manual host takeover");
+        True(hostConfirm.RequestBindCurrent() && hostConfirm.ConsumePendingBind() &&
+            hostConfirm.Current.BoundId == "A" &&
+            hostConfirm.Current.ManualBinding && hostConfirm.Current.Revision == 2,
+            "explicit Bind Current confirms already auto-bound project for host takeover");
         True(single.ReadDenial(null) == null, "single project may be read immediately");
         single.ObserveUnavailable();
         True(single.Current.Status == "BOUND_UNVERIFIED" &&
