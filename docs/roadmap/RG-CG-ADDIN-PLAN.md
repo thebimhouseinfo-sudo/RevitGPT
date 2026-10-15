@@ -1,5 +1,7 @@
 # RG / CG Add-in Plan
 
+> **REVITGPT-ONLY SCOPE OVERRIDE — 15/10/2026:** [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md) supersedes old RevitGPT per-chat lease, rg/stop, Job recovery and phase-gate requirements below. The convenience add-in, intentional bound-model UI and ordinary connection plumbing remain relevant. **Nothing in this RevitGPT planning change modifies CadGPT's design or code.** See [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
+
 > **RevitGPT P1 authority update (2026-10-13):** The old `BROWSER_TTL`/`ADDIN_MANAGED` and per-chat lifecycle passages below are **archival design provenance, not executable P1 requirements**. RevitGPT now follows the [approved P1 Rev9 plan](P1_STABLE_RUNTIME_CONNECTION_PLAN.md) and [canonical P1 runtime/binding/stop contract](../architecture/AUTHORITY_LIFECYCLE.md). This does **not** change CadGPT architecture or Job records. The add-in remains a convenience UI; its tested Native Bridge and panel must be verified before edits.
 
 
