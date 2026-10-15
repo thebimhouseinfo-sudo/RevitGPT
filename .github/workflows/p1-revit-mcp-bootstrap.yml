@@ -142,6 +142,13 @@ jobs:
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-windows-logon-autostart.ps1"
           if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 autostart test failed" }
 
+      - name: Verify staged startup diagnostics and failure logging
+        shell: pwsh
+        run: |
+          ./scripts/test-startup-phase-trace.ps1
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-startup-phase-trace.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 startup trace test failed" }
+
       - name: Verify AppData contract
         shell: pwsh
         run: node scripts/verify-appdata.mjs
