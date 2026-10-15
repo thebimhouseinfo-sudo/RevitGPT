@@ -17,6 +17,7 @@ $script:registeredCount = 0
 $script:unregisteredCount = 0
 $script:corruptOnRegister = $false
 function Get-ScheduledTask {
+    [CmdletBinding()]
     param([string]$TaskName)
     Assert ($TaskName -eq 'RevitGPT Startup') "own task name only"
     return $script:mockTask
@@ -42,6 +43,7 @@ function New-ScheduledTaskSettingsSet {
     return [pscustomobject]@{}
 }
 function Register-ScheduledTask {
+    [CmdletBinding()]
     param([string]$TaskName, $Action, $Trigger, $Principal, $Settings, [switch]$Force)
     Assert ($TaskName -eq 'RevitGPT Startup') "registration owns only RevitGPT task"
     Assert ($Trigger.Delay -eq 'PT10S') "delayed logon trigger"
@@ -54,6 +56,7 @@ function Register-ScheduledTask {
     return $script:mockTask
 }
 function Unregister-ScheduledTask {
+    [CmdletBinding()]
     param([string]$TaskName, [switch]$Confirm)
     Assert ($TaskName -eq 'RevitGPT Startup') "unregister owns only RevitGPT task"
     $script:unregisteredCount++
