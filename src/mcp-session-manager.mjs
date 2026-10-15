@@ -18,8 +18,8 @@ function extractHeader(req, name) {
 }
 
 /**
- * Only authenticated MCP tool calls for stop/status bypass the *per-session*
- * business FIFO. All traffic still goes through the existing StreamableHTTP
+ * Authenticated MCP status calls can bypass the *per-session* business FIFO.
+ * All traffic still goes through the existing StreamableHTTP
  * session transport, JSON-RPC validation and tokenized MCP URL.
  * No general-purpose elevated endpoint is created.
  */
