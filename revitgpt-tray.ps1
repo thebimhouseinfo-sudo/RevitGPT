@@ -11,6 +11,32 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptDir
 
+# Startup tracing uses the standard AppData location even when .env configures
+# a custom runtime directory. Logging is best effort and can never abort Tray.
+$script:StartupTracing = -not ($InstallStartup -or $RemoveStartup -or $StopInstalled -or $StatusOnly -or $StartupStatusOnly)
+$script:StartupStage = 'powershell_entered'
+$StartupTracePath = Join-Path $env:LOCALAPPDATA 'RevitGPT\logs\startup-launch.log'
+
+function Write-StartupTrace([string]$Stage) {
+    try {
+        $directory = Split-Path -Parent $StartupTracePath
+        if (-not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
+        }
+        Add-Content -LiteralPath $StartupTracePath -Value ("{0} | {1} | pid={2}" -f (Get-Date).ToString('s'), $Stage, $PID) -Encoding UTF8 -ErrorAction Stop
+    } catch {} # Logs must not prevent tray startup.
+}
+
+function Set-StartupStage([string]$Stage) {
+    $script:StartupStage = $Stage
+    if ($script:StartupTracing) { Write-StartupTrace $Stage }
+}
+trap {
+    if ($script:StartupTracing) { Write-StartupTrace ('startup_failed: ' + $script:StartupStage) }
+    break
+}
+if ($script:StartupTracing) { Set-StartupStage 'powershell_entered' }
+
 $StartupKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $StartupName = "RevitGPT"
 $TrayScriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
@@ -71,27 +97,6 @@ $Port = if ($PortValue) { [int]$PortValue } else { 3300 }
 $TunnelHealthValue = Get-DotEnvValue "OPENAI_TUNNEL_HEALTH_PORT"
 $TunnelHealthPort = if ($TunnelHealthValue) { [int]$TunnelHealthValue } else { 8280 }
 
-# Startup tracing uses the standard AppData location even when .env configures
-# a custom runtime directory. Logging is best effort and can never abort Tray.
-$script:StartupTracing = -not ($InstallStartup -or $RemoveStartup -or $StopInstalled -or $StatusOnly -or $StartupStatusOnly)
-$script:StartupStage = 'powershell_entered'
-$StartupTracePath = Join-Path $env:LOCALAPPDATA 'RevitGPT\logs\startup-launch.log'
-
-function Write-StartupTrace([string]$Stage) {
-    try {
-        $directory = Split-Path -Parent $StartupTracePath
-        if (-not (Test-Path -LiteralPath $directory)) {
-            New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
-        }
-        Add-Content -LiteralPath $StartupTracePath -Value ("{0} | {1} | pid={2}" -f (Get-Date).ToString('s'), $Stage, $PID) -Encoding UTF8 -ErrorAction Stop
-    } catch {} # Logs must not prevent tray startup.
-}
-
-function Set-StartupStage([string]$Stage) {
-    $script:StartupStage = $Stage
-    if ($script:StartupTracing) { Write-StartupTrace $Stage }
-}
-
 function Write-TrayLog([string]$Message) {
     try {
         $directory = Split-Path -Parent $TrayLog
@@ -101,13 +106,6 @@ function Write-TrayLog([string]$Message) {
         Add-Content -LiteralPath $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8 -ErrorAction Stop
     } catch {} # A locked/unwritable log cannot kill the tray.
 }
-
-trap {
-    if ($script:StartupTracing) { Write-StartupTrace ('startup_failed: ' + $script:StartupStage) }
-    break
-}
-if ($script:StartupTracing) { Set-StartupStage 'powershell_entered' }
-
 
 # Explicit administrative stop clears awake intent but preserves work journal.
 function Set-ExplicitStandby {
