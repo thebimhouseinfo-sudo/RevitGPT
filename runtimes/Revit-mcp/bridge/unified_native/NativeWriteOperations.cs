@@ -201,8 +201,17 @@ namespace RevitGPT.Native
             string text = Token(p, "text");
             if (String.IsNullOrWhiteSpace(text) || text.Length > 32768)
                 return Error(400, "Text must contain 1..32768 characters.");
-            TextNoteType type = FindType<TextNoteType>(doc, Token(p, "text_type"));
-            if (type == null) return Error(404, "TextNoteType not found.");
+            // Match the project Text Note tool default; do not pick an arbitrary
+            // member of a multi-type collection when text_type is omitted.
+            string requestedType = Token(p, "text_type");
+            TextNoteType type = String.IsNullOrWhiteSpace(requestedType)
+                ? doc.GetElement(doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType))
+                    as TextNoteType
+                : FindType<TextNoteType>(doc, requestedType);
+            if (type == null)
+                return Error(404, String.IsNullOrWhiteSpace(requestedType)
+                    ? "Project default TextNoteType not found."
+                    : "TextNoteType not found.");
             XYZ at = Point(p, "");
             return WithTransaction(doc, "RevitGPT Text Note", () => {
                 TextNote note = TextNote.Create(doc, view.Id, at, text, type.Id);
