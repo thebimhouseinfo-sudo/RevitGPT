@@ -25,7 +25,7 @@ RevitGPT là **CAD/BIM Assistant** giúp người dùng thực hiện nhanh và 
 
 **Không thuộc P1:** chứng nhận mọi Revit MCP read/write tool chạy đúng; Dynamo/Job nghiệp vụ; theo dõi tiến trình tác vụ qua Windows reboot; STOP_PENDING/STOP_BLOCKED; journal/reconciliation để khôi phục tác vụ; resume Job; mô hình hóa chuỗi tool calls kéo dài.
 
-**Trạng thái:** Các kiểm tra thực tế về kết nối/binding/panel/multi-chat/sleep-wake đã xác nhận phần chính P1 hoạt động. Có thể xem **P1 CORE CONNECTION đạt mục tiêu sử dụng**, nhưng không đồng nghĩa mọi bài test lịch sử, mọi MCP tool hoặc startup diagnostics chưa triển khai đều PASS. Việc hoàn thiện log Windows startup đang là việc riêng, không mở lại toàn bộ P1.
+**Trạng thái: P1 CLOSED — HUMAN ACCEPTED, 15/10/2026.** Người dùng chốt PASS sau một lượt regression trên Revit thật (kết nối/binding/read/lỗi tool không hạ connection) và xác nhận autostart ổn; các thử nghiệm multi-chat/panel/sleep-wake ở phiên trước được giữ làm bằng chứng đã chấp nhận. Xem [P1 closure record](P1_STABLE_CONNECTION_CURRENT.md#p1-closure-record--15102026). Kết quả này **không** chứng nhận mọi MCP Read/Write tool hoặc Dynamo; đó là P2.
 
 **Cách kiểm tra P1:** RevitGPT tự khởi động đúng; kết nối đúng model; đa chat không giành binding; chuyển tab không tự rebind; đóng/reopen model cập nhật ngữ cảnh đúng; sleep/wake và lỗi kết nối thông thường không buộc người dùng thiết lập lại khi các thành phần có thể phục hồi. Chỉ kiểm tra phần bị sửa hoặc chưa chứng minh, không lặp toàn bộ Human Test đã PASS.
 
