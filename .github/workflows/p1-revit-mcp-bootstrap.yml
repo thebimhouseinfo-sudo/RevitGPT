@@ -132,6 +132,16 @@ jobs:
         run: |
           ./scripts/simulate-windows-bootstrap.ps1
 
+      - name: Test isolated Windows logon autostart (PowerShell 7 + Windows PowerShell 5.1)
+        shell: pwsh
+        run: |
+          ./scripts/test-windows-logon-autostart.ps1
+          # Do not inspect inherited LASTEXITCODE: the test intentionally
+          # invokes a negative cscript case returning 3 and asserts it.
+          # PowerShell terminating script errors fail the step automatically.
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-windows-logon-autostart.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 autostart test failed" }
+
       - name: Verify AppData contract
         shell: pwsh
         run: node scripts/verify-appdata.mjs

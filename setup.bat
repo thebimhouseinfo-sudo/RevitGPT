@@ -6,6 +6,15 @@ echo ============================================================
 echo RevitGPT Setup
 echo ============================================================
 echo.
+REM setup.bat is for runtime dependencies and logon startup. Official Native
+REM RevitGPT is installed independently with explicit human host approval.
+if not exist "%APPDATA%\Autodesk\Revit\Addins\2024\RevitGPT.addin" if not exist "%ProgramData%\Autodesk\Revit\Addins\2024\RevitGPT.addin" (
+  echo [BLOCKED] Official RevitGPT Native 2024 add-in registration not found.
+  echo [INFO] Install the official Native host using scripts\manage-native-revitgpt-install.ps1 with explicit approval.
+  echo [INFO] No legacy Native installer will be executed.
+  exit /b 3
+)
+echo [INFO] Existing RevitGPT Native add-in detected; will not reinstall it.
 
 REM ------------------------------------------------------------
 REM 1. Local configuration
@@ -82,14 +91,9 @@ REM ------------------------------------------------------------
 REM 4. Install native Revit bridge (primary path)
 REM ------------------------------------------------------------
 echo.
-echo [3/6] Installing native Revit MCP Bridge add-in...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%CD%\scripts\install-revit-bridge-addin.ps1"
-if errorlevel 1 (
-  echo [ERROR] Failed to install the native Revit MCP Bridge add-in.
-  exit /b %ERRORLEVEL%
-)
-echo [OK] Native Revit MCP Bridge installed.
-echo [INFO] pyRevit is optional fallback only; it is not required by RevitGPT.
+echo [3/6] Reusing existing official Native RevitGPT add-in...
+echo [INFO] Native host lifecycle is independent of Tray/Windows logon setup.
+echo [OK] Existing RevitGPT Native registration left unchanged.
 
 REM ------------------------------------------------------------
 REM 5. Configure OpenAI Secure MCP Tunnel
@@ -133,7 +137,7 @@ echo   2. Open an RVT model.
 echo   3. Invoke @rg / RevitGPT from ChatGPT.
 echo.
 echo RevitGPT tray + slim MCP + Secure Tunnel are already docked and running.
-echo After Revit starts, use ribbon panel "Revit MCP Bridge" > "Start Bridge". pyRevit is optional fallback only.
+echo Native RevitGPT add-in loads when Revit starts. No manual legacy bridge command.
 echo You do NOT need to run run.bat for normal use.
 echo.
 echo RevitGPT runtime:

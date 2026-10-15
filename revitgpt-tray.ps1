@@ -3,7 +3,8 @@ param(
     [switch]$InstallStartup,
     [switch]$RemoveStartup,
     [switch]$StopInstalled,
-    [switch]$StatusOnly
+    [switch]$StatusOnly,
+    [switch]$StartupStatusOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,7 @@ $StartupKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $StartupName = "RevitGPT"
 $TrayScriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
 $TrayLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "revitgpt-tray.vbs"))
+. (Join-Path $ScriptDir "scripts\revitgpt-startup-registration.ps1")
 $IconPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "assets\revitgpt-tray.png"))
 $IndexPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "src\index.mjs"))
 $TunnelExe = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "bin\tunnel-client.exe"))
@@ -41,6 +43,7 @@ $StateDir = Join-Path $StateRoot "state"
 $TrayLog = Join-Path $LogDir "tray.log"
 $TrayReadyPath = Join-Path $StateDir "tray-ready.json"
 
+if (-not ($InstallStartup -or $RemoveStartup -or $StopInstalled -or $StatusOnly -or $StartupStatusOnly)) {
 foreach ($relative in @(
     "libraries\python",
     "libraries\dynamo",
@@ -59,6 +62,7 @@ foreach ($relative in @(
     "logs"
 )) {
     New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot $relative) | Out-Null
+}
 }
 
 $PortValue = Get-DotEnvValue "PORT"
@@ -92,19 +96,24 @@ function Set-ExplicitStandby {
     }
 }
 
-function Get-StartupCommand {
-    return 'wscript.exe "' + $TrayLauncherPath + '"'
+function Show-StartupRegistrationStatus {
+    $info = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+    Write-Host "Windows Startup  : $($info.Status) ($($info.Reason))"
+    if ($info.Status -ne 'INSTALLED') {
+        Write-Host "[WARN] RevitGPT logon startup is not verified for this checkout. Use run.bat install after review."
+    } else {
+        Write-Host "[INFO] HKCU Run value valid; whether Windows Startup Apps actually executes it needs real logon evidence."
+    }
 }
 
 function Install-StartupRegistration {
-    New-Item -Path $StartupKey -Force | Out-Null
-    New-ItemProperty -Path $StartupKey -Name $StartupName -Value (Get-StartupCommand) -PropertyType String -Force | Out-Null
-    Write-Host "[OK] RevitGPT will start automatically when this Windows user signs in."
+    $info = Install-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName -AllowOwnedMigration -AllowStaleMigration
+    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status) (registry value read back)."
 }
 
 function Remove-StartupRegistration {
-    Remove-ItemProperty -Path $StartupKey -Name $StartupName -ErrorAction SilentlyContinue
-    Write-Host "[OK] RevitGPT Windows auto-start removed."
+    $info = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status)."
 }
 
 function Get-PortOwnerPid([int]$TargetPort) {
@@ -345,7 +354,12 @@ if ($StopInstalled) {
     Stop-InstalledTray
     exit 0
 }
+if ($StartupStatusOnly) {
+    Show-StartupRegistrationStatus
+    exit 0
+}
 if ($StatusOnly) {
+    Show-StartupRegistrationStatus
     $health = Get-RevitGptHealth
     $revit = Get-RevitProcesses
     $state = Read-TrayState
@@ -362,8 +376,9 @@ if ($StatusOnly) {
 }
 
 if ($env:OS -ne "Windows_NT") { throw "RevitGPT tray host is Windows-only." }
-if (-not (Test-Path ".env")) { throw ".env is missing. Run setup.bat first." }
-if (-not (Test-Path $IndexPath)) { throw "src\index.mjs is missing." }
+Write-TrayLog ("tray_launch_invoked pid=" + $PID)
+if (-not (Test-Path ".env")) { Write-TrayLog "startup_failed: ENV_MISSING"; throw ".env is missing. Run runtime setup first." }
+if (-not (Test-Path $IndexPath)) { Write-TrayLog "startup_failed: NODE_ENTRY_MISSING"; throw "src\index.mjs is missing." }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
