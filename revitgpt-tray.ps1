@@ -41,6 +41,7 @@ $StateRoot = if ([string]::IsNullOrWhiteSpace($appDataConfigured)) {
 $LogDir = Join-Path $StateRoot "logs"
 $StateDir = Join-Path $StateRoot "state"
 $TrayLog = Join-Path $LogDir "tray.log"
+$StartupTracePath = Join-Path $LogDir "startup-launch.log"
 $TrayReadyPath = Join-Path $StateDir "tray-ready.json"
 
 if (-not ($InstallStartup -or $RemoveStartup -or $StopInstalled -or $StatusOnly -or $StartupStatusOnly)) {
@@ -72,6 +73,26 @@ $TunnelHealthPort = if ($TunnelHealthValue) { [int]$TunnelHealthValue } else { 8
 
 function Write-TrayLog([string]$Message) {
     Add-Content -Path $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8
+}
+
+# Shared logon trace: VBS launcher and PowerShell append to one file.
+# Only stage identifiers and PID are recorded (never secrets or arguments).
+function Write-StartupTrace([string]$Stage) {
+    if ($Stage -notmatch '^[a-z][a-z0-9_]*$') { return }
+    try {
+        if (-not (Test-Path -LiteralPath $LogDir)) {
+            New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+        }
+        $record = (Get-Date).ToString('s') + ' | ' + $Stage + ' | pid=' + $PID
+        Add-Content -LiteralPath $StartupTracePath -Value $record -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        # Diagnostics must not prevent the tray from starting.
+    }
+}
+
+function Set-StartupStage([string]$Stage) {
+    $script:StartupStage = $Stage
+    Write-StartupTrace $Stage
 }
 
 
@@ -375,26 +396,65 @@ if ($StatusOnly) {
     exit 0
 }
 
+# Log any unhandled tray startup failure without exposing exception details.
+$script:StartupTracing = $true
+$script:StartupStage = 'powershell_entry'
+trap {
+    if ($script:StartupTracing) {
+        Write-StartupTrace ('fatal_at_' + $script:StartupStage)
+    }
+    exit 1
+}
+Set-StartupStage 'powershell_entry'
 if ($env:OS -ne "Windows_NT") { throw "RevitGPT tray host is Windows-only." }
 Write-TrayLog ("tray_launch_invoked pid=" + $PID)
-if (-not (Test-Path ".env")) { Write-TrayLog "startup_failed: ENV_MISSING"; throw ".env is missing. Run runtime setup first." }
-if (-not (Test-Path $IndexPath)) { Write-TrayLog "startup_failed: NODE_ENTRY_MISSING"; throw "src\index.mjs is missing." }
+if (-not (Test-Path ".env")) {
+    Write-StartupTrace 'env_missing'
+    Write-TrayLog "startup_failed: ENV_MISSING"
+    throw ".env is missing. Run runtime setup first."
+}
+Set-StartupStage 'env_verified'
+if (-not (Test-Path $IndexPath)) {
+    Write-StartupTrace 'node_entry_missing'
+    Write-TrayLog "startup_failed: NODE_ENTRY_MISSING"
+    throw "src\index.mjs is missing."
+}
+Set-StartupStage 'node_entry_verified'
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
+Set-StartupStage 'ui_assemblies_ready'
 
 $createdNew = $false
 $mutex = [System.Threading.Mutex]::new($true, "Local\RevitGPTTray", [ref]$createdNew)
-if (-not $createdNew) { exit 0 }
+if (-not $createdNew) {
+    Write-StartupTrace 'duplicate_tray_detected'
+    exit 0
+}
+Set-StartupStage 'mutex_acquired'
 
 $script:TrayStartedAt = (Get-Date).ToString("o")
 $script:RuntimePid = $null
 $script:TunnelPid = $null
 $script:Exiting = $false
 
-try { Start-RevitGptRuntime } catch { Write-TrayLog ("Slim MCP start failed: " + $_.Exception.Message) }
-try { Start-RevitGptTunnel } catch { Write-TrayLog ("Tunnel start failed: " + $_.Exception.Message) }
+Set-StartupStage 'slim_starting'
+try {
+    Start-RevitGptRuntime
+    Set-StartupStage 'slim_ready'
+} catch {
+    Set-StartupStage 'slim_failed'
+    Write-TrayLog ("Slim MCP start failed: " + $_.Exception.Message)
+}
+Set-StartupStage 'tunnel_starting'
+try {
+    Start-RevitGptTunnel
+    Set-StartupStage 'tunnel_ready'
+} catch {
+    Set-StartupStage 'tunnel_failed'
+    Write-TrayLog ("Tunnel start failed: " + $_.Exception.Message)
+}
 
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $script:TrayBitmap = $null
@@ -413,6 +473,7 @@ if (Test-Path $IconPath) {
     $notify.Icon = [System.Drawing.SystemIcons]::Application
 }
 $notify.Visible = $true
+Set-StartupStage 'tray_icon_visible'
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusItem = $menu.Items.Add("RevitGPT: checking")
@@ -486,4 +547,7 @@ $timer.Add_Tick({
 })
 $timer.Start()
 Update-Ui
+Set-StartupStage 'tray_state_written'
+Set-StartupStage 'message_loop_enter'
 [System.Windows.Forms.Application]::Run()
+Write-StartupTrace 'message_loop_exit'
