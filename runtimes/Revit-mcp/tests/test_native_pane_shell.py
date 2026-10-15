@@ -82,6 +82,13 @@ class NativePaneShellTests(unittest.TestCase):
         self.assertIn("Color.FromRgb(180, 83, 9)", source)
         self.assertIn("Color.FromRgb(253, 224, 71)", source)
         self.assertIn("_binding.RequestBindCurrent()", source)
+        self.assertIn('_bind.IsEnabled = !String.IsNullOrEmpty(snap.ActiveId) &&', source)
+        self.assertIn('(snap.Status != "BOUND_CURRENT" || !snap.ManualBinding)', source)
+        # Red control: disabling Bind Current for an auto-bound host recreates
+        # the confirmed HOST_ID_MISMATCH_AUTO_BIND recovery dead end.
+        blocked = source.replace('(snap.Status != "BOUND_CURRENT" || !snap.ManualBinding)',
+                                 'snap.Status != "BOUND_CURRENT"')
+        self.assertNotIn('(snap.Status != "BOUND_CURRENT" || !snap.ManualBinding)', blocked)
         for forbidden in ('Content = "Pair"', 'Content = "Refresh"',
                           'Text = "RevitGPT"', "NativePanelPairingClient",
                           "NativePanelSession"):
