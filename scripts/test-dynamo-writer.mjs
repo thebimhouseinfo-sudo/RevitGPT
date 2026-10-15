@@ -7,8 +7,9 @@ import { effectForTool } from "../src/tool-effects.mjs";
 import { classifyModelOperation, requiresActiveBoundModel } from "../src/model-authority.mjs";
 
 const graph=JSON.stringify({Nodes:[
-  {Id:"node-a",NodeType:"NumberInput"},{Id:"node-b",NodeType:"NumberInput"}],
-  Connectors:[{Start:"node-a",End:"node-b",StartIndex:0,EndIndex:0}]});
+  {Id:"node-a",NodeType:"NumberInput",Inputs:[],Outputs:[{Id:"port-a"}]},
+  {Id:"node-b",NodeType:"NumberInput",Inputs:[{Id:"port-b"}],Outputs:[]}],
+  Connectors:[{Id:"link-ab",Start:"port-a",End:"port-b"}]});
 const valid=validateDynamoDraft(graph);
 assert.equal(valid.nodes,2);
 assert.equal(valid.connectors,1);
@@ -17,20 +18,23 @@ assert.equal(valid.host_compatibility_verified,false);
 const official=JSON.stringify({Nodes:[
   {Id:"code",NodeType:"CodeBlockNode",
    ConcreteType:"Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
-   Code:"1+1;"},
+   Inputs:[],Outputs:[{Id:"code-out"}],Code:"1+1;"},
   {Id:"func",NodeType:"FunctionNode",
    ConcreteType:"Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+   Inputs:[{Id:"func-in"}],Outputs:[{Id:"func-out"}],
    FunctionSignature:"DSCore.List.Count@var[]..[]"}
-],Connectors:[]});
+],Connectors:[{Id:"link-f",Start:"code-out",End:"func-in"}]});
 assert.equal(validateDynamoDraft(official).nodes,2);
 const unknown=JSON.parse(official);
 unknown.Nodes[1].ConcreteType="Bad.ZeroTouch, ExternalPackage";
 assert.throws(()=>validateDynamoDraft(JSON.stringify(unknown)), /UNREVIEWED/);
 
 for(const change of [
-  {Nodes:[{Id:"a",NodeType:"PythonScriptNode"}],Connectors:[]},
-  {Nodes:[{Id:"a"},{Id:"a"}],Connectors:[]},
-  {Nodes:[{Id:"a"}],Connectors:[{Start:"a",End:"missing"}]},
+  {Nodes:[{Id:"a",NodeType:"PythonScriptNode",Inputs:[],Outputs:[]}],Connectors:[]},
+  {Nodes:[{Id:"a",Inputs:[],Outputs:[]},{Id:"a",Inputs:[],Outputs:[]}],Connectors:[]},
+  {Nodes:[{Id:"a",Inputs:[],Outputs:[{Id:"out"}]},
+          {Id:"b",Inputs:[{Id:"in"}],Outputs:[]}],
+   Connectors:[{Id:"bad",Start:"a",End:"in"}]},
   {Nodes:[],Connectors:[]}
 ]) assert.throws(()=>validateDynamoDraft(JSON.stringify(change)));
 assert.equal(effectForTool("dynamo_draft_validate"),"READ_ONLY");
@@ -50,7 +54,7 @@ try{
   assert.equal(staged.stage_path,path.join(staging,check.sha256+".dyn"));
   assert.equal(await fs.readFile(staged.stage_path,"utf8"),graph);
   await stageDynamoDraft(draft,staging,file,check.sha256);
-  assert.rejects(stageDynamoDraft(draft,staging,file,"0".repeat(64)),/SHA_MISMATCH/);
+  await assert.rejects(stageDynamoDraft(draft,staging,file,"0".repeat(64)),/SHA_MISMATCH/);
   const rogue=path.join(temp,"outside.dyn");
   await fs.writeFile(rogue,graph);
   await assert.rejects(validateDynamoDraftFile(draft,rogue),/OUTSIDE_WORKSPACE/);
