@@ -122,6 +122,13 @@ jobs:
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-windows-logon-autostart.ps1"
           if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 autostart test failed" }
 
+      - name: Test GPTWorker-style silent RevitGPT scheduled startup (pwsh + Windows PowerShell)
+        shell: pwsh
+        run: |
+          ./scripts/test-revitgpt-scheduled-startup.ps1
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\scripts\test-revitgpt-scheduled-startup.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "Windows PowerShell 5.1 scheduled startup test failed" }
+
       - name: Verify AppData contract
         shell: pwsh
         run: node scripts/verify-appdata.mjs
