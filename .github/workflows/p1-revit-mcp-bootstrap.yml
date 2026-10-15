@@ -3,6 +3,7 @@ name: P1 Revit MCP Bootstrap
 on:
   push:
     branches:
+      - main
       - work/J-AFC4-p1-revit-mcp-bootstrap
       - work/p1-stable-runtime-20261013
   pull_request:
