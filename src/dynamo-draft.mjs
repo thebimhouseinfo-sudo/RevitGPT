@@ -19,12 +19,21 @@ export function validateDynamoDraft(content){
      !Array.isArray(graph.Connectors) || graph.Nodes.length<1 ||
      graph.Nodes.length>1000 || graph.Connectors.length>4000)
     throw new Error("DYN_INVALID_GRAPH_STRUCTURE");
-  const ids=new Set();
+  const ids=new Set(), inputPorts=new Set(), outputPorts=new Set(), allPorts=new Set();
   for(const node of graph.Nodes){
     if(!node || typeof node!=="object" || Array.isArray(node) ||
        typeof node.Id!=="string" || !node.Id.trim() || ids.has(node.Id))
       throw new Error("DYN_INVALID_OR_DUPLICATE_NODE_ID");
     ids.add(node.Id);
+    for(const [key,store] of [["Inputs",inputPorts],["Outputs",outputPorts]]){
+      if(!Array.isArray(node[key]))throw new Error("DYN_PORT_LIST_MISSING");
+      for(const port of node[key]){
+        if(!port || typeof port.Id!=="string" || !port.Id.trim() || allPorts.has(port.Id))
+          throw new Error("DYN_INVALID_OR_DUPLICATE_PORT_ID");
+        store.add(port.Id);
+        allPorts.add(port.Id);
+      }
+    }
     const identity=["NodeType","ConcreteType","Name","FunctionSignature","Code"]
       .map(k=>String(node[k]??"")).join(" ").toLowerCase();
     if(UNSAFE.some(key=>identity.includes(key)))
@@ -38,14 +47,16 @@ export function validateDynamoDraft(content){
       throw new Error("DYN_UNREVIEWED_ZEROTOUCH");
 
   }
-  const links=new Set();
+  const links=new Set(), connectorIds=new Set();
   for(const edge of graph.Connectors){
     if(!edge || typeof edge!=="object" || Array.isArray(edge) ||
-      !ids.has(edge.Start) || !ids.has(edge.End) ||
+      !outputPorts.has(edge.Start) || !inputPorts.has(edge.End) ||
+      typeof edge.Id!=="string" || !edge.Id.trim() || connectorIds.has(edge.Id) ||
       (edge.StartIndex!==undefined && (!Number.isSafeInteger(edge.StartIndex)||edge.StartIndex<0)) ||
       (edge.EndIndex!==undefined && (!Number.isSafeInteger(edge.EndIndex)||edge.EndIndex<0)))
       throw new Error("DYN_INVALID_CONNECTOR");
-    const key=[edge.Start,edge.StartIndex??0,edge.End,edge.EndIndex??0].join(":");
+    connectorIds.add(edge.Id);
+    const key=[edge.Start,edge.End].join(":");
     if(links.has(key))throw new Error("DYN_DUPLICATE_CONNECTOR");
     links.add(key);
   }
