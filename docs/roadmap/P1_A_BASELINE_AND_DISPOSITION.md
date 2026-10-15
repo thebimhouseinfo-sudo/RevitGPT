@@ -1,5 +1,7 @@
 # P1-A — Source Baseline, Legacy Dispositions and Verification Matrix
 
+> **HISTORICAL EVIDENCE ONLY — 15/10/2026.** This prior P1-A audit and its CR/Journaling/stop-drain gate dispositions are **not new prerequisite gates** for implementation. Current product scope: [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md); [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Preserve evidence, but do not require a repeat of historical GSA reconciliation before ordinary RevitGPT development.
+
 **Scope:** P1-A only. **Owner:** RevitGPT. **Date:** 2026-10-13. **Status:** RECONCILED SOURCE & DOCS; OFFLINE CI FOR THIS IMPLEMENTATION REVISION NOT YET VERIFIED; REAL REVIT HOST NOT TESTED.
 
 **Phase Goal:** Preserve the accepted [Rev9 P1 Phase Goal](P1_STABLE_RUNTIME_CONNECTION_PLAN.md): explicit @rg wakes a globally shared workspace, one intentional model binding across chats, no idle/ordinary-error shutdown, and rg/stop finishes all accepted work before STANDBY.
