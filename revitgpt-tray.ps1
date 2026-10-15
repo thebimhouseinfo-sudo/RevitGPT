@@ -71,9 +71,42 @@ $Port = if ($PortValue) { [int]$PortValue } else { 3300 }
 $TunnelHealthValue = Get-DotEnvValue "OPENAI_TUNNEL_HEALTH_PORT"
 $TunnelHealthPort = if ($TunnelHealthValue) { [int]$TunnelHealthValue } else { 8280 }
 
-function Write-TrayLog([string]$Message) {
-    Add-Content -Path $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8
+# Startup tracing uses the standard AppData location even when .env configures
+# a custom runtime directory. Logging is best effort and can never abort Tray.
+$script:StartupTracing = -not ($InstallStartup -or $RemoveStartup -or $StopInstalled -or $StatusOnly -or $StartupStatusOnly)
+$script:StartupStage = 'powershell_entered'
+$StartupTracePath = Join-Path $env:LOCALAPPDATA 'RevitGPT\logs\startup-launch.log'
+
+function Write-StartupTrace([string]$Stage) {
+    try {
+        $directory = Split-Path -Parent $StartupTracePath
+        if (-not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
+        }
+        Add-Content -LiteralPath $StartupTracePath -Value ("{0} | {1} | pid={2}" -f (Get-Date).ToString('s'), $Stage, $PID) -Encoding UTF8 -ErrorAction Stop
+    } catch {} # Logs must not prevent tray startup.
 }
+
+function Set-StartupStage([string]$Stage) {
+    $script:StartupStage = $Stage
+    if ($script:StartupTracing) { Write-StartupTrace $Stage }
+}
+
+function Write-TrayLog([string]$Message) {
+    try {
+        $directory = Split-Path -Parent $TrayLog
+        if (-not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force -ErrorAction Stop | Out-Null
+        }
+        Add-Content -LiteralPath $TrayLog -Value "[$((Get-Date).ToString('s'))] $Message" -Encoding UTF8 -ErrorAction Stop
+    } catch {} # A locked/unwritable log cannot kill the tray.
+}
+
+trap {
+    if ($script:StartupTracing) { Write-StartupTrace ('startup_failed: ' + $script:StartupStage) }
+    break
+}
+if ($script:StartupTracing) { Set-StartupStage 'powershell_entered' }
 
 
 # Explicit administrative stop clears awake intent but preserves work journal.
@@ -98,54 +131,69 @@ function Set-ExplicitStandby {
 }
 
 function Show-StartupRegistrationStatus {
-    $taskStatus = Get-RevitGptStartupTaskStatus $TrayLauncherPath
-    if ($taskStatus -eq 'INSTALLED') {
-        Write-Host "Windows Startup  : INSTALLED (SCHEDULED_TASK_WSCRIPT)"
-        return
+    $task = Get-RevitGptStartupTaskDiagnostics $TrayLauncherPath
+    $run = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+    Write-Host "Scheduled Task  : $($task.Status) ($($task.Reason))"
+    Write-Host "Task LastRunTime: $($task.LastRunTime)"
+    Write-Host "Task LastResult : $($task.LastTaskResult)"
+    $ran = $task.LastRunTime -and ([datetime]$task.LastRunTime).Year -ge 2000
+    $lastRunSuccess = $ran -and $null -ne $task.LastTaskResult -and [int64]$task.LastTaskResult -eq 0
+    Write-Host "TASK_LAST_RUN_SUCCESS: $lastRunSuccess (does not prove tray/runtime ready)"
+    Write-Host "HKCU Run        : $($run.Status) ($($run.Reason))"
+    $startup = if ($task.Status -eq 'INSTALLED') { 'INSTALLED (SCHEDULED_TASK_WSCRIPT)' }
+               elseif ($task.Status -eq 'MISSING' -and $run.Status -eq 'INSTALLED') { 'INSTALLED (HKCU_RUN_FALLBACK)' }
+               else { 'NOT_VERIFIED' }
+    Write-Host "Windows Startup  : $startup"
+    if ($task.Status -eq 'INSTALLED' -and $run.Status -eq 'INSTALLED') {
+        Write-Host "[WARN] Dual startup authorities present; run install to remove only RevitGPT HKCU Run."
     }
-    $info = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-    Write-Host "Windows Startup  : $($info.Status) (HKCU_RUN_$($info.Reason); TASK_$taskStatus)"
-    if ($info.Status -ne 'INSTALLED') {
-        Write-Host "[WARN] RevitGPT logon startup is not installed for this checkout. Run run.bat install."
-    }
+    $state = Read-TrayState
+    $trayReady = [bool]($state -and $state.pid -and (Test-OwnedTray -ProcessId ([int]$state.pid)))
+    $runtimeReady = [bool](Get-RevitGptHealth)
+    Write-Host "TRAY_READY       : $trayReady"
+    Write-Host "RUNTIME_READY    : $runtimeReady"
+    Write-Host "TUNNEL_READY     : $([bool](Test-TunnelHealthy))"
+    Write-Host "Startup trace    : $StartupTracePath"
 }
 
 function Install-StartupRegistration {
-    $taskWasInstalled = (Get-RevitGptStartupTaskStatus $TrayLauncherPath) -eq 'INSTALLED'
+    # Read-only preflight prevents mutation when a foreign Run entry exists.
+    $runBefore = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+    if ($runBefore.Status -in @('CONFLICT','UNVERIFIED')) {
+        throw "STARTUP_RUN_CONFLICT: $($runBefore.Status)"
+    }
+    $taskBefore = Get-RevitGptStartupTaskStatus $TrayLauncherPath
+    if ($taskBefore -in @('CONFLICT','UNAVAILABLE')) {
+        throw "STARTUP_TASK_UNSAFE: $taskBefore"
+    }
+
     $taskError = $null
-    try { Install-RevitGptStartupTask $TrayLauncherPath }
+    try { Install-RevitGptStartupTask -LauncherPath $TrayLauncherPath -AllowOwnedMigration }
     catch { $taskError = $_.Exception.Message }
 
     if (-not $taskError) {
-        # GPTWorker pattern: exactly one startup authority. Remove only our
-        # previous HKCU Run value once the scheduled action has been verified.
-        try {
-            $run = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-            if ($run.Status -in @('INSTALLED','STALE')) {
-                $null = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-            } elseif ($run.Status -ne 'MISSING') {
-                throw "STARTUP_RUN_CONFLICT: $($run.Status)"
-            }
-        } catch {
-            if (-not $taskWasInstalled) { Remove-RevitGptStartupTask $TrayLauncherPath }
-            throw
+        $run = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+        if ($run.Status -in @('INSTALLED','STALE')) {
+            $null = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+        } elseif ($run.Status -ne 'MISSING') {
+            throw "STARTUP_RUN_CONFLICT: $($run.Status)"
         }
-        Write-Host "[OK] RevitGPT Windows user logon startup: INSTALLED (Scheduled Task -> wscript.exe)."
+        Write-Host "[OK] RevitGPT startup: verified Scheduled Task -> hidden wscript.exe."
         return
     }
 
-    # The fallback is only permitted when no scheduled task remains active.
+    # A partial/invalid task cannot safely coexist with the Run fallback.
+    # Do NOT unregister a previously owned task merely because registration failed.
     $state = Get-RevitGptStartupTaskStatus $TrayLauncherPath
-    if ($state -eq 'INSTALLED') { Remove-RevitGptStartupTask $TrayLauncherPath }
-    elseif ($state -ne 'MISSING') { throw "STARTUP_TASK_UNSAFE: $state ($taskError)" }
+    if ($state -ne 'MISSING') { throw "STARTUP_TASK_UNSAFE: $state ($taskError)" }
     $info = Install-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName -AllowOwnedMigration -AllowStaleMigration
-    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status) (HKCU Run fallback; $taskError)."
+    Write-Host "[OK] RevitGPT startup: $($info.Status) (HKCU Run fallback; $taskError)."
 }
 
 function Remove-StartupRegistration {
     Remove-RevitGptStartupTask $TrayLauncherPath
     $info = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-    Write-Host "[OK] RevitGPT Windows user logon startup removed: $($info.Status)."
+    Write-Host "[OK] RevitGPT Windows user startup removed: $($info.Status)."
 }
 
 function Get-PortOwnerPid([int]$TargetPort) {
@@ -408,25 +456,28 @@ if ($StatusOnly) {
 }
 
 if ($env:OS -ne "Windows_NT") { throw "RevitGPT tray host is Windows-only." }
+Set-StartupStage 'preflight_started'
 Write-TrayLog ("tray_launch_invoked pid=" + $PID)
 if (-not (Test-Path ".env")) { Write-TrayLog "startup_failed: ENV_MISSING"; throw ".env is missing. Run runtime setup first." }
 if (-not (Test-Path $IndexPath)) { Write-TrayLog "startup_failed: NODE_ENTRY_MISSING"; throw "src\index.mjs is missing." }
 
+Set-StartupStage 'preflight_verified'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $createdNew = $false
 $mutex = [System.Threading.Mutex]::new($true, "Local\RevitGPTTray", [ref]$createdNew)
-if (-not $createdNew) { exit 0 }
+if (-not $createdNew) { Set-StartupStage 'duplicate_tray_suppressed'; exit 0 }
+Set-StartupStage 'mutex_acquired'
 
 $script:TrayStartedAt = (Get-Date).ToString("o")
 $script:RuntimePid = $null
 $script:TunnelPid = $null
 $script:Exiting = $false
 
-try { Start-RevitGptRuntime } catch { Write-TrayLog ("Slim MCP start failed: " + $_.Exception.Message) }
-try { Start-RevitGptTunnel } catch { Write-TrayLog ("Tunnel start failed: " + $_.Exception.Message) }
+try { Start-RevitGptRuntime; Set-StartupStage 'runtime_started' } catch { Set-StartupStage 'runtime_failed'; Write-TrayLog ("Slim MCP start failed: " + $_.Exception.Message) }
+try { Start-RevitGptTunnel; Set-StartupStage 'tunnel_started' } catch { Set-StartupStage 'tunnel_failed'; Write-TrayLog ("Tunnel start failed: " + $_.Exception.Message) }
 
 $notify = New-Object System.Windows.Forms.NotifyIcon
 $script:TrayBitmap = $null
@@ -445,6 +496,7 @@ if (Test-Path $IconPath) {
     $notify.Icon = [System.Drawing.SystemIcons]::Application
 }
 $notify.Visible = $true
+Set-StartupStage 'tray_initialized'
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusItem = $menu.Items.Add("RevitGPT: checking")
@@ -518,4 +570,5 @@ $timer.Add_Tick({
 })
 $timer.Start()
 Update-Ui
+Set-StartupStage 'message_loop_entered'
 [System.Windows.Forms.Application]::Run()
