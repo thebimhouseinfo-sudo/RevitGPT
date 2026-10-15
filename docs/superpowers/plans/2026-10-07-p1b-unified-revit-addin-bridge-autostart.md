@@ -1,5 +1,7 @@
 # P1B Bridge Hosting Decision + Conditional Revit Add-in Implementation Plan
 
+> **HISTORICAL / SUPERSEDED AS A DEVELOPMENT GATE — 15/10/2026.** Retain evidence and any still-applicable Revit host details only. Current user-level scope is [Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md); see [Change Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Old milestone dependencies, checkpoint/resume, stop/recovery and mandatory test gates below do not govern new implementation. Do not infer current code status from historical plan status.
+
 > **For agentic workers:** This plan is evidence-gated. Do **not** implement a native bridge before E-PY selects that architecture.
 
 **Goal:** Determine whether the existing pyRevit bridge can remain a separate, fully automatic and invisible RevitGPT infrastructure component. Only if it cannot meet the production contract after bounded remediation should RevitGPT build one unified native add-in containing both bridge and docked WebView.
