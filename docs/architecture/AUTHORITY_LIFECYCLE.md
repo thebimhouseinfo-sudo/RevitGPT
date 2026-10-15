@@ -1,5 +1,7 @@
 # RevitGPT — Canonical Runtime, Model Authority & Stop Lifecycle
 
+> **SUPERSEDED AS CURRENT P1/STOP CONTRACT — 15/10/2026.** The model-based CAD/BIM Assistant goal and simplified phase scope in [Product Goal & Phase Plan](../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md) prevail. Use binding/host identity and healthy-layer connection concepts below as technical background; **do not** treat STOP_PENDING, STOP_BLOCKED, durable journal, reboot reconciliation or future Job continuation admission as approved product requirements or release gates. If existing code implements these, do not delete it without a separately approved impact review. See [Supersession Register](../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
+
 **Status:** **P1 CANONICAL TARGET CONTRACT** (approved Phase Goal, 2026-10-13 Rev9). **Implementation verification: IN PROGRESS; this document does not claim the current runtime already conforms.**
 
 **Applies to:** RevitGPT Brain/control plane, Slim MCP, Native Revit Bridge, Python Revit MCP, transport sessions, dockable panel, SYSTEM tools and future Job Runtime integration.
