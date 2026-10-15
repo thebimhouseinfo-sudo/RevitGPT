@@ -156,7 +156,8 @@ try {
     $StartupKey = $key
     $StartupName = 'RevitGPT'
     $TrayLauncherPath = $launcher
-    New-Item -Path $key -ErrorAction Stop | Out-Null
+    # -Force is confined to this unique disposable test key, never the real Run key.
+    New-Item -Path $key -Force -ErrorAction Stop | Out-Null
     New-ItemProperty -Path $key -Name CadGPT -Value 'cadgpt-preserve' -PropertyType String | Out-Null
     New-ItemProperty -Path $key -Name GPTWorker -Value 'worker-preserve' -PropertyType String | Out-Null
     New-ItemProperty -Path $key -Name OtherApp -Value 42 -PropertyType DWord | Out-Null
