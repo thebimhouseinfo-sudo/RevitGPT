@@ -1,5 +1,7 @@
 # P2C — Lifecycle hardening before one-click leasing
 
+> **HISTORICAL / SUPERSEDED AS A DEVELOPMENT GATE — 15/10/2026.** Retain evidence and any still-applicable Revit host details only. Current user-level scope is [Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md); see [Change Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Old milestone dependencies, checkpoint/resume, stop/recovery and mandatory test gates below do not govern new implementation. Do not infer current code status from historical plan status.
+
 P2B host tests: user reports 6/6 PASS for two disposable RVTs.
 
 - MCP admission is now a boolean scoped to **one MCP server/transport instance**. Never authorize another session merely because both sessions advertise the same subject/session header. Session recovery requires fresh admission.
