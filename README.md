@@ -1,6 +1,6 @@
 # RevitGPT
 
-> **Planning authority (15/10/2026):** [Product Goal & P1/P2/P3](docs/roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md) defines user-approved scope and work lifecycle. Historical stop-drain, checkpoint and cross-crash Job-resume plans are **not** product requirements. See [Supersession Register](docs/roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). This note changes documentation priority only, not runtime code or current installation.
+> **Planning authority (15/10/2026):** [Product Goal & P1/P2/P3](docs/roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md) defines user-approved scope and work lifecycle. Current P1 execution scope: [P1 Stable Connection](docs/roadmap/P1_STABLE_CONNECTION_CURRENT.md). Historical stop-drain, checkpoint and cross-crash Job-resume plans are **not** product requirements. See [Supersession Register](docs/roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). This note changes documentation priority only, not runtime code or current installation.
 
 RevitGPT is the ChatGPT-to-Revit runtime currently under active development.
 
