@@ -34,6 +34,27 @@ class DynamoPreflightTests(unittest.TestCase):
             with self.assertRaises(DynamoPreflightError):
                 validate_staged_dyn(str(graph), tmp)
 
+    def test_allow_built_in_codeblock_and_core_zerotouch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            graph = Path(tmp) / "builtins.dyn"
+            graph.write_text(json.dumps({
+                "Nodes": [
+                    {"Id": "a", "NodeType": "CodeBlockNode",
+                     "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+                     "Code": "1+1;"},
+                    {"Id": "b", "NodeType": "FunctionNode",
+                     "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+                     "FunctionSignature": "DSCore.List.Count@var[]..[]"}
+                ],
+                "Connectors": []
+            }), encoding="utf-8")
+            self.assertEqual(validate_staged_dyn(str(graph), tmp)["node_count"], 2)
+            broken = json.loads(graph.read_text(encoding="utf-8"))
+            broken["Nodes"][1]["ConcreteType"] = "Bad.ZeroTouch, ExternalPackage"
+            graph.write_text(json.dumps(broken), encoding="utf-8")
+            with self.assertRaises(DynamoPreflightError):
+                validate_staged_dyn(str(graph), tmp)
+
     def test_reject_escape_symlink_and_extension(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

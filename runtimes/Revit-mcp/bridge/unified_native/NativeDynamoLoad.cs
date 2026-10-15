@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 
 namespace RevitGPT.Native
 {
-    // DynamoRevit bridge: LOAD .dyn into MANUAL workspace ONLY. Never RUN.
+    // DynamoRevit bridge: explicit LOAD-only or native-engine AUTORUN via journal flags.
     // Still requires per-operation Native-pane consent on disposable RVT and
     // final host no-run evidence; source presence does NOT certify no side effects.
     internal static class NativeDynamoLoad
@@ -52,6 +52,11 @@ namespace RevitGPT.Native
         {
             try
             {
+                // Load and execute are distinct operations. Execution is only
+                // requested by the explicit revit_run_dyn_file tool.
+                if (payload["run"] != null && payload["run"].Type != JTokenType.Boolean)
+                    return Error(400, "run must be a boolean.");
+                bool autoRun = payload.Value<bool?>("run") ?? false;
                 string path = payload.Value<string>("path");
                 if (!IsLocalTrustedFile(path))
                     return Error(403, "Only trusted local managed .dyn staging files are allowed.");
@@ -73,8 +78,8 @@ namespace RevitGPT.Native
                 var edges = graph["Connectors"] as JArray;
                 if (nodes == null || edges == null || nodes.Count > 1000 || edges.Count > 4000)
                     return Error(400, "Invalid/bounded Dynamo graph structure.");
-                var banned = new[] { "pythonscript", "pythonnode", "codeblocknode",
-                    "scriptevaluator", "zerotouch", "process.start",
+                var banned = new[] { "pythonscript", "pythonnode",
+                    "scriptevaluator", "process.start",
                     "system.io", "file.write", "webrequest" };
                 foreach (JToken item in nodes)
                 {
@@ -86,12 +91,20 @@ namespace RevitGPT.Native
                     }.Select(key => node[key]?.ToString() ?? "")).ToLowerInvariant();
                     if (banned.Any(identity.Contains))
                         return Error(403, "Dynamo graph has unsafe executable/custom nodes.");
+                    // Built-in DynamoCore ZeroTouch and DesignScript CodeBlocks
+                    // are normal .dyn nodes. Unknown external executable
+                    // assemblies must not pass the unattended runner.
+                    string concrete = node.Value<string>("ConcreteType") ?? "";
+                    if (identity.Contains("zerotouch") &&
+                        (!concrete.Trim().EndsWith(", DynamoCore", StringComparison.Ordinal) ||
+                         String.IsNullOrWhiteSpace(node.Value<string>("FunctionSignature"))))
+                        return Error(403, "Unreviewed ZeroTouch function.");
                 }
 
-                // Source-code verified journal flags:
-                // dynAutomation=false (true executes REGARDLESS of dynPathExecute);
-                // dynForceManualRun=true and dynPathExecute=false.
-                // Nothing in this adapter calls Run, RunExpression or evaluates nodes.
+                // DynamoRevit executes in its own engine. Never perform graph
+                // node evaluation here or convert nodes to MCP tool calls.
+                // The ExecuteCommand "Succeeded" response only proves dispatch;
+                // graph completion/element mutations must be tested in Revit.
                 Type commandType = Type.GetType(
                     "Dynamo.Applications.DynamoRevit, DynamoRevit", throwOnError: false);
                 Type dataType = Type.GetType(
@@ -102,11 +115,11 @@ namespace RevitGPT.Native
                 object data = Activator.CreateInstance(dataType);
                 dataType.GetProperty("Application")?.SetValue(data, app);
                 var journal = new Dictionary<string, string>(StringComparer.Ordinal) {
-                    { "dynShowUI", "True" },
-                    { "dynAutomation", "False" },
+                    { "dynShowUI", autoRun ? "False" : "True" },
+                    { "dynAutomation", autoRun ? "True" : "False" },
                     { "dynPath", path },
-                    { "dynPathExecute", "False" },
-                    { "dynForceManualRun", "True" },
+                    { "dynPathExecute", autoRun ? "True" : "False" },
+                    { "dynForceManualRun", autoRun ? "False" : "True" },
                     { "dynModelShutDown", "False" }
                 };
                 var property = dataType.GetProperty("JournalData");
@@ -122,13 +135,16 @@ namespace RevitGPT.Native
                 if (!String.Equals(result?.ToString(), "Succeeded", StringComparison.Ordinal))
                     return Error(409, "Dynamo did not confirm workspace open.");
                 return Data(new {
-                    status = "LOADED_MANUAL_HOST_UNVERIFIED",
+                    status = autoRun
+                        ? "DYNAMO_AUTORUN_DISPATCHED_OUTCOME_UNVERIFIED"
+                        : "LOADED_MANUAL_HOST_UNVERIFIED",
                     file_sha256 = digest,
                     node_count = nodes.Count,
-                    graph_execution_requested = false,
-                    automation_mode = false,
-                    force_manual_run = true,
-                    host_no_run_evidence_pending = true
+                    graph_execution_requested = autoRun,
+                    automation_mode = autoRun,
+                    force_manual_run = !autoRun,
+                    host_run_evidence_pending = autoRun,
+                    host_no_run_evidence_pending = !autoRun
                 });
             }
             catch (TargetInvocationException ex)

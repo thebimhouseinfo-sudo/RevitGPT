@@ -78,7 +78,7 @@ def register(mcp) -> None:
             x: X coordinate in feet.
             y: Y coordinate in feet.
             z: Z coordinate in feet (default 0).
-            text_type: Optional text note type name. Uses project default if not provided.
+            text_type: Optional exact text note type name; otherwise use the project\n                default TextNoteType (even when multiple types exist).
             document_id: Optional document ID. Uses active document if not provided.
 
         Returns the created text note with its ID, text, and location.

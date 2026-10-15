@@ -96,6 +96,7 @@ jobs:
         run: |
           node scripts/audit-revit-mcp-coverage.mjs
           node scripts/test-revit-mcp-coverage.mjs
+          node scripts/test-dynamo-writer.mjs
 
       - name: Test RevitGPT fake CLI read-only routing and negative controls
         shell: pwsh

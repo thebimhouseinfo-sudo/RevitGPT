@@ -381,6 +381,22 @@ def load_dyn_file(path: str, document_id: str | None = None) -> dict:
                          method="POST", timeout=WRITE_TIMEOUT)["data"]
 
 
+def run_dyn_file(path: str, document_id: str | None = None) -> dict:
+    """Explicitly dispatch a staged graph for native DynamoRevit autorun.
+
+    DynamoRevit's command result is not graph-completion evidence. Do not
+    auto-retry an ambiguous write after HTTP timeout.
+    """
+    from services.dynamo_preflight import validate_staged_dyn
+    report = validate_staged_dyn(path)
+    payload = {"path": report["path"], "sha256": report["sha256"], "run": True}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/dynamo/load", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
+
 def create_or_duplicate_view(action: str, name: str | None = None,
                              level_id: str | None = None,
                              source_view_id: str | None = None,

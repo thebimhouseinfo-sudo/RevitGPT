@@ -14,8 +14,8 @@ MAX_GRAPH_BYTES = 2 * 1024 * 1024
 MAX_NODES = 1000
 MAX_CONNECTORS = 4000
 BANNED_MARKERS = (
-    "pythonscript", "pythonnode", "codeblocknode", "scriptevaluator",
-    "zerotouch", "process.start", "system.io", "file.write", "webrequest",
+    "pythonscript", "pythonnode", "scriptevaluator",
+    "process.start", "system.io", "file.write", "webrequest",
 )
 
 
@@ -64,6 +64,13 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
             raise DynamoPreflightError("Executable or unsafe node type requires manual review")
         if not node.get("Id"):
             raise DynamoPreflightError("Every node requires an ID")
+        if "zerotouch" in identity and (
+            not str(node.get("ConcreteType", "")).strip().endswith(", DynamoCore")
+            or not isinstance(node.get("FunctionSignature"), str)
+            or not node["FunctionSignature"].strip()
+        ):
+            raise DynamoPreflightError("Unreviewed ZeroTouch function")
+
     # This is validation ONLY. A future host adapter must separately enforce
     # no-evaluation MANUAL launch, inspect dependencies and prove zero effects.
     return {

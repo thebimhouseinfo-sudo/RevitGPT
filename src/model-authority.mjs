@@ -18,12 +18,12 @@ const UI_ACTIONS = new Set(["revit_set_selection", "revit_show_elements", "revit
 // Document. They must reject a different active tab; document-scoped reads
 // and model writes can still target the verified bound Document safely.
 const UI_SCOPED_READS = new Set(["revit_get_active_view", "revit_get_selection"]);
-const UI_SCOPED_WRITES = new Set(["revit_load_dyn_file"]);
+const UI_SCOPED_WRITES = new Set(["revit_load_dyn_file", "revit_run_dyn_file"]);
 export function requiresActiveBoundModel(name) {
   return UI_ACTIONS.has(name) || UI_SCOPED_READS.has(name) || UI_SCOPED_WRITES.has(name);
 }
 const MODEL_WRITES = new Set([
-  "revit_load_dyn_file", "revit_create_or_duplicate_view", "revit_manage_view_filters", "revit_batch_tag", "revit_update_annotation", "revit_update_schedule", "revit_create_slab", "revit_format_view", "revit_manage_sheet", "revit_batch_set_parameters", "revit_copy_parameters", "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
+  "revit_load_dyn_file", "revit_run_dyn_file", "revit_create_or_duplicate_view", "revit_manage_view_filters", "revit_batch_tag", "revit_update_annotation", "revit_update_schedule", "revit_create_slab", "revit_format_view", "revit_manage_sheet", "revit_batch_set_parameters", "revit_copy_parameters", "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
   "revit_set_parameter", "revit_delete_elements", "revit_move_element",
   "revit_create_text_note", "revit_create_tag", "revit_create_dimension",
   "revit_create_spot_elevation", "revit_create_detail_line"
