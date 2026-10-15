@@ -1,5 +1,7 @@
 # P2E compatibility: ChatGPT connector still advertises retired pairing tools
 
+> **HISTORICAL / SUPERSEDED AS A DEVELOPMENT GATE — 15/10/2026.** Retain evidence and any still-applicable Revit host details only. Current user-level scope is [Product Goal & P1/P2/P3](../../roadmap/PRODUCT_GOAL_AND_PHASE_PLAN.md); see [Change Register](../../roadmap/PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md). Old milestone dependencies, checkpoint/resume, stop/recovery and mandatory test gates below do not govern new implementation. Do not infer current code status from historical plan status.
+
 ## Live evidence (2026-10-08)
 In WebView2, ChatGPT displayed `NATIVE_MUTATIONS_NOT_ENABLED` and concluded
 model reads were blocked. The local tool-calls log shows the *actual* failed
