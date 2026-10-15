@@ -54,6 +54,25 @@ assert.equal(ok.manager.status().phase, "sleeping");
 assert.equal(ok.calls.close, 1);
 assert.equal(ok.manager.status().tool_count, 0);
 
+// Admission and watcher must share the same cold start, including failure.
+const concurrent = makeFixture();
+const [admission, watcher] = await Promise.all([
+  concurrent.manager.activate(), concurrent.manager.activate()
+]);
+assert.deepEqual(admission, concurrent.inventory);
+assert.deepEqual(watcher, concurrent.inventory);
+assert.equal(concurrent.calls.connect, 1, "no duplicate Python process");
+assert.equal(concurrent.calls.list, 1, "no duplicate inventory request");
+assert.equal(concurrent.calls.close, 0, "successful competing activation must not close winner");
+
+const competingFailure = makeFixture({ breakConnect: true });
+const failures = await Promise.allSettled([
+  competingFailure.manager.activate(), competingFailure.manager.activate()
+]);
+assert.deepEqual(failures.map(x => x.status), ["rejected", "rejected"]);
+assert.equal(competingFailure.calls.connect, 1, "failure shared by both callers");
+assert.equal(competingFailure.calls.close, 1, "failed transport cleaned up exactly once");
+
 const noList = makeFixture({ hangList: true });
 await assert.rejects(noList.manager.activate(), /initial tools\/list timed out/);
 assert.equal(noList.calls.close, 1, "frozen listTools must close transport");
