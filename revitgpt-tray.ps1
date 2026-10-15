@@ -16,6 +16,7 @@ $StartupName = "RevitGPT"
 $TrayScriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
 $TrayLauncherPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "revitgpt-tray.vbs"))
 . (Join-Path $ScriptDir "scripts\revitgpt-startup-registration.ps1")
+. (Join-Path $ScriptDir "scripts\revitgpt-scheduled-startup.ps1")
 $IconPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "assets\revitgpt-tray.png"))
 $IndexPath = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "src\index.mjs"))
 $TunnelExe = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "bin\tunnel-client.exe"))
@@ -97,23 +98,54 @@ function Set-ExplicitStandby {
 }
 
 function Show-StartupRegistrationStatus {
+    $taskStatus = Get-RevitGptStartupTaskStatus $TrayLauncherPath
+    if ($taskStatus -eq 'INSTALLED') {
+        Write-Host "Windows Startup  : INSTALLED (SCHEDULED_TASK_WSCRIPT)"
+        return
+    }
     $info = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-    Write-Host "Windows Startup  : $($info.Status) ($($info.Reason))"
+    Write-Host "Windows Startup  : $($info.Status) (HKCU_RUN_$($info.Reason); TASK_$taskStatus)"
     if ($info.Status -ne 'INSTALLED') {
-        Write-Host "[WARN] RevitGPT logon startup is not verified for this checkout. Use run.bat install after review."
-    } else {
-        Write-Host "[INFO] HKCU Run value valid; whether Windows Startup Apps actually executes it needs real logon evidence."
+        Write-Host "[WARN] RevitGPT logon startup is not installed for this checkout. Run run.bat install."
     }
 }
 
 function Install-StartupRegistration {
+    $taskWasInstalled = (Get-RevitGptStartupTaskStatus $TrayLauncherPath) -eq 'INSTALLED'
+    $taskError = $null
+    try { Install-RevitGptStartupTask $TrayLauncherPath }
+    catch { $taskError = $_.Exception.Message }
+
+    if (-not $taskError) {
+        # GPTWorker pattern: exactly one startup authority. Remove only our
+        # previous HKCU Run value once the scheduled action has been verified.
+        try {
+            $run = Get-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+            if ($run.Status -in @('INSTALLED','STALE')) {
+                $null = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
+            } elseif ($run.Status -ne 'MISSING') {
+                throw "STARTUP_RUN_CONFLICT: $($run.Status)"
+            }
+        } catch {
+            if (-not $taskWasInstalled) { Remove-RevitGptStartupTask $TrayLauncherPath }
+            throw
+        }
+        Write-Host "[OK] RevitGPT Windows user logon startup: INSTALLED (Scheduled Task -> wscript.exe)."
+        return
+    }
+
+    # The fallback is only permitted when no scheduled task remains active.
+    $state = Get-RevitGptStartupTaskStatus $TrayLauncherPath
+    if ($state -eq 'INSTALLED') { Remove-RevitGptStartupTask $TrayLauncherPath }
+    elseif ($state -ne 'MISSING') { throw "STARTUP_TASK_UNSAFE: $state ($taskError)" }
     $info = Install-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName -AllowOwnedMigration -AllowStaleMigration
-    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status) (registry value read back)."
+    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status) (HKCU Run fallback; $taskError)."
 }
 
 function Remove-StartupRegistration {
+    Remove-RevitGptStartupTask $TrayLauncherPath
     $info = Remove-RevitGptStartupRegistration -RegistryPath $StartupKey -LauncherPath $TrayLauncherPath -Name $StartupName
-    Write-Host "[OK] RevitGPT Windows user logon startup: $($info.Status)."
+    Write-Host "[OK] RevitGPT Windows user logon startup removed: $($info.Status)."
 }
 
 function Get-PortOwnerPid([int]$TargetPort) {
