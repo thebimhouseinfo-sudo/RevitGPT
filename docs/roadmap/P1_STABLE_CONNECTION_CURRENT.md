@@ -2,7 +2,7 @@
 
 **Goal / Mục tiêu:** RevitGPT kết nối ổn định với Revit và đúng model người dùng chủ động bind. P1 phục vụ người dùng gọi Job trên model đang mở; không biến kết nối thành một hệ thống quản lý/tiếp tục công việc dài hạn.
 
-**Trạng thái:** Kế hoạch P1 thay thế Rev9 từ 15/10/2026. Nhiều tính năng kết nối đã được Human Test trước đây. **Bản code được đơn giản hóa trên branch hiện tại vẫn phải qua CI và test ảnh hưởng thực tế trước khi release**; không dùng kết quả Human Test của bản cũ để chứng nhận mã mới.
+**Trạng thái: P1 CLOSED — HUMAN ACCEPTED (15/10/2026).** Người dùng chốt PASS và yêu cầu đóng P1 sau regression trên Revit thực. Source đã merge vào `main`, gồm startup hardening PR #7/#8/#9; CI startup và toàn dự án PASS trên revision tương ứng. Việc đóng P1 là quyết định chấp nhận phạm vi kết nối, **không phải** tuyên bố mọi test lịch sử hay mọi công cụ P2 đã PASS.
 
 **Nguồn phạm vi:** [Product Goal & P1/P2/P3](PRODUCT_GOAL_AND_PHASE_PLAN.md). [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md) giải thích tài liệu/gate cũ nào không còn dùng.
 
@@ -39,7 +39,7 @@
 
 **Human Test khi bản triển khai thay đổi thực sự ảnh hưởng P1:** Kiểm tra một model mở/bind, hai chat dùng chung model, chuyển tab không rebind, đóng/mở model, một lỗi tool nhưng kết nối vẫn hoạt động, panel và sleep/wake nếu liên quan diff. Không dùng lỗi Write/annotation/parameters nghiệp vụ làm lý do P1 fail; lỗi đó đi P2. Các bài trước đã PASS mà code không đụng tới chỉ cần đối chiếu regression, không yêu cầu test lại vô ích.
 
-**Trạng thái:** CI PASS chỉ là offline PASS. Host PASS của **code sửa** chưa được tuyên bố khi chưa test trên Revit thực. Không merge/deploy cho tới khi người dùng duyệt.
+**Kết quả:** CI PASS (offline), real-Revit regression 15/10/2026 PASS với `@rg` → `FULLY_AWAKE`, bridge ON, 64 MCP tools, binding `BOUND_CURRENT`, đọc document/level/view/selection, một native tool 404 và lượt đọc kế tiếp vẫn thành công; binding/host vẫn giữ. Autostart đã được người dùng xác nhận ổn. Các tình huống hai chat/chuyển tab/close-reopen/sleep-wake có bằng chứng Human Test các phiên trước, không chạy lại trong regression cuối. Người dùng đã chấp nhận đóng P1; không mở lại các gate cũ đã supersede.
 
 ## Phạm vi và phụ thuộc các phase tiếp theo
 
@@ -53,3 +53,12 @@
 - Đề xuất về retry/durable resume/journal/cursor/stop-drain không được thêm vào P1 nếu không có yêu cầu mới.
 - Không xây thêm thủ tục để xử lý hậu quả của hàng nghìn lượt gọi MCP vì cách thực hiện mặc định là **một vài lượt MCP + xử lý dữ liệu + Dynamo**.
 - Các test cũ kiểm tra chức năng đã supersede không còn là gate P1, kể cả khi còn file lịch sử.
+
+## P1 closure record — 15/10/2026
+
+- **Human disposition:** PASS / CLOSE P1, tiếp tục P2; không tạo thêm gate P1.
+- **Implemented:** Windows hidden autostart (Scheduled Task `RevitGPT Startup` với HKCU Run fallback), connection control plane, đúng host/bound model, read tool dispatch, tool-error isolation và startup diagnostics.
+- **Live regression observed:** Revit process 2548, model `RG_H03_TEST`, same active/bound id `30988800`, level GF; safe invalid-element read returned HTTP 404; subsequent read and binding succeeded; runtime remained FULLY_AWAKE. Đây là bằng chứng từ một lượt test, không chứng minh hai chat/close-reopen/sleep-wake được chạy lại.
+- **Prior live evidence retained:** multi-chat, tab/binding, panel và sleep/wake đã được kiểm thử ở các phiên trước và được người dùng chấp nhận, không yêu cầu lặp lại.
+- **Do not reopen scope:** Correctness Revit Read/Write/MEP/Annotation/Parameters/Dynamo = P2; Operator/Builder, saved Jobs, Dynamo Writer, Knowledge = P3. Các historical journal/STOP/replay gates không còn thuộc P1.
+- **Next:** Review hiện trạng 64 MCP tools; chỉ sửa tool sai/thiếu, xác minh theo nhóm và tổ chức một đợt Human Test P2 thực tế. Kết quả P1 không chứng nhận tool P2.
