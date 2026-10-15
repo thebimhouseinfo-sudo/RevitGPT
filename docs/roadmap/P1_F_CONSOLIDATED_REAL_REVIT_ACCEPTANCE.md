@@ -1,5 +1,7 @@
 # P1-F — Consolidated Real Revit Acceptance (Human Test)
 
+> **SUPERSEDED AS REQUIRED P1 ACCEPTANCE MATRIX — 15/10/2026.** P1 only needs to prove stable connection, binding, multi-chat, panel, idle/sleep-wake and Revit open/close behavior as scoped by [Product Goal & Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md). H03 real-write/tool correctness belongs to P2; H04 rg/stop draining and H06 unresolved crash-journal testing are **no longer P1 gates**. Previously completed human evidence remains valid; historical `NOT RUN` rows are not proof that P1 core is blocked. Refer to [Change Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
+
 **Status:** PREPARED / **NOT RUN**. **Goal:** Confirm the P1 Stable Runtime & Connection Phase Goal in one human-host test round, without mistaking CI fixtures for real Revit API execution.
 
 **Branch under test:** `work/p1-stable-runtime-20261013`. Before installing, pin the actual Git SHA, PR #2 CI result, native add-in binary hash and current Revit host identity. The currently installed add-in has already been used; avoid reinstalling or overwriting it until the offline reviewer proves what changed and a reversible installation path is prepared.
