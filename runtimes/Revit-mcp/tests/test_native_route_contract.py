@@ -92,6 +92,22 @@ class RouteParityTests(unittest.TestCase):
         self.assertIn('if (requireWritable && list[0].IsReadOnly)', batch)
         self.assertNotIn('Parameter sourceParameter = Resolve(source, from);', batch)
 
+    def test_text_note_uses_project_default_type_and_does_not_guess(self):
+        writes = (BASE / "bridge" / "unified_native" / "NativeWriteOperations.cs").read_text(encoding="utf-8")
+        annotations = (BASE / "tools" / "annotation_tools.py").read_text(encoding="utf-8")
+        self.assertIn("doc.GetDefaultElementTypeId(ElementTypeGroup.TextNoteType)", writes)
+        self.assertIn('FindType<TextNoteType>(doc, requestedType)', writes)
+        self.assertIn("Project default TextNoteType not found.", writes)
+        self.assertIn("project\\n                default TextNoteType", annotations)
+        self.assertNotIn('FindType<TextNoteType>(doc, Token(p, "text_type"))', writes)
+
+    def test_temporary_category_no_matches_is_truthful_noop(self):
+        router = (BASE / "bridge" / "unified_native" / "RevitApiRouter.cs").read_text(encoding="utf-8")
+        self.assertIn('if (category == null)', router)
+        self.assertIn('no_matching_elements = true', router)
+        self.assertIn('changed = false, complete = true', router)
+        self.assertIn('if (mode == "hide") view.HideElementsTemporary(ids)', router)
+
     def test_create_view_rejects_ambiguous_family_type(self):
         view_create = (BASE / "bridge" / "unified_native" / "NativeViewCreate.cs").read_text(encoding="utf-8")
         self.assertIn('view_family_type_id required unless exactly one suitable ViewFamilyType exists.', view_create)
