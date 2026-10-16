@@ -23,7 +23,9 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 - `capability_id`: a sharable functional handle; never exclusive tool ownership.
 - `operation_id`: one Revit command submitted to the queue; links caller, model binding snapshot and result.
 
-## 2. Implementation order, each item independently testable
+## 2. Implementation workstreams (recommended order, NOT sequential approval gates)
+
+P3-A/B/C/D/E/F can be built or reviewed in parallel when they do not share interfaces; only actual technical dependencies control sequencing. P3-G exercises the integrated behavior when relevant functions exist. Never hold back authoring, Temp Jobs or Dynamo live testing merely because an unrelated workstream is unfinished.
 
 ### P3-A — Model Anchor and owned file operations
 **Goal:** Revit model is the workspace and each run has a safe result directory.
@@ -35,17 +37,19 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 ### P3-B — Unified queue at Revit-entry boundary
 **Goal:** ALL requests entering Revit are registered and serialized, including read, write, view/selection, Dynamo load/run and save.
 1. Trace the actual `src/index.mjs -> src/revit-upstream.mjs -> Python bridge -> Native ExternalEvent` paths. Identify the **single common bridge boundary**; ensure diagnostics that do not enter Revit remain outside this queue.
-2. Add or verify one FIFO dispatcher for the one bound host/model; **first inspect the real Native listener/ExternalEvent request implementation**, since a queue in Node alone may miss other Revit-entry paths; each operation captures identity and `operation_id`, its caller/`job_run_id`, and one settled result. Do not add a second queue upstream of an already authoritative Native queue unless actual code proves the existing queue cannot serialize all Revit entry paths.
+2. Audit actual Native listener, ExternalEvent and Dynamo execution lifecycle, then add or verify one FIFO dispatcher for the one bound host/model; **first inspect the real Native listener/ExternalEvent request implementation**, since a queue in Node alone may miss other Revit-entry paths; each operation captures identity and `operation_id`, its caller/`job_run_id`, and one settled result. Do not add a second queue upstream of an already authoritative Native queue unless actual code proves the existing queue cannot serialize all Revit entry paths.
 3. All Revit-facing tools (including direct Builder calls, reads, Dynamo, Save) must take the same path. The queue holds **only an operation**, never the full Job or a global tool. Before execution, verify it still targets the bound model; closing/crashing Revit produces factual failure/unknown outcome, no replay.
-4. FIFO arrival ordering and head-of-line behavior must be visible enough to diagnose but should not generate a new durable Journal. Explicit operation result attribution belongs to the caller.
+4. **A Dynamo command must retain the Revit execution slot until its actual graph execution is complete or its outcome is explicitly unknown**; receipt of a DynamoRevit dispatch acknowledgment (`DYNAMO_AUTORUN_DISPATCHED_OUTCOME_UNVERIFIED`) is not terminal completion. Investigate how Native can observe graph completion without guessing. If native completion cannot currently be observed, mark this a specific integration gap to implement/verify; do not silently release the queue on dispatch, auto-retry or invent a Job-level gate.
+5. FIFO arrival ordering and head-of-line behavior must be visible enough to diagnose but should not generate a new durable Journal. Explicit operation result attribution belongs to the caller.
 **Tests:** Two concurrent chats enqueue read/Dynamo/write/Save without overlap; ordered execution; per-job error isolation; tab change cannot redirect; Revit disappearance cannot execute queued writes in a newly opened host; tests against real Revit for actual Revit serialization.
 
-### P3-C — Shared Capability ID bookkeeping
-**Goal:** Parallel Jobs can use the same file/dynamo/tool functionality concurrently.
-1. Reuse `src/capability-registry.mjs` and existing registered tools. Add the **smallest** `capability_borrow`/`capability_release` (and optional status) interface keyed by `job_run_id`, not by Chat ID or a locked tool instance. A capability record identifies functionality; it is nonexclusive.
-2. Capability borrowing never supersedes P1 bound-model authority, filesystem ownership or Revit FIFO. Different Jobs may borrow `file.write` and write their own JSON at once.
-3. On normal Job terminal result, return borrowed capability records. No crash replay, timeout-based job termination or lease renewal policy.
-**Tests:** A/B borrowing same ID succeeds, no blocking of independent work; release A does not affect B; an invalid capability has an explicit error; no authorization bypass from borrowed ID.
+### P3-C — Discovery Registry and Shared Capability ID bookkeeping
+**Goal:** ChatGPT can quickly discover available tools, Dynamo and reusable Jobs via Registry without scanning their folders; parallel Jobs may borrow the same capability concurrently. **Registry is a catalog/index, never an execution-approval gate.**
+1. Reuse `src/capability-registry.mjs` and existing `registry_list/search/get` tools as the fast discovery catalog for MCP tools, saved Dynamo and reusable Jobs. Entries expose names, command IDs, descriptions, kinds and locations needed to choose an action; no folder-wide scan required on each request. Missing/stale Registry entries must not prohibit Builder's explicit owner-local draft load/run/test or direct available MCP calls. Register reusable assets as a normal catalog update only after user-requested Save/Register or reusable Job verification; do not make that update an approval procedure.
+2. Add the **smallest** `capability_borrow`/`capability_release` (and optional status) interface keyed by `job_run_id`, not by Chat ID or a locked tool instance. A capability record identifies functionality; it is nonexclusive.
+3. Capability borrowing never supersedes P1 bound-model authority, filesystem ownership or Revit FIFO. Different Jobs may borrow `file.write` and write their own JSON at once.
+4. On normal Job terminal result, return borrowed capability records. No crash replay, timeout-based job termination or lease renewal policy.
+**Tests:** Registry lists/searches actual tools, Dynamo and saved Jobs without scanning bundles; unregistered draft can still load/run when explicitly requested; stale Registry entry reports unavailable capability without preventing owner-local work. A/B borrowing same ID succeeds, no blocking of independent work; release A does not affect B; an invalid capability has an explicit error; no authorization bypass from borrowed ID.
 
 ### P3-D — Single Job contract and ChatGPT execution rules
 **Goal:** Operator runs reusable Jobs exactly; Builder creates/edits/tests Jobs and executes Temp/Disposal Jobs.
@@ -61,16 +65,17 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 **Goal:** Builder can author/read/edit/debug real Dynamo graphs instead of producing imaginary Python-shaped `.dyn` files.
 1. Add lean Dynamo coding skill + minimal local invariants, verified graph fixtures, version context and permitted official Autodesk/Dynamo reference domains. Never invent node IDs, ports, dependencies, connectors, package APIs or assume Python is a Dynamo graph.
 2. Support practical graph authoring/editing within **the owning Job/Dynamo folder**. Prefer stable `.dyn` Engine + variable JSON/CSV Data without requiring separation for every graph. Preserve graph identities and user-provided data.
-3. Draft Dynamo **loads/runs on real Revit immediately when requested**, even before Registry promotion. Static/schema checks and graph reasoning are optional debugging aids, never prerequisites that block a requested live test.
-4. Selective Temp Job Dynamo promotion: only on explicit user instruction. Check Registry name/command-ID collision; if clear, copy engine/template/required dependencies into own library directory, adjust paths, register, verify. Conflict -> ask which resolution; no extra approval or mandatory retest of unchanged live-tested graph.
+3. **Reuse and adjust the existing** `skills/write-dynamo/SKILL.md`, `knowledge/dynamo/DYNAMO_WRITER_RULES.md` and `src/dynamo-draft.mjs`; do not introduce a second harness. Remove mandatory workspace/dynamo-draft, validate-stage and pre-run gating from their current rules. Keep useful schema/port safeguards as optional diagnostics; never fake Python structures as Dynamo graphs.
+4. Draft Dynamo **loads/runs on real Revit immediately when requested**, even before Registry promotion. Static/schema checks and graph reasoning are optional debugging aids, never prerequisites that block a requested live test.
+5. Selective Temp Job Dynamo promotion: only on explicit user instruction. Check Registry name/command-ID collision; if clear, copy engine/template/required dependencies into own library directory, adjust paths, register, verify. Conflict -> ask which resolution; no extra approval or mandatory retest of unchanged live-tested graph.
 **Tests:** Create/edit one real graph and run it via verified P2 loader/runner, inspect result; reproduce and fix a real bad node/API case; edit Data while keeping Engine stable; promote one Temp-produced Dynamo, then clean Temp bundle without breaking promoted Dynamo.
 
 ### P3-F — Working Knowledge (user-provided)
 **Goal:** ChatGPT can retrieve the user's actual model-use rules and system/workflow practices to write correct Jobs and Temp Jobs.
-1. Make repository `knowledge/` the authoritative reviewed content; AppData can hold observations/drafts/derived index only. Inspect existing `knowledge_search`/`knowledge_promote` and adapt them, not duplicate a knowledge subsystem.
+1. Make repository `knowledge/` the authoritative reviewed content for user-supplied model/system/workflow rules. Existing `src/appdata.mjs` seeds copies into AppData and `knowledge_search`/`knowledge_promote` operate there: **audit and correct the split-source behavior**. Define a direct edit/organization path for source-controlled user Knowledge, with a derived runtime index/cache that can be refreshed from the source; prevent stale seeded AppData copies from silently overriding the authoritative source. Local failure observations are not automatically accepted user rules. Reuse existing lookup tools and do not duplicate a Knowledge subsystem.
 2. Classify user-supplied knowledge into Revit/model practices, HVAC/system, project-specific and Dynamo coding knowledge. ChatGPT may reorganize, deduplicate and index the supplied content, but may not invent rules or silently generalize project-specific facts.
 3. Retrieval returns source path, context and sufficient provenance to distinguish a user rule from a live model observation. Unknown practice -> ask user or inspect model rather than pretend Knowledge includes it.
-**Tests:** Retrieval of a supplied model workflow improves a Job/Temp Job step; correct scope for project vs global; existing knowledge remains intact; no unsupported invented HVAC rule.
+**Tests:** User provides a rule -> it is organized into authoritative source and is immediately retrievable through the runtime search path; edits/renames are reflected without stale AppData shadowing, while source and derived index remain distinguishable. Retrieval of a supplied model workflow improves a Job/Temp Job step; correct scope for project vs global; existing knowledge remains intact; no unsupported invented HVAC rule.
 
 ### P3-G — End-to-end integrated live acceptance
 **Goal:** Prove the thin bridge actually supports normal use, not an imagined sandbox.
@@ -81,6 +86,7 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 - Reuse prior P1/P2 evidence for unchanged paths; test **only changed integration boundaries** and remaining genuinely unverified functionality.
 
 ## 3. Review rules / implementation constraints
+- **Registry is a fast catalog for ChatGPT discovery** of installed MCP tools, saved Dynamo and Jobs. It is not an execution authorization boundary or a prerequisite for draft authoring/load/run/live test. Real conflict checks (duplicate display name or command ID on save/register) are ordinary error handling, not additional approval gates.
 - No Job-level timeout, auto repair/retry, cross-crash resume, STOP/JOURNAL gates, standalone local reasoning engine, fake Revit simulator acceptance, global tool mutex or entire-Job queue.
 - An HTTP/MCP timeout is **unknown transport outcome**, not proof that a Revit mutation did not execute. Report it; never auto replay writes.
 - Fail when an actual filesystem collision/path issue/model mismatch exists; that is normal error reporting, not an artificial promotion gate.
@@ -102,3 +108,18 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 - **R4 — Operator correctness review:** Found a potential false PASS if a transport response is treated as business success. FIXED P3-D: each Step PASS is based on its declared result/postcondition, otherwise ERROR/UNKNOWN and Stop+Report.
 - **R5 — Final contract review:** No remaining *known* contradictions with Theory V5. No new approvals or test gates added. **RL PASS FOR PLAN CONSISTENCY ONLY**; static tests, real Revit behavior and uninspected Native details remain unverified until implementation.
 
+
+## 6. External Critic findings and Planner revision (2026-10-16)
+| Finding | Resolution in this plan |
+|---|---|
+| CR-01: Existing Dynamo thin harness | P3-E edits existing skill/rules/code; no duplicate harness. |
+| CR-02: Dynamo validate/stage blocks live draft execution | P3-E explicitly removes mandatory gates and preserves optional diagnostics. |
+| CR-03: Source vs seeded AppData Working Knowledge | P3-F defines source authority, immediate user-rule update and derived cache refresh. |
+| CR-04: Dispatch is not Dynamo completion | P3-B requires verified terminal graph outcome before queue release; identifies implementation investigation. |
+| CR-05: Sequential phase gates | Workstreams may progress independently; no artificial P3-A→G approval chain. |
+| User addition: Registry is discovery only | P3-C explicitly makes Registry a quick index across tools, Dynamo and saved Jobs, never a gate. |
+
+### Planner RL continuation
+- **R6 — CR incorporation:** All five findings mapped to precise sections. No new services, review phases or mandatory approval checkpoints proposed.
+- **R7 — Theory consistency:** Operator remains strict PASS/ERROR, Temp Jobs unregistered, draft Dynamo live-runnable, one Revit queue, minimal capability records, automatic requested Dynamo Save/Register. Registry discovery does not override model binding or filesystem protection.
+- **R8 — Scope regression:** Did not reintroduce Direct/Reasoning Job types, Python-as-Dynamo assumptions, Job timeout, automatic retries or registry promotion gates. **PLAN CONSISTENCY PASS**; actual Dynamo graph terminal-completion detection remains a code-level question, not a claimed implementation PASS.
