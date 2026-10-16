@@ -55,7 +55,7 @@ namespace RevitGPT.Native
             try
             {
                 var panel = app.CreateRibbonPanel("RevitGPT"); // Add-Ins tab
-                var open = new PushButtonData("RevitGPT_OpenPane", "Open\nRevitGPT",
+                var open = new PushButtonData("RevitGPT_OpenPane", " ",
                     Assembly.GetExecutingAssembly().Location,
                     typeof(OpenRevitGptPaneCommand).FullName);
                 var button = panel.AddItem(open) as PushButton;
