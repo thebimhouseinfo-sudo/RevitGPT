@@ -28,6 +28,10 @@ export function appDataPath(area, ...parts) {
 export const pythonLibrariesRoot = () => appDataPath("libraries","python");
 export const dynamoLibrariesRoot = () => appDataPath("libraries","dynamo");
 export const jobLibrariesRoot = () => appDataPath("libraries","jobs");
+// P3: independent disposable Job bundles; never added to the reusable Registry.
+export const tempJobsRoot = () => appDataPath("temp-jobs");
+// P3: result storage roots only. Anchor identity is resolved from verified Native model evidence.
+export const modelAnchorsRoot = () => appDataPath("models");
 export const registryRoot = () => appDataPath("registry","user");
 export const registryCapabilitiesPath = () => path.join(registryRoot(),"capabilities.json");
 export const registryLibrariesPath = () => path.join(registryRoot(),"libraries.json");
@@ -44,6 +48,7 @@ export async function ensureAppDataLayout() {
   const dirs=[
     getAppDataRoot(),
     pythonLibrariesRoot(),dynamoLibrariesRoot(),jobLibrariesRoot(),
+    tempJobsRoot(),modelAnchorsRoot(),
     registryRoot(),
     pythonDraftRoot(),dynamoDraftRoot(),jobDraftRoot(),
     dynamicPythonRoot(),runDataRoot(),
@@ -70,6 +75,8 @@ async function ensureJson(target,value){
 export function allowedManagedRoots(){
   return {
     libraries:getAppDataRoot()+path.sep+"libraries",
+    temp_jobs:tempJobsRoot(),
+    models:modelAnchorsRoot(),
     registry:registryRoot(),
     workspace:getAppDataRoot()+path.sep+"workspace",
     runtime:getAppDataRoot()+path.sep+"runtime",
