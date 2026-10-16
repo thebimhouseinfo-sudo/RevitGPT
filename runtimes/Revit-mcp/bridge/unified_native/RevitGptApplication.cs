@@ -65,22 +65,26 @@ namespace RevitGPT.Native
                     // The versioned installer stages this file alongside RevitGPT.Native.dll.
                     // Image is loaded per Revit startup; no rebuild needed for a changed PNG.
                     var iconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "iconaddin.png");
-                    if (File.Exists(iconPath))
+                    if (!File.Exists(iconPath))
+                    {
+                        NativePaneDiagnostics.Record("ribbon_icon_missing", iconPath);
+                    }
+                    else
                     {
                         try
                         {
-                            var image = new BitmapImage();
-                            image.BeginInit();
-                            image.UriSource = new Uri(iconPath, UriKind.Absolute);
-                            image.CacheOption = BitmapCacheOption.OnLoad;
-                            image.EndInit();
-                            image.Freeze();
-                            button.LargeImage = image;
-                            button.Image = image;
+                            // Revit ribbon uses distinct 16x16 and 32x32 resources.
+                            // Decode the original high-resolution PNG at the
+                            // requested dimensions instead of assigning one
+                            // 350px bitmap to both image slots.
+                            button.Image = LoadRibbonIcon(iconPath, 16);
+                            button.LargeImage = LoadRibbonIcon(iconPath, 32);
+                            NativePaneDiagnostics.Record("ribbon_icon_loaded", iconPath);
                         }
                         catch (Exception iconError)
                         {
-                            Debug.WriteLine("[RevitGPT] Optional ribbon icon could not be loaded: " + iconError);
+                            NativePaneDiagnostics.Record("ribbon_icon_failed", iconPath, iconError);
+                            Debug.WriteLine("[RevitGPT] Ribbon icon load failed: " + iconError);
                         }
                     }
                 }
@@ -93,6 +97,20 @@ namespace RevitGPT.Native
             }
             app.Idling += OnFirstIdle;
             return Result.Succeeded;
+        }
+
+        private static BitmapImage LoadRibbonIcon(string filePath, int pixels)
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.UriSource = new Uri(filePath, UriKind.Absolute);
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            image.DecodePixelWidth = pixels;
+            image.DecodePixelHeight = pixels;
+            image.EndInit();
+            image.Freeze();
+            return image;
         }
 
         private void OnFirstIdle(object sender, IdlingEventArgs args)
