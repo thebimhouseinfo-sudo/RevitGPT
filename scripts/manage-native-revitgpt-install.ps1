@@ -137,22 +137,17 @@ try {
             throw "Source/build hash mismatch: $name"
         }
     }
-    # Optional ribbon icon: keep the existing DLL usable when the asset is absent.
-    # Prefer a maintained repository asset, then the compiled output directory.
-    $iconSources = @(
-        (Join-Path $repo "iconaddin.png"),
-        (Join-Path $repo "assets\\iconaddin.png"),
-        (Join-Path $source "iconaddin.png")
-    )
-    foreach ($iconSource in $iconSources) {
-        if (Test-Path -LiteralPath $iconSource -PathType Leaf) {
-            Copy-Item -LiteralPath $iconSource -Destination (Join-Path $stage "iconaddin.png") -ErrorAction Stop
-            if ((Get-FileHash -LiteralPath $iconSource -Algorithm SHA256).Hash -ne
-                (Get-FileHash -LiteralPath (Join-Path $stage "iconaddin.png") -Algorithm SHA256).Hash) {
-                throw "Ribbon icon copy verification failed."
-            }
-            break
-        }
+    # Revit ribbon icon is distinct from the tray icon.png.
+    # Fail installation rather than silently omit the user-provided add-in icon.
+    $iconSource = Join-Path $repo "iconaddin.png"
+    if (-not (Test-Path -LiteralPath $iconSource -PathType Leaf)) {
+        throw "Required Revit ribbon icon not found: $iconSource"
+    }
+    $iconTarget = Join-Path $stage "iconaddin.png"
+    Copy-Item -LiteralPath $iconSource -Destination $iconTarget -ErrorAction Stop
+    if ((Get-FileHash -LiteralPath $iconSource -Algorithm SHA256).Hash -ne
+        (Get-FileHash -LiteralPath $iconTarget -Algorithm SHA256).Hash) {
+        throw "Ribbon icon copy verification failed."
     }
     Move-Item -LiteralPath $stage -Destination $installed -ErrorAction Stop
     New-Item -ItemType Directory -Path $userAddins -Force | Out-Null
