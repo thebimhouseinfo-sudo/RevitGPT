@@ -1,6 +1,6 @@
 # RevitGPT — Mục tiêu sản phẩm và kế hoạch P1/P2/P3
 
-**Trạng thái:** BẢN KẾ HOẠCH NGÔN NGỮ TỰ NHIÊN — phạm vi do người dùng xác định ngày 15/10/2026. Đây là nguồn tham chiếu về **mục tiêu và phạm vi** cho các plan kỹ thuật sau. Không phải xác nhận rằng mọi chức năng/code đã PASS.
+> **P3 design update (2026-10-16):** [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md) supersedes the P3 workflow/Job-type/storage details below when they differ. P1/P2 phase goals and evidence remain valid.\n\n**Trạng thái:** BẢN KẾ HOẠCH NGÔN NGỮ TỰ NHIÊN — phạm vi do người dùng xác định ngày 15/10/2026. Đây là nguồn tham chiếu về **mục tiêu và phạm vi** cho các plan kỹ thuật sau. Không phải xác nhận rằng mọi chức năng/code đã PASS.
 
 **Thứ tự triển khai:** sửa/kiểm chứng P1 trước → rà soát và sửa P2 MCP → **chỉ sau đó mới lập detailed implementation plan P3**. P3 ở tài liệu này chỉ ghi định hướng sản phẩm. P1 cụ thể xem [P1 Stable Connection Current](P1_STABLE_CONNECTION_CURRENT.md).
 
