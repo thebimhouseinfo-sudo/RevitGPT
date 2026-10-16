@@ -35,7 +35,7 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 ### P3-B — Unified queue at Revit-entry boundary
 **Goal:** ALL requests entering Revit are registered and serialized, including read, write, view/selection, Dynamo load/run and save.
 1. Trace the actual `src/index.mjs -> src/revit-upstream.mjs -> Python bridge -> Native ExternalEvent` paths. Identify the **single common bridge boundary**; ensure diagnostics that do not enter Revit remain outside this queue.
-2. Add or verify one FIFO dispatcher for the one bound host/model; each operation captures identity and `operation_id`, its caller/`job_run_id`, and one settled result. Do not add a second queue upstream of an already authoritative Native queue unless actual code proves the existing queue cannot serialize all Revit entry paths.
+2. Add or verify one FIFO dispatcher for the one bound host/model; **first inspect the real Native listener/ExternalEvent request implementation**, since a queue in Node alone may miss other Revit-entry paths; each operation captures identity and `operation_id`, its caller/`job_run_id`, and one settled result. Do not add a second queue upstream of an already authoritative Native queue unless actual code proves the existing queue cannot serialize all Revit entry paths.
 3. All Revit-facing tools (including direct Builder calls, reads, Dynamo, Save) must take the same path. The queue holds **only an operation**, never the full Job or a global tool. Before execution, verify it still targets the bound model; closing/crashing Revit produces factual failure/unknown outcome, no replay.
 4. FIFO arrival ordering and head-of-line behavior must be visible enough to diagnose but should not generate a new durable Journal. Explicit operation result attribution belongs to the caller.
 **Tests:** Two concurrent chats enqueue read/Dynamo/write/Save without overlap; ordered execution; per-job error isolation; tab change cannot redirect; Revit disappearance cannot execute queued writes in a newly opened host; tests against real Revit for actual Revit serialization.
@@ -54,7 +54,7 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 3. **System exception approved by user:** if any step mutates the model, Builder includes `revit_save_model` immediately after the last model-changing step, before remaining file-only steps; it enters the common queue.
 4. Reusable Job drafts are written in their **owned final library folder**, are callable for live testing before Registry entry, and register only after a successful relevant live test/verification. No arbitrary approval/promote gates or moving draft folders.
 5. Temp/Disposal Jobs have the same Job Steps and own AppData temp bundle (with optional Dynamo engine/data/files); Builder executes them without Registry entry. A simple clean-up policy may remove **completed/inactive temporary bundles only** after a user-specified retention interval; do not assume a number or delete Model Anchor results.
-6. Operator step interpreter lives in **ChatGPT instructions/skill**, not a complex local workflow engine: PASS->NEXT; ERROR->STOP & REPORT; no unrequested retries, workflow edits or Builder takeover. A Job can be active alongside other Jobs and can wait for its queued operation without stalling their file-side work.
+6. Operator step interpreter lives in **ChatGPT instructions/skill**, not a complex local workflow engine. **A Step PASS means the actual tool/result condition named by that step was satisfied, not merely that the tool returned a transport response.** PASS->NEXT; ERROR->STOP & REPORT; no unrequested retries, workflow edits or Builder takeover. A Job can be active alongside other Jobs and can wait for its queued operation without stalling their file-side work.
 **Tests:** Exact approved Job Steps emitted and executed; no hidden added steps; missing required information asks clearly; step error stops only the corresponding Job; Save placement and failure propagation; parallel Job A/B; Temp Job never silently registered. Real execution on bound Revit is the decisive test.
 
 ### P3-E — Dynamo Writer thin harness and reuse
@@ -95,5 +95,10 @@ The bridge transports/serializes requests, enforces ownership and reports factua
 4. **Human Revit tests happen during implementation when the relevant Job/Dynamo is ready**, not as a global gate that blocks creation or testing.
 5. Publishing this plan does **not** implement code, register Jobs or modify user models.
 
-## 5. RL log
-- **R1 initial:** Source comparison performed; queued for targeted review.
+## 5. RL log (planning review, not live code verification)
+- **R1 — Scope review:** PASS after checking against all sections of Theory V5. Removed reliance on obsolete Direct/Reasoning split, separate draft/promotion folders, mandatory fake gates and app-level Job recovery. Retained only existing P1 authority and verified P2 Dynamo/Save surfaces.
+- **R2 — Source contradiction review:** FOUND `src/managed-tools.mjs` currently restricts writes to workspace/data/knowledge/runtime; proposed owner-local library drafting would fail unless path ownership is updated. FIXED in P3-A as targeted change, not a new gate.
+- **R3 — Native queue review:** FOUND the Revit entry-point implementation has **not been audited line-by-line** in this planning pass. Avoid claiming there is no existing queue or requiring multiple queues. FIXED P3-B: inspect actual Native ExternalEvent/listener routing first, implement only missing serialization. Native path inspection remains implementation work, **not a planning-release blocker**.
+- **R4 — Operator correctness review:** Found a potential false PASS if a transport response is treated as business success. FIXED P3-D: each Step PASS is based on its declared result/postcondition, otherwise ERROR/UNKNOWN and Stop+Report.
+- **R5 — Final contract review:** No remaining *known* contradictions with Theory V5. No new approvals or test gates added. **RL PASS FOR PLAN CONSISTENCY ONLY**; static tests, real Revit behavior and uninspected Native details remain unverified until implementation.
+
