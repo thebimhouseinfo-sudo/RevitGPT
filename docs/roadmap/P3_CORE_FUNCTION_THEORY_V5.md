@@ -39,7 +39,10 @@ A Temp Job may produce a useful `.dyn`. On an explicit user instruction such as 
 
 **The user's instruction is the authorization.** No additional approval, synthetic promotion procedure or mandatory retest if the copied artifact and relevant environment remain equivalent to the already live-tested version. Copy, do not move or register the Temp Job. A genuinely missing file, invalid path, or name/ID conflict is an actual error to resolve, not a gate to invent.
 
-## 7. Shared capability borrowing
+## 7. Registry discovery and shared capability borrowing
+**Registry is a lightweight discovery catalog** listing the MCP tools, reusable Dynamo and saved Jobs available to ChatGPT, with names/command IDs and brief functional metadata. ChatGPT consults this index to choose the appropriate action **without scanning every tool, Dynamo or Job folder**. Registry is **not an execution-permission gate**: an unregistered owner-local draft/Temp Job or Dynamo can be built, loaded and live-tested on the bound Revit model. An explicit user instruction to Save/Register a Dynamo authorizes the normal copy and index update, subject only to real name/command-ID collisions and file errors. A missing/stale entry is a discovery problem, not authority to invent mandatory promotion, approval, validation or staging steps.
+
+### Shared capability borrowing
 Multiple chats may run multiple Jobs at the same time against one bound model. A Job borrows a **capability ID**, **never an exclusive MCP tool instance**. Many Job runs can concurrently register use of a capability such as writing a JSON file, while each edits only its own files. Record capability use by Job Run ID and release borrowed capability records when the Job ends. Borrowing does not grant extra file permissions or Revit model authority. It is **not a global lock** and must not block unrelated Job file/analysis work.
 
 ## 8. Unified Revit Execution Queue
