@@ -34,8 +34,10 @@ claimed as correct.
 - Match exact Revit/Dynamo versions and installed packages.
 - Static JSON/schema validation does NOT prove a package or node exists in
   that DynamoRevit host.
-- Use Builder's `dynamo_draft_validate`, then `dynamo_draft_stage` with
-  exact SHA-256 before requesting the native loader/runner.
+- `dynamo_draft_validate` and `dynamo_draft_stage` are optional diagnostics/helpers,
+  **not prerequisites** to load or run a draft owned by a Job, Temp Job or
+  standalone Dynamo. An installed loader that rejects such owner-local paths
+  needs a focused P3 execution-path fix; do not reintroduce validation/staging gates.
 - A DynamoRevit dispatch acknowledgment is NOT graph completion; inspect the
   intended RVT elements/parameters after run.
 - Never auto-retry an unknown-outcome graph that may have mutated the model.
