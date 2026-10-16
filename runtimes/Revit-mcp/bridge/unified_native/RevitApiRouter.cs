@@ -56,6 +56,9 @@ namespace RevitGPT.Native
                         host_instance_id = snap.HostInstanceId,
                         revision = snap.Revision,
                         manual_binding = snap.ManualBinding,
+                        host_process_id = System.Diagnostics.Process.GetCurrentProcess().Id,
+                        open_project_count = app.Application.Documents.Cast<Document>()
+                            .Count(d => !d.IsLinked && !d.IsFamilyDocument),
                         active_id = snap.ActiveId,
                         active_title = snap.ActiveTitle,
                         bound_id = snap.BoundId,
