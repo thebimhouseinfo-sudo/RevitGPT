@@ -11,6 +11,7 @@ This file is a **navigation index**, not a second implementation contract.
 - Product/phase authority: [Product Goal and Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md).
 - Core P3 design authority: [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md).
 - P3 plan (RL consistency reviewed; not implemented): [P3 Detailed Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md).
+- Detailed M1–M7 milestones (self-reviewed, not implemented): [P3 Milestones](P3_DETAILED_MILESTONES.md).
 - Supersession decisions: [Plan Supersession Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
 - RevitGPT Brain vs Knowledge vs MCP architecture: [Brain/MCP/Knowledge](../architecture/REVITGPT_BRAIN_MCP_KNOWLEDGE.md).
 
