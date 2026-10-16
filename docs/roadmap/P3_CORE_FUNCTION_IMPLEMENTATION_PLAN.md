@@ -87,6 +87,10 @@ P3-A/B/C/D/E/F can be built or reviewed in parallel when they do not share inter
 - **Scenario 4:** User-supplied Working Knowledge informs a temporary workflow and Dynamo Writer uses version-grounded technical Knowledge. Verify actual model/result data, not only static JSON.
 - Reuse prior P1/P2 evidence for unchanged paths; test **only changed integration boundaries** and remaining genuinely unverified functionality.
 
+
+## Continuous P2 side work — MCP authoring, loading, testing and repair
+This is **not another P3 completion gate**. P2 MCP tools are continuously improved as actual workflow demands expose missing capabilities or failures. Builder uses the existing `revit_mcp_dev_*` tools and source paths where possible to inspect, edit/create, build or load the affected tool, live-test it on a deliberately bound Revit model and verify the actual result. Use the minimum reload/build appropriate to the changed layer; measure if uncertain. Registry/manifest is fast discovery, **never authority to forbid development load/test**. Track PASS/FAILED/UNTESTED per affected tool without demanding a full tool inventory verification before P3. Detailed tasks: [M8 in P3 Milestones](P3_DETAILED_MILESTONES.md).
+
 ## 3. Review rules / implementation constraints
 - **Registry is a fast catalog for ChatGPT discovery** of installed MCP tools, saved Dynamo and Jobs. It is not an execution authorization boundary or a prerequisite for draft authoring/load/run/live test. Real conflict checks (duplicate display name or command ID on save/register) are ordinary error handling, not additional approval gates.
 - No Job-level timeout, auto repair/retry, cross-crash resume, STOP/JOURNAL gates, standalone local reasoning engine, fake Revit simulator acceptance, global tool mutex or entire-Job queue.
