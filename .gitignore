@@ -8,3 +8,5 @@ runtimes/Revit-mcp/**/__pycache__/
 runtimes/Revit-mcp/**/*.pyc
 runtimes/Revit-mcp/bridge/standalone_addin/bin/
 runtimes/Revit-mcp/bridge/standalone_addin/obj/
+
+/runtimes/Revit-mcp/bridge/unified_native/obj/

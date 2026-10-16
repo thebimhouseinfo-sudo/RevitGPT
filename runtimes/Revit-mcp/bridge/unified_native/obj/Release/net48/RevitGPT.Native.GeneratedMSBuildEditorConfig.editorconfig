@@ -1,5 +1,0 @@
-is_global = true
-build_property.RootNamespace = RevitGPT.Native
-build_property.ProjectDir = D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\
-build_property.EnableComHosting = 
-build_property.EnableGeneratedComInterfaceComImportInterop = 
