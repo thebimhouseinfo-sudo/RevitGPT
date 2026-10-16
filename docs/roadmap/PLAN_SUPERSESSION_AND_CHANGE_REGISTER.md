@@ -1,5 +1,8 @@
 # RevitGPT — Supersession & Change Register (15/10/2026)
 
+> Historical documents physically archived in `docs/old/` on 2026-10-16. Current P3 theory: [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md); current roadmap: [ROADMAP](ROADMAP.md).
+
+
 ## GOAL
 Ngăn plan cũ và các vòng review tạo thêm requirement, dependency hoặc Human/CI gate không phục vụ mục tiêu CAD/BIM Assistant. Ghi lại **chính xác thay đổi về quyền hạn của tài liệu**, không coi việc sửa plan là lệnh xóa/sửa code.
 
@@ -17,11 +20,11 @@ Ngăn plan cũ và các vòng review tạo thêm requirement, dependency hoặc 
 
 | Nguồn cũ | Trạng thái từ 15/10 | Giữ lại | Không còn được coi là gate/yêu cầu |
 |---|---|---|---|
-| `P1_STABLE_RUNTIME_CONNECTION_PLAN.md` Rev9 | **SUPERSEDED AS IMPLEMENTATION PLAN** | Connect, multi-chat, bind, Sleep/Wake, real layer failure detection | P1-C/D journal, crash-reconciliation, STOP_PENDING/STOP_BLOCKED, stop fence, accepted-work continuations, synthetic reboot unresolved-work, các gates phụ thuộc A→B→C→D→F |
+| `../old/P1_STABLE_RUNTIME_CONNECTION_PLAN.md` Rev9 | **SUPERSEDED AS IMPLEMENTATION PLAN** | Connect, multi-chat, bind, Sleep/Wake, real layer failure detection | P1-C/D journal, crash-reconciliation, STOP_PENDING/STOP_BLOCKED, stop fence, accepted-work continuations, synthetic reboot unresolved-work, các gates phụ thuộc A→B→C→D→F |
 | `AUTHORITY_LIFECYCLE.md` Rev9 | **SUPERSEDED AS P1 ACCEPTANCE AUTHORITY** | Identity/binding, host ownership, chống mất kết nối | `rg/stop` graceful-drain làm mục tiêu, durable work admission/replay/reconciliation |
 | `P1_F_CONSOLIDATED_REAL_REVIT_ACCEPTANCE.md` | **SUPERSEDED AS REQUIRED TEST LIST** | Tình huống mở/đóng model, binding/multi-chat, sleep/wake, real startup khi liên quan | H03 Write tool như gate P1, H04 `rg/stop`, H06 seeded journal |
-| `DETAIL_EXECUTION_PLAN.md` (J-8A2C) | **SUPERSEDED ALL PHASE/DEPENDENCY GATES** | Kỹ thuật/hồ sơ đã làm, yêu cầu thư viện Job, Dynamo hiện còn phù hợp | Chuỗi E-PY/E1/E2/E3/E4/E4J, P3 resume, transactional recovery, yêu cầu restart/checkpoint |
-| `ROADMAP.md` các dòng cũ R4/P0/P1B | **SUPERSEDED AS EXECUTION TOPOLOGY** | Năng lực MCP riêng, Jobs/Dynamo/Knowledge, panel, registry | GSA cursor/milestone làm cổng code, lease/TTL cũ, Knowledge Writer phải resume Job, A4 restart/checkpoint gate |
+| `../old/DETAIL_EXECUTION_PLAN.md` (J-8A2C) | **SUPERSEDED ALL PHASE/DEPENDENCY GATES** | Kỹ thuật/hồ sơ đã làm, yêu cầu thư viện Job, Dynamo hiện còn phù hợp | Chuỗi E-PY/E1/E2/E3/E4/E4J, P3 resume, transactional recovery, yêu cầu restart/checkpoint |
+| `../old/ROADMAP_PRE_P3.md` các dòng cũ R4/P0/P1B | **SUPERSEDED AS EXECUTION TOPOLOGY** | Năng lực MCP riêng, Jobs/Dynamo/Knowledge, panel, registry | GSA cursor/milestone làm cổng code, lease/TTL cũ, Knowledge Writer phải resume Job, A4 restart/checkpoint gate |
 | `DECISION_REGISTER.md` D-01…D-38 | **HISTORICAL / RETAIN EVIDENCE** | Quyết định đã đo và các dữ kiện thực tế | Nhãn `APPROVED P1 TARGET` cũ không được áp dụng khi xung đột với scope mới |
 | `P1_A_BASELINE_AND_DISPOSITION.md` | **HISTORICAL EVIDENCE** | Existing source facts, tests and verified bugs | Không tạo lại gate A/CR-13/14 trước code |
 | `P1_WINDOWS_LOGON_AUTOSTART_RECOVERY_PLAN.md` | **SCOPE REDUCED / HISTORICAL DETAIL** | Windows startup, logging, owned-process isolation và human login test | Không thêm journal/resume/STOP_BLOCKED làm startup success condition |
