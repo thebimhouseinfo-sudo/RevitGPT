@@ -5,11 +5,12 @@ This file is a **navigation index**, not a second implementation contract.
 ## Phase status
 - **P1 — Stable Connection:** CLOSED / HUMAN ACCEPTED (15/10/2026). See [P1 closure record](P1_STABLE_CONNECTION_CURRENT.md).
 - **P2 — Revit MCP foundation:** Live-tested bound model, Dynamo load/run and Save; MCP tool development/testing continues independently. Do **not** infer that every MCP tool has passed a real Revit test.
-- **P3 — Core Function:** theoretical design consolidation; **implementation plan not yet written**. See [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md).
+- **P3 — Core Function:** theory approved for planning; detailed implementation plan drafted and reviewed, code not started. See [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md) and [P3 Detailed Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md).
 
 ## Binding requirements and boundaries
 - Product/phase authority: [Product Goal and Phase Plan](PRODUCT_GOAL_AND_PHASE_PLAN.md).
 - Core P3 design authority: [P3 Core Function Theory V5](P3_CORE_FUNCTION_THEORY_V5.md).
+- P3 plan (RL consistency reviewed; not implemented): [P3 Detailed Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md).
 - Supersession decisions: [Plan Supersession Register](PLAN_SUPERSESSION_AND_CHANGE_REGISTER.md).
 - RevitGPT Brain vs Knowledge vs MCP architecture: [Brain/MCP/Knowledge](../architecture/REVITGPT_BRAIN_MCP_KNOWLEDGE.md).
 
