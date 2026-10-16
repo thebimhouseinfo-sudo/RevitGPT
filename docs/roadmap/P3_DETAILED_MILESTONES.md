@@ -1,4 +1,4 @@
-# RevitGPT P3 — Detailed Milestones and Tasks (M1–M7)
+# RevitGPT P3 — Detailed Milestones and Tasks (M1–M7 + continuous M8)
 
 **Date:** 2026-10-16 · **Status:** PLANNED / INTERNAL RL REVIEWED; IMPLEMENTATION NOT ACCEPTED
 **Authority:** [P3 Theory V5](P3_CORE_FUNCTION_THEORY_V5.md) → [P3 Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md). This breakdown is an execution checklist, **not a new contract or a sequence of approval gates**.
@@ -90,9 +90,24 @@
 - **M7.5** Record exact P3 changes tested, host/model identities, relevant `operation_id`/results, observed PASS/FAIL/UNKNOWN. Do not re-run all P1/P2 merely for milestone paperwork.
 - **Done evidence:** Human-visible live Revit readback for changed core behavior; a compile/CI PASS alone is not a real-host PASS.
 
+## M8 — P2 MCP Tool Development & Live Repair (continuous side work)
+
+**Outcome:** RevitGPT can incrementally add, adjust, load and test Revit MCP tools during ordinary operation. P2 tool coverage remains a **long-term, independent workstream**, never a prerequisite to completing P3.
+
+- **M8.1 [INSPECT]** Reuse current MCP development tools (`revit_mcp_dev_root/list/read/search/snapshot/edit/create/delete/rollback/validate/accept_local`) and inspect the actual Python MCP registration, Native API dispatch, source build/reload paths and tool manifest. Identify which operations already work; do not duplicate them.
+- **M8.2 [AUTHOR/REPAIR]** Builder writes a new MCP tool or fixes an observed defect in its actual owned source module, preserving tool naming/signature and existing working functionality. Distinguish Python-side tool bugs from missing Native Revit API operations. Don't rewrite a working tool merely because its live test is pending.
+- **M8.3 [BUILD/LOAD]** Apply the **smallest needed** reload/restart/install for the changed layer; determine this from current code and a controlled test, not assumption. Python-only tool changes should not force rebuilding the Native Add-in if evidence shows that isn't necessary. No artificial validation/promotion gate before loading a development tool.
+- **M8.4 [LIVE TEST]** Run the specific new/repaired MCP tool against an intentionally bound real Revit test model; check tool return and model readback where relevant. If the tool errors, report observed failure and fix root cause when requested; don't mark it PASS from registration/build/dispatch alone. Avoid blind retries of ambiguous writes.
+- **M8.5 [CATALOG UPDATE]** Make working reusable tools discoverable in the existing fast Registry/manifest after the actual implementation is available. Registry is an **index only**; it must neither authorize execution nor prevent load/test of an unregistered development tool. Detect real duplicate command names/IDs to avoid collisions, not as an approval gate.
+- **M8.6 [ONGOING]** Maintain a simple factual per-tool `UNTESTED / PASS / FAILED` status and known defect evidence; gradually test/fix tools when relevant work reveals an issue. Do not impose a complete 70-tool test campaign or hold P3 milestones until all tools pass.
+
+**Done evidence per individual tool:** source change, actual build/load path, real Revit command result/readback if Revit-facing, and catalog visibility where appropriate. **M8 as a whole remains OPEN/CONTINUOUS**; never define a finish line requiring all MCP tools to be implemented.
+
+**Dependencies:** Uses accepted P1 binding and relevant current P2 interfaces. Join unified Revit queue for all Revit-entry test calls as that P3 behavior becomes available. M8 development proceeds independently of M1–M7; a specific P3 Job that needs a missing tool may request that single M8 fix, not global MCP completion.
+
 ## Practical parallelization / actual dependencies
 
-- M1 path ownership can proceed alongside M3 Registry, M5 skill/Knowledge authoring and M6 Knowledge, without waiting for Native queue investigation.
+- M1 path ownership can proceed alongside M3 Registry, M5 skill/Knowledge authoring, M6 Knowledge and continuous M8 MCP authoring/repair, without waiting for Native queue investigation.
 - M2.1–3 must precede **selection of a queue implementation**, not general P3 file/Job/Dynamo authoring.
 - M1 ownership is needed for true owner-local M4/M5 authoring; reuse existing capabilities where they already suffice.
 - M2 observed Dynamo completion is needed before claiming M5/M7 **real-host synchronized run** PASS, but is not a gate to drafting a graph.
@@ -114,5 +129,6 @@ Actual Revit binding mismatch, cross-owner write, filesystem missing path, Dynam
 | RL-M3 | Unknowns and measurement | Native queue routes, graph completion, anchor identity, Registry behavior and Knowledge sync are explicit INVESTIGATE/MEASURE tasks; solutions chosen only from evidence. |
 | RL-M4 | Gate and workflow audit | No new Job approval gate, second Dynamo harness, mandatory validation/staging, global tool locking, recovery/retry or fake CI acceptance. |
 | RL-M5 | Overlap / achievable delivery | Workstream dependencies narrowly specified; P1/P2 functions reused; results from one focused scenario reused across overlapping M1–M7 tests rather than duplicating live work. |
+| RL-M6 | P2 ongoing MCP development | M8 reuses existing dev tools; per-tool write/load/live-test/repair; no all-tools PASS gate or Registry authorization. |
 
 **RL verdict:** **PASS — consistency of milestone design only**. No runtime tests have been performed by this document, and no M1–M7 implementation milestone may be marked complete from planning alone.
