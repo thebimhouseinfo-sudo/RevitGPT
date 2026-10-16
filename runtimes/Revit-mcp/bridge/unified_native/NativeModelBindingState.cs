@@ -65,12 +65,13 @@ namespace RevitGPT.Native
                 _activeId = !String.IsNullOrWhiteSpace(activeId) && open.Contains(activeId)
                     ? activeId : null;
                 _activeTitle = _activeId == null ? "" : (activeTitle ?? "");
-                // Closing a bound doc invalidates it even if a new document later
-                // reuses the same runtime ID. Rebinding always requires a click.
+                // A closed binding is not switched when multiple projects remain.
+                // If exactly one project remains, bind it automatically.
                 if (_boundId != null && !_open.Contains(_boundId)) _boundLost = true;
                 // One user-open project auto-binds only when there is NO
                 // prior binding. Never auto-switch after close or tab change.
-                if (_boundId == null && _activeId != null && _open.Count == 1)
+                if (_activeId != null && _open.Count == 1 &&
+                    (_boundId == null || _boundLost))
                 {
                     _boundId = _activeId;
                     _boundTitle = _activeTitle;

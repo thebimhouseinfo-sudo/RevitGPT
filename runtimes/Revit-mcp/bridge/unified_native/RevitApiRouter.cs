@@ -77,6 +77,17 @@ namespace RevitGPT.Native
                 if (denial != null) return Error(409, denial);
                 var doc = FindDocument(app, payload, binding.Current.BoundId);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
+                if (path == "/document/save")
+                {
+                    if (doc.IsFamilyDocument) return Error(422, "Saving a family document through this route is unsupported.");
+                    if (doc.IsReadOnly) return Error(409, "Model is read-only.");
+                    if (doc.IsModifiable) return Error(409, "Model has an active transaction.");
+                    if (String.IsNullOrWhiteSpace(doc.PathName)) return Error(422, "Unsaved model needs explicit Save As; not supported by this tool.");
+                    if (payload.Value<bool?>("dry_run") ?? false)
+                        return Data(new { dry_run = true, title = doc.Title, path = doc.PathName, is_modified = doc.IsModified });
+                    doc.Save();
+                    return Data(new { saved = true, title = doc.Title, path = doc.PathName, is_modified = doc.IsModified });
+                }
                 if (path == "/ui/view/active") return GetActiveView(app, doc);
                 if (path == "/ui/selection") return Selection(app, doc);
                 if (path == "/ui/selection/set") return SetSelection(app, doc, payload);
@@ -122,6 +133,8 @@ namespace RevitGPT.Native
                         .Select(x => new { id = x.Id.Value.ToString(CultureInfo.InvariantCulture),
                             name = x.Name, category = x.FamilyCategory?.Name ?? "" }).ToList());
                 }
+                if (path == "/shared-parameter/bind") return NativeSharedParameterBinding.Execute(doc, payload);
+                if (path == "/family/parameters") return NativeFamilyParameterInspection.Read(doc, payload);
                 if (path == "/family/types")
                 {
                     var family = Token(payload, "family");
@@ -276,6 +289,22 @@ namespace RevitGPT.Native
                 return Error(409, "Bound Revit document must be active for zoom/show.");
             var ids = UiElementIds(doc, uidoc.ActiveView, payload);
             if (ids.Count == 0) return Error(400, "show requires at least one element.");
+            // ShowElements may invoke a modal Revit error dialog when an element
+            // cannot be represented in an appropriate view. Reject these requests
+            // before calling the UI API so a modal dialog cannot stall ExternalEvent.
+            var activeView = uidoc.ActiveView;
+            if (activeView == null || activeView.IsTemplate ||
+                activeView.ViewType == ViewType.ProjectBrowser ||
+                activeView.ViewType == ViewType.SystemBrowser)
+                return Error(409, "No compatible active graphical view for show.");
+            var visibleIds = new HashSet<long>(new FilteredElementCollector(doc, activeView.Id)
+                .WhereElementIsNotElementType().ToElementIds().Select(id => id.Value));
+            foreach (var id in ids)
+            {
+                var element = doc.GetElement(id);
+                if (element == null || !visibleIds.Contains(id.Value))
+                    return Error(409, "Element is not visible in the active view; show was not executed. Select a compatible view first.");
+            }
             uidoc.ShowElements(ids);
             return Data(new { shown = ids.Count, active_view_id =
                 uidoc.ActiveView.Id.Value.ToString(CultureInfo.InvariantCulture) });

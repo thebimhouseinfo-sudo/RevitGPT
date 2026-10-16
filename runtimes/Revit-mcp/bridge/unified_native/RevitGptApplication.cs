@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Windows.Media.Imaging;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -58,7 +60,20 @@ namespace RevitGPT.Native
                     typeof(OpenRevitGptPaneCommand).FullName);
                 var button = panel.AddItem(open) as PushButton;
                 if (button != null)
-                    button.ToolTip = "Show the existing RevitGPT panel without rebinding or restarting ChatGPT.";
+                    { button.ToolTip = "Show the existing RevitGPT panel without rebinding or restarting ChatGPT.";
+                    var iconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "iconaddin.png");
+                    if (File.Exists(iconPath))
+                    {
+                        var image = new BitmapImage();
+                        image.BeginInit();
+                        image.UriSource = new Uri(iconPath, UriKind.Absolute);
+                        image.CacheOption = BitmapCacheOption.OnLoad;
+                        image.EndInit();
+                        image.Freeze();
+                        button.LargeImage = image;
+                        button.Image = image;
+                    }
+                }
                 NativePaneDiagnostics.Record("ribbon_registered");
             }
             catch (Exception error)

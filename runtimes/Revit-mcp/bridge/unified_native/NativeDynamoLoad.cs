@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml.Linq;
 using System.Security.Cryptography;
 using Autodesk.Revit.UI;
 using Newtonsoft.Json;
@@ -46,6 +47,15 @@ namespace RevitGPT.Native
                 part = Path.GetDirectoryName(part);
             }
             return true;
+        }
+
+        private static string FindDynamoAdapter()
+        {
+            // Revit 2024 bundles Dynamo under its own installation, not under
+            // per-user add-in manifests. Use the exact Autodesk installation path.
+            var revitFolder = Path.GetDirectoryName(typeof(Autodesk.Revit.DB.Document).Assembly.Location);
+            var path = Path.Combine(revitFolder, "AddIns", "DynamoForRevit", "Revit", "DynamoRevitDS.dll");
+            return File.Exists(path) ? path : null;
         }
 
         public static string Execute(UIApplication app, JObject payload)
@@ -105,10 +115,20 @@ namespace RevitGPT.Native
                 // node evaluation here or convert nodes to MCP tool calls.
                 // The ExecuteCommand "Succeeded" response only proves dispatch;
                 // graph completion/element mutations must be tested in Revit.
-                Type commandType = Type.GetType(
-                    "Dynamo.Applications.DynamoRevit, DynamoRevit", throwOnError: false);
-                Type dataType = Type.GetType(
-                    "Dynamo.Applications.DynamoRevitCommandData, DynamoRevit", throwOnError: false);
+                // DynamoRevit may not be loaded until its Ribbon command is first opened.
+                // Resolve the Autodesk-shipped adapter from Revit's own install directory.
+                var dynamoAssembly = AppDomain.CurrentDomain.GetAssemblies()
+                    .FirstOrDefault(a => String.Equals(a.GetName().Name, "DynamoRevitDS",
+                        StringComparison.OrdinalIgnoreCase));
+                if (dynamoAssembly == null)
+                {
+                    var adapterPath = FindDynamoAdapter();
+                    if (adapterPath == null)
+                        return Error(503, "DynamoRevitDS.dll not found in Revit 2024 bundled Dynamo.");
+                    dynamoAssembly = Assembly.LoadFrom(adapterPath);
+                }
+                Type commandType = dynamoAssembly.GetType("Dynamo.Applications.DynamoRevit");
+                Type dataType = dynamoAssembly.GetType("Dynamo.Applications.DynamoRevitCommandData");
                 if (commandType == null || dataType == null)
                     return Error(503, "DynamoRevit host adapter is not loaded/compatible.");
                 object command = Activator.CreateInstance(commandType);
@@ -134,10 +154,54 @@ namespace RevitGPT.Native
                 var result = execute.Invoke(command, new[] { data });
                 if (!String.Equals(result?.ToString(), "Succeeded", StringComparison.Ordinal))
                     return Error(409, "Dynamo did not confirm workspace open.");
+                // Inspect the live Dynamo host before reporting completion.
+                // A successful ExecuteCommand return is not execution evidence.
+                object model = commandType.GetProperty("RevitDynamoModel",
+                    BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                object workspace = model?.GetType().GetProperty("CurrentWorkspace")?.GetValue(model);
+                string openedPath = workspace?.GetType().GetProperty("FileName")?.GetValue(workspace)?.ToString();
+                object nodeCollection = workspace?.GetType().GetProperty("Nodes")?.GetValue(workspace);
+                var nodeStates = new List<object>();
+                if (nodeCollection is System.Collections.IEnumerable enumerable)
+                {
+                    foreach (object node in enumerable)
+                    {
+                        var t = node.GetType();
+                        nodeStates.Add(new {
+                            name = t.GetProperty("Name")?.GetValue(node)?.ToString(),
+                            state = t.GetProperty("State")?.GetValue(node)?.ToString(),
+                            is_in_error_state = t.GetProperty("IsInErrorState")?.GetValue(node)?.ToString(),
+                            warning = t.GetProperty("Warning")?.GetValue(node)?.ToString()
+                        });
+                    }
+                }
+                bool workspaceMatched = !String.IsNullOrEmpty(openedPath) &&
+                    String.Equals(Path.GetFullPath(openedPath), Path.GetFullPath(path),
+                        StringComparison.OrdinalIgnoreCase);
+                // Execute the opened home workspace explicitly. On some Revit
+                // hosts ExecuteCommand opens the graph without evaluating it.
+                // Only run a verified matching workspace; never run an older one.
+                bool explicitRunInvoked = false;
+                if (autoRun)
+                {
+                    if (!workspaceMatched)
+                        return Error(409, "Dynamo workspace path mismatch; refusing execution.");
+                    var forceRun = model.GetType().GetMethod("ForceRun",
+                        BindingFlags.Instance | BindingFlags.Public,
+                        null, Type.EmptyTypes, null);
+                    if (forceRun == null)
+                        return Error(503, "Dynamo Revit model ForceRun API unavailable.");
+                    forceRun.Invoke(model, null);
+                    explicitRunInvoked = true;
+                }
                 return Data(new {
                     status = autoRun
                         ? "DYNAMO_AUTORUN_DISPATCHED_OUTCOME_UNVERIFIED"
                         : "LOADED_MANUAL_HOST_UNVERIFIED",
+                    explicit_run_invoked = explicitRunInvoked,
+                    workspace_opened = workspaceMatched,
+                    workspace_path = openedPath,
+                    observed_node_states = nodeStates,
                     file_sha256 = digest,
                     node_count = nodes.Count,
                     graph_execution_requested = autoRun,

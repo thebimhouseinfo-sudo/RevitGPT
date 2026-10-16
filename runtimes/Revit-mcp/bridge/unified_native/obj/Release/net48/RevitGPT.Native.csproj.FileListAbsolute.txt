@@ -1,0 +1,13 @@
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\runtimes\win-x64\native\WebView2Loader.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\RevitGPT.Native.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\RevitGPT.Native.pdb
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\Microsoft.Web.WebView2.Core.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\Microsoft.Web.WebView2.WinForms.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\bin\Release\net48\Microsoft.Web.WebView2.Wpf.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.csproj.AssemblyReference.cache
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.GeneratedMSBuildEditorConfig.editorconfig
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.csproj.CoreCompileInputs.cache
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.sourcelink.json
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.B060D6F7.Up2Date
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.dll
+D:\00 Other Works\Vibecode\RevitGPT\runtimes\Revit-mcp\bridge\unified_native\obj\Release\net48\RevitGPT.Native.pdb

@@ -46,7 +46,7 @@ namespace RevitGPT.Native
         // is ambiguous once ExternalEvent started execution.
         public static bool IsWrite(string path)
         {
-            return path == "/ui/selection/set" || path == "/ui/show" ||
+            return path == "/document/save" || path == "/shared-parameter/bind" || path == "/ui/selection/set" || path == "/ui/show" ||
                    path == "/ui/view/activate" ||
                    path == "/ui/visibility/temporary" || path == "/dynamo/load" || path == "/view/create" || path == "/view/filter/write" || path == "/schedule/update" || path == "/slab/create" || path == "/view/format" || path == "/sheet/write" || path == "/parameter/batch" || path == "/parameter/copy" || path == "/architecture/create" || path == "/transform" || path == "/place" || path == "/create/duct" || path == "/create/pipe" ||
                    path == "/parameter/set" || path == "/delete" || path == "/move" ||

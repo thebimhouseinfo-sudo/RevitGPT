@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\00 Other Works\\Vibecode\\RevitGPT\\runtimes\\Revit-mcp\\bridge\\unified_native\\RevitGPT.Native.csproj": {}
+  },
+  "projects": {
+    "D:\\00 Other Works\\Vibecode\\RevitGPT\\runtimes\\Revit-mcp\\bridge\\unified_native\\RevitGPT.Native.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\00 Other Works\\Vibecode\\RevitGPT\\runtimes\\Revit-mcp\\bridge\\unified_native\\RevitGPT.Native.csproj",
+        "projectName": "RevitGPT.Native",
+        "projectPath": "D:\\00 Other Works\\Vibecode\\RevitGPT\\runtimes\\Revit-mcp\\bridge\\unified_native\\RevitGPT.Native.csproj",
+        "packagesPath": "C:\\Users\\20804\\.nuget\\packages\\",
+        "outputPath": "D:\\00 Other Works\\Vibecode\\RevitGPT\\runtimes\\Revit-mcp\\bridge\\unified_native\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\20804\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net48"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net48": {
+            "targetAlias": "net48",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net48": {
+          "targetAlias": "net48",
+          "dependencies": {
+            "Microsoft.NETFramework.ReferenceAssemblies": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[1.0.3, )",
+              "autoReferenced": true
+            },
+            "Microsoft.Web.WebView2": {
+              "target": "Package",
+              "version": "[1.0.3179.45, )"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.426\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

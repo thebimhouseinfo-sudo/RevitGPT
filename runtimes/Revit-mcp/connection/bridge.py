@@ -388,7 +388,8 @@ def run_dyn_file(path: str, document_id: str | None = None) -> dict:
     auto-retry an ambiguous write after HTTP timeout.
     """
     from services.dynamo_preflight import validate_staged_dyn
-    report = validate_staged_dyn(path)
+    from services.dynamo_preflight import stage_dynamo_graph
+    report = _prepare_dyn_for_run(path)
     payload = {"path": report["path"], "sha256": report["sha256"], "run": True}
     if document_id:
         payload["document_id"] = document_id
@@ -1202,3 +1203,44 @@ def create_detail_line(
         payload["document_id"] = document_id
     result = _send_request("/annotation/detail_line", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
     return result.get("data", result)
+
+
+def get_family_parameters(family_id: str, document_id: str | None = None) -> dict:
+    if not str(family_id).isdigit() or int(family_id) <= 0:
+        raise ValueError("Positive family_id required")
+    payload = {"family_id": str(family_id)}
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/family/parameters", payload=payload, method="POST")
+    return result.get("data", result)
+
+
+def bind_shared_parameter(shared_guid: str, categories: list[str], is_instance: bool = True,
+                          confirm: bool = False, document_id: str | None = None) -> dict:
+    payload = {"shared_guid": shared_guid, "categories": categories,
+               "is_instance": is_instance, "confirm": confirm}
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/shared-parameter/bind", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def save_model(dry_run: bool = False, document_id: str | None = None) -> dict:
+    """Save the bound model to its existing file path; never Save As."""
+    payload = {"dry_run": dry_run}
+    if document_id:
+        payload["document_id"] = document_id
+    result = _send_request("/document/save", payload=payload, method="POST", timeout=WRITE_TIMEOUT)
+    return result.get("data", result)
+
+
+def _prepare_dyn_for_run(path: str) -> dict:
+    """Accept managed draft or staged Dynamo graph; reject every other location."""
+    import os
+    from pathlib import Path
+    from services.dynamo_preflight import validate_staged_dyn, stage_dynamo_graph
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "RevitGPT"
+    source = Path(path).resolve(strict=True)
+    if source.parent == (base / "workspace" / "dynamo-draft").resolve(strict=True):
+        return stage_dynamo_graph(path)
+    return validate_staged_dyn(path)

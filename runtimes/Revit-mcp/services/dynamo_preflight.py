@@ -29,6 +29,7 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
     managed = Path(root) if root is not None else Path(
         os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
     ) / "RevitGPT" / "dynamo" / "staging"
+    managed.mkdir(parents=True, exist_ok=True)
     managed = managed.resolve(strict=True)
     source = Path(path)
     if not source.is_absolute() or source.suffix.lower() != ".dyn":
@@ -82,3 +83,53 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
         "connector_count": len(connectors),
         "path": str(source),
     }
+
+
+def stage_dynamo_graph(source_path: str) -> dict:
+    """Stage a validated workspace graph into private Dynamo staging atomically.
+
+    No graph execution. Reject symlinks and arbitrary source folders.
+    """
+    import uuid
+    if not isinstance(source_path, str) or not source_path:
+        raise DynamoPreflightError("Explicit workspace graph required")
+    appdata = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "RevitGPT"
+    workspace = (appdata / "workspace" / "dynamo-draft").resolve(strict=True)
+    source = Path(source_path)
+    if not source.is_absolute() or source.suffix.lower() != ".dyn":
+        raise DynamoPreflightError("Absolute .dyn source required")
+    if source.is_symlink() or getattr(source, "is_junction", lambda: False)():
+        raise DynamoPreflightError("Linked graph source is forbidden")
+    source = source.resolve(strict=True)
+    if source.parent != workspace or not source.is_file():
+        raise DynamoPreflightError("Graph must be in managed workspace/dynamo-draft")
+    raw = source.read_bytes()
+    if not raw or len(raw) > MAX_GRAPH_BYTES:
+        raise DynamoPreflightError("Graph size invalid")
+    try:
+        graph = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise DynamoPreflightError("Invalid graph JSON") from exc
+    if not isinstance(graph, dict) or not isinstance(graph.get("Nodes"), list) or not isinstance(graph.get("Connectors"), list):
+        raise DynamoPreflightError("Missing graph structure")
+    # Stage only an immutable content-addressed file, never overwrite existing bytes.
+    digest = hashlib.sha256(raw).hexdigest()
+    root = appdata / "dynamo" / "staging"
+    root.mkdir(parents=True, exist_ok=True)
+    root = root.resolve(strict=True)
+    if root.is_symlink() or getattr(root, "is_junction", lambda: False)():
+        raise DynamoPreflightError("Linked staging directory is forbidden")
+    destination = root / (digest + ".dyn")
+    if destination.exists():
+        if destination.is_symlink() or destination.read_bytes() != raw:
+            raise DynamoPreflightError("Staging hash collision or modified file")
+    else:
+        temporary = root / (".stage-" + uuid.uuid4().hex + ".tmp")
+        try:
+            with temporary.open("xb") as stream:
+                stream.write(raw)
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+    result = validate_staged_dyn(str(destination), str(root))
+    return {**result, "status": "STAGED_NOT_RUN"}

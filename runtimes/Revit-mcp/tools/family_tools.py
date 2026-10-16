@@ -5,6 +5,30 @@ from connection.bridge import inspect_element
 
 
 def register(mcp) -> None:
+    from connection.bridge import get_family_parameters
+
+    from connection.bridge import bind_shared_parameter
+
+    @mcp.tool()
+    def revit_bind_shared_parameter(shared_guid: str, categories: list[str],
+                                    is_instance: bool = True, confirm: bool = False,
+                                    document_id: str = None) -> dict:
+        """Preview or bind an existing Shared Parameter GUID to specified project categories.
+
+        confirm=False previews and never mutates. confirm=True inserts only when no
+        previous binding exists. Never overwrites existing category bindings.
+        """
+        return bind_shared_parameter(shared_guid, categories, is_instance, confirm, document_id)
+
+    @mcp.tool()
+    def revit_get_family_parameters(family_id: str, document_id: str = None) -> dict:
+        """Read actual FamilyManager parameter definitions in an editable loadable family.
+
+        Returns name, GUID, storage spec, group and Instance/Type scope.
+        Does not save or mutate the family or project.
+        """
+        return get_family_parameters(family_id, document_id)
+
     @mcp.tool()
     def revit_inspect_family_instance(element_id: str, document_id: str = None) -> dict:
         """Inspect placed family host, type, level, parent and MEP connector count."""
