@@ -42,7 +42,8 @@ const awakeIntent = await createAwakeIntent({
 });
 const nativeHostIdentity=await createNativeHostIdentity({
   filePath:path.join(getAppDataRoot(),"state","native-host-identity.json"),
-  sessionIdProvider:async()=>bootSessionId
+  sessionIdProvider:async()=>bootSessionId,
+  processState:revitProcessState
 });
 const ensureExplicitReadReady = () => ensureReadRuntime({
   upstream: revitUpstream,
