@@ -7,7 +7,7 @@ const HOST=/^[a-f0-9]{32}$/i;
 const BOOT=/^[a-f0-9]{64}$/i;
 
 export async function createNativeHostIdentity({
-  filePath,fsApi=fs,sessionIdProvider=getWindowsBootSessionId
+  filePath,fsApi=fs,sessionIdProvider=getWindowsBootSessionId,processState=async()=>({observable:false,processes:[]})
 }={}) {
   if(typeof filePath!=="string"||!filePath)throw new Error("NATIVE_HOST_IDENTITY_PATH_REQUIRED");
   const bootId=await sessionIdProvider();
@@ -33,8 +33,21 @@ export async function createNativeHostIdentity({
       throw new Error("NATIVE_HOST_IDENTITY_INVALID");
     const action=chain.catch(()=>undefined).then(async()=>{
       if(pinned===incoming)return {host_instance_id:pinned,reason:"SAME_AUTHORITATIVE_HOST"};
-      if(pinned && snapshot.manual_binding!==true)
-        throw new Error("NATIVE_HOST_TAKEOVER_DENIED: use explicit Bind Current on the new Revit host");
+      if(pinned && snapshot.manual_binding!==true){
+        // Recover after a Revit restart only when the OS confirms the new
+        // native host is the single running Revit.exe, and Native has exactly
+        // one open project already bound automatically.
+        const state=await processState();
+        const pids=state?.processes;
+        const autoRecovery=snapshot.status==="BOUND_CURRENT" &&
+          snapshot.manual_binding===false &&
+          snapshot.open_project_count===1 &&
+          Number.isSafeInteger(snapshot.host_process_id) &&
+          state?.observable===true && Array.isArray(pids) &&
+          pids.length===1 && pids[0]?.pid===snapshot.host_process_id;
+        if(!autoRecovery)
+          throw new Error("NATIVE_HOST_TAKEOVER_DENIED: use explicit Bind Current on the new Revit host");
+      }
       // A new host's automatic one-model bootstrap is insufficient to take
       // control away from an already pinned, different Revit.exe process.
       // The first observed host is allowed to adopt its initial single
@@ -54,7 +67,7 @@ export async function createNativeHostIdentity({
           throw error; // fail closed; never accept a transient identity
         }
       }
-      reason=pinned?"EXPLICIT_HOST_REBOUND":"FIRST_BOUND_HOST_PINNED";
+      reason=pinned?(snapshot.manual_binding===true?"EXPLICIT_HOST_REBOUND":"VERIFIED_SINGLE_HOST_AUTO_REBOUND"):"FIRST_BOUND_HOST_PINNED";
       pinned=incoming;
       return {host_instance_id:pinned,reason};
     });
