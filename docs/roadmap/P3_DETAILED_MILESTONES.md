@@ -29,6 +29,13 @@ Source on GitHub `main` has progressed beyond the initial M8 prototype:
 
 ## M1 — Model Anchor & File Ownership (P3-A)
 
+### M1 source implementation checkpoint — 2026-10-17
+- Added `NativeModelAnchor.cs` with fixed Shared Parameter GUID `60c02344-d967-4540-939d-19b5c4d774fb` and displayed name `RevitGPT_Model_ID`. The read route never writes; explicit initialize creates an Instance Shared Parameter on Project Information, assigns UUID only if missing and returns `requires_save`. The installed Revit API and compilation have **not** been verified.
+- Wired routes `/model-anchor/read`, `/model-anchor/initialize` into `RevitApiRouter.cs`; Python MCP `revit_get_model_anchor` and `revit_initialize_model_anchor`, bound-model authority effects and discovery Manifest. Source tests added for UUID-only AppData result path derivation (`src/model-anchor-paths.mjs`).
+- **Remaining:** .NET/Revit 2024 compile/install and live read/initialize/save/reopen, rename/phase tests, copied/detached-model duplicate ID handling, plus actual Native host identity lifecycle/queue measurements. Do not mark M1 DONE from these source commits alone.
+
+
+
 **Outcome:** Correct per-model result folder and per-Job owned file operations; never bind the wrong model.
 
 - **M1.1 [INVESTIGATE / USER DECISION 2026-10-17]** Model Anchor must identify the **RVT model using its own persistent RevitGPT ID**, never Project Name, Project Number, title, file name, phase name or path as the authoritative identifier. Revit terminology: a Global Parameter does **not** bind to Project Information; use a **dedicated Shared Parameter (instance, text) bound to the Project Information category** if the Revit 2024 API confirms creation/read/write there. Tentative name `RevitGPT_Model_ID` (confirm name and shared-definition GUID against installed code to avoid duplicates). Inspect Native binding/document identity and check existing Project Information parameters before deciding creation behavior. Observe saved RVT, rename, project phase name changes, Save As, copy/Detach and reopen; record which IDs persist and when a copied model must receive a distinct ID. Do not invent stable identity from the document title.
