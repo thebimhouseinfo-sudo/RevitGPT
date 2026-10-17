@@ -371,6 +371,7 @@ Draft only. Promote after validation and real Revit test.
     });
     if(existing)throw new Error("REGISTRY_ID_COLLISION");
     const folder=await createOwnedBundle("dynamo",a.library_id);
+    let indexed=false;
     try{
       for(const entry of entries)await writeOwnedFile("dynamo",a.library_id,entry.file,entry.content);
       const record={id:a.id,kind:"dynamo",title:path.basename(sourceName),summary:a.summary,
@@ -379,13 +380,14 @@ Draft only. Promote after validation and real Revit test.
         sha256:sha256(entries[0].content),semantic_status:"indexed",
         registered_at:new Date().toISOString()};
       await registerEntry(record,{rejectCollision:true});
+      indexed=true;
       await registerLibrary({id:a.library_id,kind:"dynamo",name:record.title,
         mode:"managed",managed_path:folder,enabled:true,origin:"owner-local-save"});
       return textResult({registered:true,entry:record,
         files:entries.map(x=>x.file),source_preserved:true,temp_job_registered:false});
     }catch(error){
-      // Only this invocation's newly created Dynamo folder is removed.
-      await fs.rm(folder,{recursive:true,force:true});
+      // Do not leave a dangling Registry path if the second metadata write fails.
+      if(!indexed)await fs.rm(folder,{recursive:true,force:true});
       throw error;
     }
   }));
