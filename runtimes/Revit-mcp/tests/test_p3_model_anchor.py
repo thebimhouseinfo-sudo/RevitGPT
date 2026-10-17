@@ -23,7 +23,7 @@ class AnchorBridgeTests(unittest.TestCase):
         source=(root/"bridge/unified_native/NativeModelAnchor.cs").read_text(encoding="utf-8")
         router=(root/"bridge/unified_native/RevitApiRouter.cs").read_text(encoding="utf-8")
         for expected in ('get_Parameter(DefinitionGuid)', 'if (!initialize)',
-                         'ProjectInformation', 'Guid.NewGuid()', 'Transaction(doc,',
+                         'ProjectInformation', 'GenerateModelId(doc)', 'Transaction(doc,',
                          'SharedParametersFilename = previous'):
             self.assertIn(expected,source)
         self.assertIn('"/model-anchor/read"',router)
@@ -34,6 +34,8 @@ class AnchorBridgeTests(unittest.TestCase):
         self.assertIn('"POST /model-anchor/initialize"',routes)
         self.assertIn('path == "/model-anchor/initialize"',protocol)
         self.assertIn("DuplicateOpenModels",source)
+        self.assertIn('"yyyyMMddTHHmmssfffZ"',source)
+        self.assertIn('Guid.NewGuid().ToString("N").Substring(0, 8)',source)
         self.assertIn("duplicate_open_model_count",source)
         self.assertIn("resolve copied-model identity",source)
 
