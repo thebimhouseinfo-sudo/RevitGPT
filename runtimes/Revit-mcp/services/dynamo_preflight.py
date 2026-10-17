@@ -1,7 +1,7 @@
 """Fail-closed Dynamo graph preflight for a future native MANUAL/no-RUN loader.
 
 This module NEVER opens Dynamo, starts a runner or executes a graph.
-Only managed files under LocalAppData/RevitGPT/dynamo/staging are admissible.
+Only managed files under the Dynamo staging or owned Job/Temp/Dynamo bundles are admissible.
 """
 from __future__ import annotations
 
@@ -26,21 +26,27 @@ class DynamoPreflightError(ValueError):
 def validate_staged_dyn(path: str, root: str | None = None) -> dict:
     if not isinstance(path, str) or not path.strip():
         raise DynamoPreflightError("Explicit local .dyn path required")
-    managed = Path(root) if root is not None else Path(
-        os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"
-    ) / "RevitGPT" / "dynamo" / "staging"
-    managed.mkdir(parents=True, exist_ok=True)
-    managed = managed.resolve(strict=True)
+    appdata = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "RevitGPT"
+    if root is not None:
+        accepted_roots = [Path(root)]
+    else:
+        accepted_roots = [
+            appdata / "dynamo" / "staging",  # retain old P2 usage
+            appdata / "libraries" / "dynamo",
+            appdata / "libraries" / "jobs",
+            appdata / "temp-jobs",
+        ]
     source = Path(path)
     if not source.is_absolute() or source.suffix.lower() != ".dyn":
         raise DynamoPreflightError("Only absolute .dyn paths are accepted")
-    # Reject reparse traversal even if it resolves back inside staging.
+    # Refuse symlink/junction traversal for the graph and all its ancestors.
     for component in (source, *source.parents):
         if component.is_symlink() or getattr(component, "is_junction", lambda: False)():
             raise DynamoPreflightError("Symlink/junction traversal is not allowed")
     source = source.resolve(strict=True)
-    if not source.is_relative_to(managed) or not source.is_file():
-        raise DynamoPreflightError("File outside the managed staging root")
+    managed_roots = [p.resolve(strict=True) for p in accepted_roots if p.is_dir()]
+    if not any(source.is_relative_to(managed) and source != managed for managed in managed_roots) or not source.is_file():
+        raise DynamoPreflightError("File outside managed Dynamo/Job/Temp owner roots")
     if source.stat().st_size > MAX_GRAPH_BYTES or source.stat().st_size == 0:
         raise DynamoPreflightError("Graph size exceeds accepted bounds")
     raw = source.read_bytes()
