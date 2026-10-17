@@ -1,5 +1,45 @@
 $ErrorActionPreference = "Stop"
 
+# P3: the official RevitGPT Native host supersedes legacy RevitMCPBridge
+# and pyRevit. A valid registered assembly proves installation, NOT that
+# Revit has loaded the add-in (Revit may be closed).
+$officialName = "RevitGPT.addin"
+$officialClass = "RevitGPT.Native.RevitGptApplication"
+$officialGuid = "9FE9A6D0-E4C9-4B8F-88F8-50E726EC0D02"
+foreach ($folder in @(
+  (Join-Path $env:APPDATA "Autodesk\\Revit\\Addins\\2024"),
+  (Join-Path $env:ProgramData "Autodesk\\Revit\\Addins\\2024")
+)) {
+  $manifest = Join-Path $folder $officialName
+  if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { continue }
+  try {
+    [xml]$xml = Get-Content -LiteralPath $manifest -Raw
+    $addins = @($xml.RevitAddIns.AddIn)
+    if ($addins.Count -ne 1) { throw "Unexpected add-in count" }
+    $addin = $addins[0]
+    if ([string]$addin.Type -ne "Application" -or
+        [string]$addin.FullClassName -ne $officialClass -or
+        [string]$addin.AddInId -ne $officialGuid -or
+        [string]$addin.VendorId -ne "TBH" -or
+        [string]$addin.Name -ne "RevitGPT") {
+      throw "Official RevitGPT Native identity mismatch"
+    }
+    $assembly = [string]$addin.Assembly
+    if (-not [IO.Path]::IsPathRooted($assembly) -or
+        [IO.Path]::GetFileName($assembly) -ne "RevitGPT.Native.dll" -or
+        -not (Test-Path -LiteralPath $assembly -PathType Leaf)) {
+      throw "Official Native DLL missing or invalid path: $assembly"
+    }
+    Write-Host ("[OK] Official RevitGPT Native 2024 installed: " + $manifest)
+    Write-Host ("[INFO] Native assembly: " + $assembly)
+    Write-Host "[INFO] This confirms registration only; host readiness requires Revit running and bridge health."
+    exit 0
+  } catch {
+    Write-Host ("[FAIL] Official RevitGPT manifest invalid: " + $_.Exception.Message)
+    exit 2
+  }
+}
+
 $years = @(2024)
 foreach ($proc in @(Get-CimInstance Win32_Process -Filter "Name='Revit.exe'" -ErrorAction SilentlyContinue)) {
   $samples = @([string]$proc.ExecutablePath)
