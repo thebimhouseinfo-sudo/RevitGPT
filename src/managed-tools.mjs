@@ -461,7 +461,19 @@ Draft only. Promote after validation and real Revit test.
     // normalization. Compare two canonical paths, not realpath versus raw.
     const [rootReal,real]=await Promise.all([fs.realpath(jobLibrariesRoot()),fs.realpath(p)]);
     if(!inside(rootReal,real))throw new Error("CUSTOM_JOB_OUTSIDE_LOCAL_APPDATA");
-    const source=await fs.readFile(real,"utf8"); return textResult({entry,source,sha256:sha256(source)});
+    const source=await fs.readFile(real,"utf8");
+    let steps=null,stepsFile=null;
+    for(const candidate of ["JOB_STEPS.md","JOB_STEPS"]){
+      try{
+        steps=await readOwnedFile("job",entry.library_id,candidate);
+        stepsFile=candidate;break;
+      }catch(e){if(e.code!=="ENOENT")throw e;}
+    }
+    const combined=steps===null?null:sha256(source+"\n"+steps);
+    const registeredHash=entry.implementation_sha256||null;
+    return textResult({entry,source,sha256:sha256(source),steps,steps_file:stepsFile,
+      contract_sha256:combined,contract_changed:registeredHash&&combined?combined!==registeredHash:null,
+      note:"Read actual steps; Registry is discovery metadata, not authorization or step validation."});
   }));
 
   server.registerTool("job_draft_validate",{description:"Validate a direct Python or reasoning Markdown Job draft structurally.",inputSchema:{path:z.string(),mode:z.enum(["reasoning","direct"])}},async (a)=>guarded("job_draft_validate",a,async()=>{
