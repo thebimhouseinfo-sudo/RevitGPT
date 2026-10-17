@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([switch]$InstallNative, [switch]$RunOfflineOnly)
+param([switch]$InstallNative)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $repo = Split-Path -Parent $PSScriptRoot
@@ -17,7 +17,8 @@ npm ci
 Require-Ok "npm ci"
 Get-ChildItem src -Filter *.mjs | ForEach-Object { node --check $_.FullName; Require-Ok "Node syntax: $($_.Name)" }
 Get-ChildItem tests -Filter *.test.mjs | ForEach-Object { node --check $_.FullName; Require-Ok "Node test syntax: $($_.Name)" }
-node --test tests/p3-*.test.mjs tests/m8-mcp-dev-reload.test.mjs
+ $testPaths = @((Get-ChildItem -Path tests -Filter "p3-*.test.mjs").FullName) + @(Join-Path $repo "tests\m8-mcp-dev-reload.test.mjs")
+node --test @testPaths
 Require-Ok "P3 Node tests"
 $python = Join-Path $repo "runtimes\Revit-mcp\.venv\Scripts\python.exe"
 if (-not (Test-Path $python)) {
