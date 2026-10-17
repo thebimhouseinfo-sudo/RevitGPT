@@ -14,7 +14,7 @@ MAX_GRAPH_BYTES = 2 * 1024 * 1024
 MAX_NODES = 1000
 MAX_CONNECTORS = 4000
 BANNED_MARKERS = (
-    "pythonscript", "pythonnode", "scriptevaluator",
+    "scriptevaluator",
     "process.start", "system.io", "file.write", "webrequest",
 )
 
@@ -45,6 +45,7 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
             raise DynamoPreflightError("Symlink/junction traversal is not allowed")
     source = source.resolve(strict=True)
     managed_roots = [p.resolve(strict=True) for p in accepted_roots if p.is_dir()]
+    staging_root = (appdata / "dynamo" / "staging").resolve(strict=False)
     if not any(source.is_relative_to(managed) and source != managed for managed in managed_roots) or not source.is_file():
         raise DynamoPreflightError("File outside managed Dynamo/Job/Temp owner roots")
     if source.stat().st_size > MAX_GRAPH_BYTES or source.stat().st_size == 0:
@@ -69,6 +70,8 @@ def validate_staged_dyn(path: str, root: str | None = None) -> dict:
         )).lower()
         if any(marker in identity for marker in BANNED_MARKERS):
             raise DynamoPreflightError("Executable or unsafe node type requires manual review")
+        if ("pythonscript" in identity or "pythonnode" in identity) and source.is_relative_to(staging_root):
+            raise DynamoPreflightError("Python Node requires explicitly owned Job/Temp/Dynamo bundle")
         if not node.get("Id"):
             raise DynamoPreflightError("Every node requires an ID")
         if "zerotouch" in identity and (
