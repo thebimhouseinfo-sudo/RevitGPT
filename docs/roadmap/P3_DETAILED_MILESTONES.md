@@ -31,6 +31,13 @@
 - GitHub Actions workflow was committed but **no runs/status were returned** by workflow-status lookup in this session. Native/API compilation or runtime verification must not be inferred from source presence.
 - **Handoff is NOT P3 DONE**. Autonomous/offline source work has progressed; remaining source defects, if CI/build reveals any, must be fixed from actual failures before live acceptance. Live Revit evidence is required for M1/M2/M5/M7/M8. No fabricated terminal graph completion, tool-repair case or host test results.
 
+### P3 live test findings — 2026-10-17
+
+- User initiated explicit `@rg`: FULLY_AWAKE; 72 Python tools; active/bound RVT `test` with one open project; read `revit_list_levels` returned `GF` ID `1303717`; `revit_get_active_view`, `revit_list_documents`, `revit_get_runtime_info` and `revit_get_categories` returned host data. **These read paths PASS in this observed context.**
+- **M1 FAIL / root cause identified:** `revit_get_model_anchor` returned `Bridge HTTP 404: Unsupported route or method` (native operation ID `fceb0e94-a124-47f5-ad7d-2d217547cc73`). Python advertised the tool and RevitApiRouter handled it, but `BridgeRouteContract.Allowed` omitted `POST /model-anchor/read` and `POST /model-anchor/initialize`. Patched exact two allowlisted routes and classified initialize as a write in `BridgeHttpProtocol.IsWrite`; added regression checks. **Native build/reinstall/Revit restart required to retest; no claim of live PASS yet.**
+- **Native host identity discrepancy:** `revitgpt_status.native_host_identity.host_instance_id` = `3295bbb431c644f6b0fe1dae6c281195` while `revitgpt_binding_status.native_binding.host_instance_id` = `5d298eff09ca4ebbaa4354424637d764` within the same check session. Investigate runtime cached host pin versus current binding identity; do not claim M1/P1 identity settled or auto-rebind.
+- No model write, graph run, rename, Save or human-visible RVT mutation performed in this live session.
+
 ## Implementation checkpoint — 2026-10-17 (source, not live acceptance)
 
 Source on GitHub `main` has progressed beyond the initial M8 prototype:
