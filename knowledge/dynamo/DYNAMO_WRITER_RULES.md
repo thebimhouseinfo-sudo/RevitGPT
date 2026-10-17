@@ -24,8 +24,7 @@ before creating any nodes.
   `Code`. Built-in function nodes may use
   `Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore`; their
   `FunctionSignature` must come from evidence, not a guess.
-- PythonScript and external ZeroTouch/package execution remain blocked in
-  the current automated runner; never relabel a node to evade validation.
+- RevitGPT P3 owner-local Job/Temp/Dynamo graphs may contain a Python Node **when its exact DynamoRevit version, Python engine, script schema and dependencies are grounded**. Legacy staging remains more restrictive for compatibility; never rename nodes to evade restrictions. External ZeroTouch/package signatures still require real host evidence. Dispatch alone is not proof a Python Node completed.
 
 ## Phase 2 — Validate against host version
 **GOAL:** Prevent a structurally plausible but non-working graph from being
