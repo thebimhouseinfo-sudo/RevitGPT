@@ -80,6 +80,13 @@ namespace RevitGPT.Native
                 if (denial != null) return Error(409, denial);
                 var doc = FindDocument(app, payload, binding.Current.BoundId);
                 if (doc == null) return Error(404, "Target Revit document is not open.");
+                if (path == "/model-anchor/read") return NativeModelAnchor.Execute(doc, payload, false);
+                if (path == "/model-anchor/initialize")
+                {
+                    if (!String.Equals(method, "POST", StringComparison.OrdinalIgnoreCase))
+                        return Error(405, "Initialize Model ID requires POST.");
+                    return NativeModelAnchor.Execute(doc, payload, true);
+                }
                 if (path == "/document/save")
                 {
                     if (doc.IsFamilyDocument) return Error(422, "Saving a family document through this route is unsupported.");
