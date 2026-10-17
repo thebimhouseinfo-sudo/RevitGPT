@@ -17,6 +17,7 @@ const SYSTEM_SIDE_EFFECT = new Set([
   "python_scaffold", "python_validate", "python_promote_draft",
   "dynamo_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
   "job_promote_draft", "run_record_append", "knowledge_failure_append",
+  "knowledge_user_rule_add",
   "knowledge_promote", "revit_mcp_dev_snapshot", "revit_mcp_dev_edit",
   "revit_mcp_dev_create", "revit_mcp_dev_delete", "revit_mcp_dev_rollback",
   "revit_mcp_dev_validate", "revit_mcp_dev_accept_local",
