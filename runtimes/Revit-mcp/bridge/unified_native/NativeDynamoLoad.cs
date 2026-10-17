@@ -104,8 +104,7 @@ namespace RevitGPT.Native
                 var edges = graph["Connectors"] as JArray;
                 if (nodes == null || edges == null || nodes.Count > 1000 || edges.Count > 4000)
                     return Error(400, "Invalid/bounded Dynamo graph structure.");
-                var banned = new[] { "pythonscript", "pythonnode",
-                    "scriptevaluator", "process.start",
+                var banned = new[] { "scriptevaluator", "process.start",
                     "system.io", "file.write", "webrequest" };
                 foreach (JToken item in nodes)
                 {
@@ -117,6 +116,14 @@ namespace RevitGPT.Native
                     }.Select(key => node[key]?.ToString() ?? "")).ToLowerInvariant();
                     if (banned.Any(identity.Contains))
                         return Error(403, "Dynamo graph has unsafe executable/custom nodes.");
+                    // Python Nodes are permitted only in explicitly owned graphs.
+                    // Legacy staging is retained for compatibility, not a way to
+                    // bypass owner-local Python authoring semantics.
+                    bool isLegacyStaging = path.StartsWith(TrustedRoots()[0],
+                        StringComparison.OrdinalIgnoreCase);
+                    if (isLegacyStaging &&
+                        (identity.Contains("pythonscript") || identity.Contains("pythonnode")))
+                        return Error(403, "Python Node requires an owned Job/Temp/Dynamo bundle.");
                     // Built-in DynamoCore ZeroTouch and DesignScript CodeBlocks
                     // are normal .dyn nodes. Unknown external executable
                     // assemblies must not pass the unattended runner.
