@@ -17,7 +17,7 @@ const SYSTEM_SIDE_EFFECT = new Set([
   "capability_borrow", "capability_release", "job_register_owned",
   "asset_register_external", "asset_export", "python_checkout",
   "python_scaffold", "python_validate", "python_promote_draft",
-  "dynamo_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
+  "dynamo_register", "dynamo_save_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
   "job_promote_draft", "run_record_append", "knowledge_failure_append",
   "knowledge_user_rule_add",
   "knowledge_promote", "revit_mcp_dev_snapshot", "revit_mcp_dev_edit",
