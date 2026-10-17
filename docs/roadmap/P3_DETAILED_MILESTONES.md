@@ -4,6 +4,19 @@
 **Authority:** [P3 Theory V5](P3_CORE_FUNCTION_THEORY_V5.md) → [P3 Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md). This breakdown is an execution checklist, **not a new contract or a sequence of approval gates**.
 **Principle:** Preserve accepted P1 binding and usable P2 MCP/Dynamo/Save. Inspect or measure unknown behavior *before* choosing a code solution; implement only the missing difference. Operator does exactly approved Job Steps. Registry is discovery only.
 
+## Implementation checkpoint — 2026-10-17 (source, not live acceptance)
+
+Source on GitHub `main` has progressed beyond the initial M8 prototype:
+
+- **M1 / M4 owner bundles:** `src/owned-bundles.mjs`; `owned_bundle_create/path` and `owned_file_read/write` in `src/managed-tools.mjs`; scoped paths and no Registry prerequisite. Offline tests authored at `tests/p3-owned-bundles.test.mjs`. **Not yet verified:** authorization against a Job pretending to own another Job's ID, Windows path/junction behavior or Model Anchor identity. Do not mark M1 complete.
+- **M3 capability borrowing:** `src/capability-borrow.mjs` and borrow/release/status MCP tools, plus `tests/p3-capability-borrow.test.mjs`. This is nonexclusive, in-process bookkeeping only; no claim that a Job's identity/permissions are authenticated. Registry discovery still serves catalog only.
+- **M4 Job Builder/Operator:** revised `skills/jobcreate/SKILL.md` and `knowledge/jobs/JOB_RULES.md`; added `job_register_owned` for direct owner-local reusable Job registration without draft promotion. Actual Operator live execution and existing legacy tool migration remain pending.
+- **M5 Dynamo:** existing Writer skill updated; Python preflight, bridge and Native `NativeDynamoLoad.cs` now accept checksum-verified graphs under owner-local Job/Temp/Dynamo bundles alongside legacy staging. Authored `tests/test_p3_owner_dynamo.py`. **Native rebuild, offline test execution and real Dynamo run/completion are still unverified.** Native currently reports dispatch, not graph termination.
+- **M6 Knowledge:** `knowledge_search` prioritizes repo `knowledge/` and labels provenance when falling back to AppData observations. Authoritative knowledge write/update workflow not yet fully verified.
+- **M8 MCP development:** DEV tool registration located in `src/revit-mcp-dev.mjs`; explicit Python reload and busy-call protection are committed with offline tests. Real new/repaired tool demonstrations and Registry updates remain pending.
+
+**Verification boundary:** Static source review only in this checkpoint; no Node/Python/Native CI or Windows Revit live PASS observed in this implementation turn. The Windows test package should be run together when the relevant code is ready, without repeatedly reinstalling Native for each tiny edit. P3 as a whole remains IN PROGRESS. Unobserved Native queue lifecycle and Model Anchor identity remain measurements, not guessed solutions.
+
 ## Baseline and execution conventions
 
 **Already exists (reuse first):** `src/index.mjs`, `src/model-authority.mjs`, `src/revit-upstream.mjs`, `src/managed-tools.mjs`, `src/appdata.mjs`, `src/capability-registry.mjs`, `src/dynamo-draft.mjs`, `skills/write-dynamo/SKILL.md`, `knowledge/dynamo/DYNAMO_WRITER_RULES.md`, `knowledge/jobs/JOB_RULES.md`, `skills/jobcreate/SKILL.md`, P2 Native Dynamo load/run and `revit_save_model`. Native actual queue/completion is **not yet established** by this document.
