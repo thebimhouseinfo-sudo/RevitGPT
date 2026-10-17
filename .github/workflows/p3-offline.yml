@@ -49,6 +49,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - name: Parse Native doctor and install scripts
+        shell: pwsh
+        run: |
+          $paths = @("scripts/check-revit-bridge-host.ps1", "scripts/p3-test-and-install.ps1")
+          foreach ($p in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p).Path, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { throw "$p has PowerShell syntax errors: $($errors | Out-String)" }
+          }
       - name: Compile Native Revit API adapter against CI-only 2024 references
         shell: pwsh
         run: |
