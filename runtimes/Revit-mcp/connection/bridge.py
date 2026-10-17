@@ -1235,12 +1235,12 @@ def save_model(dry_run: bool = False, document_id: str | None = None) -> dict:
 
 
 def _prepare_dyn_for_run(path: str) -> dict:
-    """Accept managed draft or staged Dynamo graph; reject every other location."""
+    """Accept owner-local Dynamo graph directly; retain legacy workspace draft staging."""
     import os
     from pathlib import Path
     from services.dynamo_preflight import validate_staged_dyn, stage_dynamo_graph
     base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "RevitGPT"
-    source = Path(path).resolve(strict=True)
-    if source.parent == (base / "workspace" / "dynamo-draft").resolve(strict=True):
+    source = Path(path)
+    if source.parent.resolve(strict=True) == (base / "workspace" / "dynamo-draft").resolve(strict=True):
         return stage_dynamo_graph(path)
     return validate_staged_dyn(path)
