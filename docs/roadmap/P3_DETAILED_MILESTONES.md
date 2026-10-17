@@ -31,6 +31,18 @@
 - GitHub Actions workflow was committed but **no runs/status were returned** by workflow-status lookup in this session. Native/API compilation or runtime verification must not be inferred from source presence.
 - **Handoff is NOT P3 DONE**. Autonomous/offline source work has progressed; remaining source defects, if CI/build reveals any, must be fixed from actual failures before live acceptance. Live Revit evidence is required for M1/M2/M5/M7/M8. No fabricated terminal graph completion, tool-repair case or host test results.
 
+### Batch-first verification policy and read-only sweep — 2026-10-17
+
+**User instruction:** Do not stop and rebuild on the first test failure. Sweep applicable non-mutating features across groups, distinguish missing input/inapplicable view/model data from actual defects, group source changes by cause, then build/install Native in one batch. One command failing does not trigger immediate human reinstall.
+
+**Observed this sweep on bound `test.rvt`:** levels, views, families, family types, sheets, categories, system types, active view, selection, document/runtime info and annotations (with valid view ID) returned live data. Schedules and MEP systems returned empty lists, **not failures**. Sheet viewports returned an empty list. View filters returned the actual filters when called with a valid floor-plan view ID `1851551`; a sheet-based view ID was rejected as unsupported view, which is expected context, not tool breakage. Calls omitting required `view_id` yielded schema validation errors, not native defects.
+
+**Outstanding Native build batch:** `revit_get_model_anchor` still returned HTTP 404 on installed DLL version `p3-e0b886270b` because the running binary predates the route-contract patch. Source `BridgeRouteContract.cs` now contains the two routes and `BridgeHttpProtocol.cs` recognizes initialize as a write. A source parity sweep of Python `connection/bridge.py` against current `BridgeRouteContract.cs` found **zero unmatched literal Python routes**, but installed binary requires one rebuild/reinstall and new live evidence. Do not retry this missing route against the unchanged Native binary.
+
+**Host identity recheck:** a subsequent `revitgpt_status` and `revitgpt_binding_status` both reported `5d298eff09ca4ebbaa4354424637d764` with `VERIFIED_SINGLE_HOST_AUTO_REBOUND`; the earlier mismatch is not currently reproducible. Keep host transitions observable, but no identity code change is justified from the stale snapshot alone.
+
+**Next testing phase:** continue related read-only groups and independent offline checks, then perform a **single** Native upgrade for accumulated changes and consolidate mutating-model tests on the disposable RVT. Do not claim Model Anchor/Dynamo/queue live PASS before this batch.
+
 ### P3 live test findings — 2026-10-17
 
 - User initiated explicit `@rg`: FULLY_AWAKE; 72 Python tools; active/bound RVT `test` with one open project; read `revit_list_levels` returned `GF` ID `1303717`; `revit_get_active_view`, `revit_list_documents`, `revit_get_runtime_info` and `revit_get_categories` returned host data. **These read paths PASS in this observed context.**
