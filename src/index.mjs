@@ -11,6 +11,7 @@ import { createNativeHostIdentity } from "./native-host-identity.mjs";
 import { wrapToolRegistration } from "./tool-effects.mjs";
 import { ensureAppDataLayout, getAppDataRoot } from "./appdata.mjs";
 import { registerManagedTools } from "./managed-tools.mjs";
+import { beginModelRun } from "./model-run-result.mjs";
 import { registerRevitMcpDevTools, isDevMode } from "./revit-mcp-dev.mjs";
 import { createSessionManager, extractRequestId, isInitializeRequest, isPriorityControlRequest } from "./mcp-session-manager.mjs";
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
@@ -129,6 +130,24 @@ function createServer(sessionKey) {
   // Shared awake and model binding remain independent of Job recovery.
   wrapToolRegistration(server,{isAwake:()=>awakeIntent.isAwake()});
   registerManagedTools(server);
+  server.registerTool("model_run_result_begin",{
+    description:"Create an owned run-results folder under the model's persistent Project Information UUID read live from the native bound Revit document. Requires an already initialized model ID.",
+    inputSchema:{
+      job_id:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
+      run_id:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
+    }
+  },async({job_id,run_id})=>{
+    const entry=await beginModelRun({
+      jobId:job_id,runId:run_id,
+      readBoundModelAnchor:()=>callReadOnlyTool({
+        name:"revit_get_model_anchor",args:{},authority,
+        ensureReady:ensureExplicitReadReady,
+        invoke:(name,args)=>revitUpstream.callTool(name,args)
+      })
+    });
+    return {content:[{type:"text",text:JSON.stringify(entry)}],structuredContent:entry};
+  });
+
   registerRevitMcpDevTools(server,{
     reloadUpstream:async()=>{
       // This is an explicit developer action, not automatic replay/retry.
