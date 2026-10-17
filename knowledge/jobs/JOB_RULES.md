@@ -1,27 +1,33 @@
-# RevitGPT Job Rules
+# RevitGPT Job Rules — P3
 
-A Job is a repeatable Revit workflow with explicit goal, steps, authority, evidence, and final validation.
+**Source of design decisions:** `docs/roadmap/P3_CORE_FUNCTION_THEORY_V5.md`. ChatGPT is the brain; RevitGPT executes model and file operations. Do not create a second local Job planner.
 
-## Job vs Skill vs Tool
-- Job: repeatable workflow.
-- Skill: reusable expert authoring/development capability.
-- Tool: concrete execution mechanism.
+## Job / Skill / Tool
+- **Job:** user-approved workflow with ordered `JOB_STEPS` and `JOB.md`.
+- **Skill:** guidance for ChatGPT to author or run a Job.
+- **Tool/Capability:** action handle, often shared by multiple Job runs. Borrowed capability IDs do not lock tool instances.
 
-## Modes
-- **Reasoning Job**: a reviewed `JOB.md` with goal, decisions, steps, dependencies and validation. The RevitGPT brain interprets and orchestrates it by selecting registered capabilities.
-- **Direct Job**: deterministic reviewed executable (currently Python `.py`). It must use a permitted runner and return structured execution evidence.
-- Both use the same managed Job Registry. Merely discovering or drafting a file never grants permission to execute it.
+There is **one Job format**, not separate Direct/Reasoning types. Reasoning is allowed only where an individual step explicitly requests it.
 
-## Storage: Local AppData is the ONLY Custom Job authority
-- Reusable Custom Jobs: `%LOCALAPPDATA%\RevitGPT\libraries\jobs\<library-id>\**`.
-- Drafts: `%LOCALAPPDATA%\RevitGPT\workspace\job-draft\**`.
-- Runtime evidence and checkpoints: `%LOCALAPPDATA%\RevitGPT\data\runs\**`.
-- Registry: `%LOCALAPPDATA%\RevitGPT\registry\user\capabilities.json`.
-- External folders may be **import sources** but may NOT be live registered Job locations. Import the Job to Local AppData first.
-- This source file `knowledge/jobs/JOB_RULES.md` defines authoring rules; it is NOT itself a Custom Job.
+## Job ownership and storage
+- Saved Job: `%LOCALAPPDATA%/RevitGPT/libraries/jobs/<id>/`.
+- Temp/Disposal Job: `%LOCALAPPDATA%/RevitGPT/temp-jobs/<id>/`.
+- Revit Model-specific results: owned directory under its persistent Model Anchor and individual Job Run ID.
+- Each Job owns its bundle and own results; other files are read-only or copied into its own folder.
+- Registry lists available reusable tools, Jobs and Dynamo **for fast discovery**. It is not a gate for authoring, loading or live-testing an unregistered Job/graph.
+- No mandatory draft/promote folder move, separate validation gate or second user approval.
 
-## Authority
-A Job must not infer target RVT from ActiveView or UI focus. Once lease/binding is implemented, every Revit-affecting step verifies the current bound model. Before then, real tests require explicit Human model selection.
+## Contract and execution
+A Job specifies user-authorized goal and ordered steps, inputs, required tool/capability, optional step-local reasoning, verifiable step outcome and outputs. Builder may suggest an extra step but cannot silently put it in the contract.
 
-## Validation
-Dispatch is not success. Every Job defines final validation against actual model/result. Missing evidence means unresolved/fail, not guessed success.
+**Operator:** read and execute Saved Job steps exactly. Step PASS if actual declared outcome holds; otherwise ERROR/UNKNOWN → STOP and REPORT. No implicit retries, fixes, rearrangement, skipping, recovery, or unauthorized reasoning. When all steps PASS, Job Done. Return borrowed capability records.
+
+**Builder:** authors/edits/tests Saved Jobs and executes Temp Jobs. Does not secretly register Temp Jobs.
+
+## Revit authority and Save
+Native binding identifies the model; an active view alone is not sufficient. Model Anchor stores results but cannot bind or switch models. Revit read/write/UI/Dynamo/save operations belong to a single shared execution queue, without queueing or locking whole Jobs.
+
+If any step changes the model, Builder adds **one system-authorized `revit_save_model` step immediately after the last model mutation**, even if file-only steps follow. A failed or unknown Save is not Job success. Read-only Jobs do not require Save.
+
+## Proof
+A successful tool dispatch alone is not evidence that a Dynamo graph or requested model change completed. Verify against actual model/result. If outcome is unknown, stop and report; never replay an ambiguous mutation automatically.
