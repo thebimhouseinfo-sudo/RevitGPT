@@ -415,6 +415,24 @@ Draft only. Promote after validation and real Revit test.
     await fs.mkdir(path.dirname(p),{recursive:true}); await fs.appendFile(p,stamped,"utf8"); return textResult({path:p});
   }));
 
+  server.registerTool("job_register_owned",{
+    description:"Catalog one owner-local reusable Job after Builder's real test. Does not move files, run validation gates or authorize execution.",
+    inputSchema:{library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),id:z.string().regex(/^[A-Za-z0-9._:-]+$/),summary:z.string()}
+  },async(a)=>guarded("job_register_owned",a,async()=>{
+    const root=path.join(jobLibrariesRoot(),a.library_id);
+    const [job,steps]=await Promise.all(["JOB.md","JOB_STEPS.md"].map(n=>fs.readFile(path.join(root,n),"utf8")));
+    if(!job.trim()||!steps.trim())throw new Error("JOB_CONTRACT_EMPTY");
+    const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]});
+    if((reg.entries||[]).some(x=>x.id===a.id))throw new Error("REGISTRY_ID_COLLISION");
+    const title=job.match(/^#\s+(.+)$/m)?.[1]?.trim()||a.library_id;
+    const entry={id:a.id,kind:"job",title,summary:a.summary,
+      library_id:a.library_id,relative_path:"JOB.md",path:path.join(root,"JOB.md"),
+      steps_path:path.join(root,"JOB_STEPS.md"),semantic_status:"indexed",
+      implementation_sha256:sha256(job+"\n"+steps),registered_at:new Date().toISOString()};
+    await registerEntry(entry);
+    return textResult({registered:true,entry,note:"Registry indexes the Job; it does not establish real-host verification."});
+  }));
+
   server.registerTool("job_get",{description:"Read one registered Job record and source.",inputSchema:{id:z.string()}},async (a)=>guarded("job_get",a,async()=>{
     const reg=await readJson(registryCapabilitiesPath(),{version:1,entries:[]}); const entry=(reg.entries||[]).find(x=>x.id===a.id&&x.kind==="job");
     if(!entry)throw new Error("JOB_NOT_FOUND");
