@@ -4,6 +4,15 @@
 **Authority:** [P3 Theory V5](P3_CORE_FUNCTION_THEORY_V5.md) → [P3 Implementation Plan](P3_CORE_FUNCTION_IMPLEMENTATION_PLAN.md). This breakdown is an execution checklist, **not a new contract or a sequence of approval gates**.
 **Principle:** Preserve accepted P1 binding and usable P2 MCP/Dynamo/Save. Inspect or measure unknown behavior *before* choosing a code solution; implement only the missing difference. Operator does exactly approved Job Steps. Registry is discovery only.
 
+### Automated-work continuation — 2026-10-17
+
+- Added **`.github/workflows/p3-offline.yml`**: Node 22 syntax + P3 Node contracts; Python 3.11 compileall + P3 Python contracts; Windows .NET compilation against CI-only Revit API 2024 references. **CI result not yet observed**; workflow creation is not a PASS.
+- M8 dev tool source write/create no longer forces an execution snapshot or local acceptance stage. Optional snapshot/rollback remains available. Scoped path checks and symlink denial kept; offline `tests/p3-mcp-dev-scope.test.mjs` written.
+- M3 Registry JSON writes from concurrent chats serialized inside the Node process; Saved Job duplicate IDs rejected during the same critical file edit rather than relying on a prior non-atomic read. Test `tests/p3-registry-concurrency.test.mjs` added. This is **not a Job/Tool mutex**. Cross-process shared registry writes are not yet claimed safe.
+- Bound Native Project Information model ID read/init, owner-result UUID path, Dynamo owner-local preflight and Jobs continue as **source implemented, build/live unverified**.
+- Open non-human issues: collect actual CI workflow result, fix any failing Node/Python/.NET checks; review shared Native dispatcher for queue/completion evidence; improve source-only Job/MCP tests where evidence supports a fix. Do not invent Dynamo graph-complete callbacks or fabricated MCP use-case repair evidence.
+- Human-only end-to-end batch: one Revit 2024 install/build/test round for bound Model Anchor initialize → Save/reopen/rename; real Dynamo terminal/queue observations; new/repaired MCP tool execution and Registry; Saved/Temp Job scenarios. Preserve existing accepted P1/P2 evidence when valid.
+
 ## Implementation checkpoint — 2026-10-17 (source, not live acceptance)
 
 Source on GitHub `main` has progressed beyond the initial M8 prototype:
