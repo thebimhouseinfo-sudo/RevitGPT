@@ -6,8 +6,8 @@ import path from "node:path";
 import { modelIdFromMcpResult,beginModelRun } from "../src/model-run-result.mjs";
 import { effectForTool } from "../src/tool-effects.mjs";
 
-const ID="209f9d66-fbca-49c0-bd5c-ab392bd48cad";
-test("native-bound UUID must be present and valid before run output folder is created",async()=>{
+const ID="test_20261017T103012123Z_a1b2c3d4";
+test("native-bound generated model ID must be present and valid before run output folder is created",async()=>{
   const old=process.env.REVITGPT_APPDATA_ROOT;
   const root=await fs.mkdtemp(path.join(os.tmpdir(),"rg-model-results-"));
   process.env.REVITGPT_APPDATA_ROOT=root;
