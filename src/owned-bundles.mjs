@@ -26,8 +26,9 @@ function relativeFile(value){
   return parts.join(path.sep);
 }
 async function safePath(root,relative,allowMissing=false){
+  const rootStat=await fs.lstat(root);
+  if(rootStat.isSymbolicLink())throw new Error("OWNED_BUNDLE_ROOT_LINK_DENIED");
   const realRoot=await fs.realpath(root);
-  if(path.resolve(root)!==realRoot)throw new Error("OWNED_BUNDLE_ROOT_LINK_DENIED");
   const target=path.resolve(root,relative);
   if(!descendant(root,target))throw new Error("OWNED_FILE_OUTSIDE_BUNDLE");
   let current=root;
