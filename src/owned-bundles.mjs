@@ -53,6 +53,7 @@ export async function createOwnedBundle(kind,id){
   const root=ownedBundleRoot(kind,id);
   await fs.mkdir(path.dirname(root),{recursive:true});
   try{await fs.mkdir(root);}catch(e){if(e.code==="EEXIST")throw new Error("OWNED_BUNDLE_EXISTS");throw e;}
+  if(kind==="temp")await fs.writeFile(path.join(root,".revitgpt-temp.json"),JSON.stringify({version:1,state:"active",created_at:new Date().toISOString()},null,2)+"\n",{flag:"wx"});
   return root;
 }
 export async function readOwnedFile(kind,id,file){
@@ -74,4 +75,43 @@ export async function writeOwnedFile(kind,id,file,content,{expectedContent}={}){
   const checked=await safePath(root,name,true);
   await fs.writeFile(checked,content,{flag:expectedContent===undefined?"wx":"w"});
   return checked;
+}
+
+const TEMP_METADATA=".revitgpt-temp.json";
+export async function finishTempBundle(id,state="completed"){
+  if(!["completed","abandoned"].includes(state))throw new Error("TEMP_JOB_INVALID_TERMINAL_STATE");
+  const root=ownedBundleRoot("temp",id);
+  const target=await safePath(root,TEMP_METADATA);
+  const metadata=JSON.parse(await fs.readFile(target,"utf8"));
+  if(metadata.state!=="active")throw new Error("TEMP_JOB_ALREADY_TERMINATED");
+  const finished={...metadata,state,finished_at:new Date().toISOString()};
+  await fs.writeFile(target,JSON.stringify(finished,null,2)+"\n");
+  return {id,state,finished_at:finished.finished_at};
+}
+
+export async function cleanupTempBundles({retentionHours,now=Date.now(),dryRun=true}={}){
+  if(!Number.isFinite(retentionHours)||retentionHours<0)throw new Error("TEMP_JOB_RETENTION_HOURS_REQUIRED");
+  const root=tempJobsRoot(),eligible=[],skipped=[];
+  let entries=[];
+  try{entries=await fs.readdir(root,{withFileTypes:true});}
+  catch(e){if(e.code!=="ENOENT")throw e;return {eligible,skipped,dry_run:dryRun};}
+  for(const entry of entries){
+    if(!entry.isDirectory()||entry.isSymbolicLink())continue;
+    let folder,record;
+    try{
+      folder=ownedBundleRoot("temp",entry.name);
+      const file=await safePath(folder,TEMP_METADATA);
+      record=JSON.parse(await fs.readFile(file,"utf8"));
+    }catch(e){skipped.push({id:entry.name,reason:"missing_or_invalid_metadata"});continue;}
+    if(!["completed","abandoned"].includes(record.state)||typeof record.finished_at!=="string"){
+      skipped.push({id:entry.name,reason:"not_finished"});continue;
+    }
+    const finishedAt=Date.parse(record.finished_at);
+    if(!Number.isFinite(finishedAt)||now-finishedAt<retentionHours*3600000){
+      skipped.push({id:entry.name,reason:"retention_not_elapsed"});continue;
+    }
+    eligible.push(entry.name);
+    if(!dryRun)await fs.rm(folder,{recursive:true,force:false});
+  }
+  return {eligible,skipped,dry_run:dryRun,retention_hours:retentionHours};
 }
