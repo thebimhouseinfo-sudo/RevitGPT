@@ -369,22 +369,32 @@ Draft only. Promote after validation and real Revit test.
 
 
   server.registerTool("knowledge_search",{
-    description:"Read-only keyword search over curated local RevitGPT knowledge (HVAC, Revit API, learned lessons). Results are evidence, not model facts.",
+    description:"Read-only search of authoritative repo Knowledge first, then local AppData observations. Results include provenance and are not immutable model facts.",
     inputSchema:{query:z.string().min(2),limit:z.number().int().min(1).max(20).optional()}
   },async(a)=>guarded("knowledge_search",a,async()=>{
-    const root=path.join(getAppDataRoot(),"knowledge");
-    const files=await walk(root,250), term=a.query.toLowerCase(),hits=[];
-    for(const file of files){
-      if(!file.endsWith(".md"))continue;
-      try{
-        const stat=await fs.lstat(file); if(!stat.isFile() || stat.isSymbolicLink() || stat.size>128*1024)continue;
-        const content=await fs.readFile(file,"utf8"),at=content.toLowerCase().indexOf(term);
-        if(at<0)continue;
-        hits.push({source:path.relative(root,file).replaceAll("\\","/"),
-          sha256:sha256(content),
-          excerpt:content.slice(Math.max(0,at-100),Math.min(content.length,at+280))});
-        if(hits.length>=(a.limit||8))break;
-      }catch{}
+    // P3 source-controlled knowledge takes precedence over seed-once AppData copies.
+    // AppData is retained for observed failures and local draft notes only.
+    const authoritative=path.join(REPO_ROOT,"knowledge");
+    const local=path.join(getAppDataRoot(),"knowledge");
+    const term=a.query.toLowerCase(),hits=[],seen=new Set();
+    for(const [root,provenance] of [[authoritative,"source-controlled"],[local,"local-observation"]]){
+      for(const file of await walk(root,250)){
+        if(!file.endsWith(".md"))continue;
+        const relative=path.relative(root,file).replaceAll("\\\\","/");
+        if(provenance!=="source-controlled"&&seen.has(relative))continue;
+        try{
+          const stat=await fs.lstat(file);
+          if(!stat.isFile()||stat.isSymbolicLink()||stat.size>128*1024)continue;
+          const content=await fs.readFile(file,"utf8");
+          if(provenance==="source-controlled")seen.add(relative);
+          const at=content.toLowerCase().indexOf(term);
+          if(at<0)continue;
+          hits.push({source:relative,provenance,sha256:sha256(content),
+            excerpt:content.slice(Math.max(0,at-100),Math.min(content.length,at+280))});
+          if(hits.length>=(a.limit||8))break;
+        }catch{}
+      }
+      if(hits.length>=(a.limit||8))break;
     }
     return textResult({query:a.query,matches:hits,rule:"Knowledge is advisory; verify element counts/classification against live bound Revit model."});
   }));
