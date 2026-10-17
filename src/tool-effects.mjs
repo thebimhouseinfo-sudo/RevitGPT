@@ -1,3 +1,4 @@
+import { noteManagedToolRegistration } from "./capability-registry.mjs";
 import { classifyModelOperation } from "./model-authority.mjs";
 
 const READ_ONLY = new Set([
@@ -64,7 +65,7 @@ export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvid
     // Registration inventory is static; the dynamic revitgpt_call is evaluated
     // again with actual tool name/payload on each invocation.
     if(name!=="revitgpt_call")effectForTool(name);
-    return raw(name,config,async(args,...rest)=>{
+    const registered=raw(name,config,async(args,...rest)=>{
       const effect=effectForTool(name,args);
       if(effect==="CONTROL")return callback(args,...rest);
       const reservedId=reservationIdProvider();
@@ -78,6 +79,8 @@ export function wrapToolRegistration(server,{tracker,isAwake,reservationIdProvid
         ()=>callback(args,...rest));
       return tracker.run(tool,effect,inputs,()=>callback(args,...rest));
     });
+    noteManagedToolRegistration(name,config);
+    return registered;
   };
   return server;
 }
