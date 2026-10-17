@@ -14,7 +14,7 @@ import { logToolCall, logError } from "./log-store.mjs";
 import { currentOperationId } from "./work-tracker.mjs";
 import { lookupRegistry } from "./capability-registry.mjs";
 import { validateDynamoDraftFile, stageDynamoDraft } from "./dynamo-draft.mjs";
-import { ownedBundleRoot, createOwnedBundle, readOwnedFile, writeOwnedFile } from "./owned-bundles.mjs";
+import { ownedBundleRoot, createOwnedBundle, readOwnedFile, writeOwnedFile, finishTempBundle, cleanupTempBundles } from "./owned-bundles.mjs";
 import { capabilityBorrow, capabilityRelease, capabilityBorrowStatus } from "./capability-borrow.mjs";
 
 const execFileAsync=promisify(execFile);
@@ -164,6 +164,16 @@ export function registerManagedTools(server){
     description:"Read this Job run's nonexclusive capability-use records.",
     inputSchema:{job_run_id:z.string()}
   },async(a)=>guarded("capability_borrow_status",a,async()=>textResult(capabilityBorrowStatus(a.job_run_id))));
+
+  server.registerTool("temp_job_finish",{
+    description:"Mark one Temp Job as completed or abandoned so retention cleanup can remove it later; does not register it.",
+    inputSchema:{id:z.string(),state:z.enum(["completed","abandoned"])}
+  },async(a)=>guarded("temp_job_finish",a,async()=>textResult(await finishTempBundle(a.id,a.state))));
+  server.registerTool("temp_job_cleanup",{
+    description:"List or delete only completed/abandoned Temp Job bundles older than explicitly supplied retention hours. Never delete active Jobs.",
+    inputSchema:{retention_hours:z.number().finite().min(0),dry_run:z.boolean().optional().default(true)}
+  },async(a)=>guarded("temp_job_cleanup",a,async()=>
+    textResult(await cleanupTempBundles({retentionHours:a.retention_hours,dryRun:a.dry_run}))));
 
   // P3 owner-local authoring: reusable Jobs, Dynamo and temporary Job bundles
   // can be prepared/tested without any Registry promotion procedure.
