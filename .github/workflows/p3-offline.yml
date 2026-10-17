@@ -1,0 +1,44 @@
+name: P3 Offline Checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "runtimes/Revit-mcp/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/p3-offline.yml"
+  pull_request:
+  workflow_dispatch:
+jobs:
+  node-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Node syntax
+        run: |
+          for source in src/*.mjs tests/*.test.mjs; do
+            node --check "$source"
+          done
+      - name: P3 contract tests
+        run: node --test tests/p3-*.test.mjs tests/m8-mcp-dev-reload.test.mjs
+  python-contract:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: runtimes/Revit-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python modules
+        run: python -m compileall -q connection tools services tests
+      - name: P3 offline route tests
+        run: python -m unittest discover -s tests -p "test_p3_*.py" -v
