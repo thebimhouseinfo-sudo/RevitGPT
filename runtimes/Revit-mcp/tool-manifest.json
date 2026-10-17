@@ -597,6 +597,30 @@
       "schema_source": "live_mcp_tools_list"
     },
     {
+      "id": "mcp.revit_get_model_anchor",
+      "name": "revit_get_model_anchor",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.document",
+      "title": "get model anchor",
+      "summary": "Read persistent RevitGPT_Model_ID Shared Parameter on the bound RVT's Project Information; read only.",
+      "when_to_use": "Get stable model identity independent of file/project names.",
+      "tags": [
+        "model",
+        "anchor",
+        "identity",
+        "project-information"
+      ],
+      "source_tool": "revit_get_model_anchor",
+      "execution": "revitgpt_call",
+      "mode": "read_bound_model",
+      "risk": "low",
+      "mutates_model": false,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
       "id": "mcp.revit_get_parameters",
       "name": "revit_get_parameters",
       "kind": "tool",
@@ -728,6 +752,30 @@
       "mutates_model": false,
       "semantic_status": "curated",
       "status": "pending_native_fixture",
+      "schema_source": "live_mcp_tools_list"
+    },
+    {
+      "id": "mcp.revit_initialize_model_anchor",
+      "name": "revit_initialize_model_anchor",
+      "kind": "tool",
+      "registry": "internal",
+      "class": "revit.document",
+      "title": "initialize model anchor",
+      "summary": "Explicitly create a missing persistent RevitGPT_Model_ID Shared Parameter on Project Information; requires model Save.",
+      "when_to_use": "Initialize missing persistent model anchor once on a deliberately bound RVT.",
+      "tags": [
+        "model",
+        "anchor",
+        "identity",
+        "project-information"
+      ],
+      "source_tool": "revit_initialize_model_anchor",
+      "execution": "revitgpt_call",
+      "mode": "write_bound_model",
+      "risk": "medium",
+      "mutates_model": true,
+      "semantic_status": "curated",
+      "status": "implemented_unverified",
       "schema_source": "live_mcp_tools_list"
     },
     {
