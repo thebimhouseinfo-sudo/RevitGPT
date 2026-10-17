@@ -1,0 +1,37 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { modelIdFromMcpResult,beginModelRun } from "../src/model-run-result.mjs";
+import { effectForTool } from "../src/tool-effects.mjs";
+
+const ID="209f9d66-fbca-49c0-bd5c-ab392bd48cad";
+test("native-bound UUID must be present and valid before run output folder is created",async()=>{
+  const old=process.env.REVITGPT_APPDATA_ROOT;
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),"rg-model-results-"));
+  process.env.REVITGPT_APPDATA_ROOT=root;
+  try{
+    const response={content:[{type:"text",text:JSON.stringify({found:true,valid:true,model_id:ID})}]};
+    const first=await beginModelRun({jobId:"saved-job",runId:"run-1",readBoundModelAnchor:async()=>response});
+    assert.ok(first.results_path.includes(ID));
+    assert.equal((await fs.stat(first.results_path)).isDirectory(),true);
+    assert.equal(first.model_id,ID);
+    await assert.rejects(()=>beginModelRun({jobId:"saved-job",runId:"run-1",readBoundModelAnchor:async()=>response}),/MODEL_RUN_RESULTS_ALREADY_EXIST/);
+    await assert.rejects(()=>beginModelRun({jobId:"../bad",runId:"run-2",readBoundModelAnchor:async()=>response}),/MODEL_RUN_INVALID_ID/);
+    await assert.rejects(()=>beginModelRun({jobId:"other",runId:"run-3",readBoundModelAnchor:async()=>({
+      structuredContent:{model_id:"Project Renamed",valid:false}
+    })}),/MODEL_ANCHOR_MISSING_OR_INVALID/);
+    assert.equal(effectForTool("model_run_result_begin"),"SYSTEM_SIDE_EFFECT");
+  }finally{
+    if(old===undefined)delete process.env.REVITGPT_APPDATA_ROOT;
+    else process.env.REVITGPT_APPDATA_ROOT=old;
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+test("M1 parses MCP text and structured result but refuses guessed identity",()=>{
+  assert.equal(modelIdFromMcpResult({structuredContent:{valid:true,model_id:ID}}),ID);
+  assert.equal(modelIdFromMcpResult({structuredContent:{result:{valid:true,model_id:ID}}}),ID);
+  assert.throws(()=>modelIdFromMcpResult({structuredContent:{model_id:"Project Name",valid:false}}),/MODEL_ANCHOR_MISSING_OR_INVALID/);
+  assert.throws(()=>modelIdFromMcpResult({isError:true}),/MODEL_ANCHOR_UPSTREAM_ERROR/);
+});
