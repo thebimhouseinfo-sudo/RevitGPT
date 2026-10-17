@@ -30,6 +30,21 @@ namespace RevitGPT.Native
             return parameter.AsString();
         }
 
+        // A copied/detached RVT can retain the same Project Information value.
+        // Detect concurrently open conflicting documents, but NEVER rewrite IDs
+        // automatically or treat project title/path as the model's identity.
+        private static string[] DuplicateOpenModels(Document doc, string value)
+        {
+            Guid parsed;
+            if (!Guid.TryParse(value, out parsed)) return new string[0];
+            return doc.Application.Documents.Cast<Document>()
+                .Where(other => other != doc && !other.IsFamilyDocument && !other.IsLinked)
+                .Where(other => String.Equals(CurrentValue(Existing(other)), value,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(other => other.Title)
+                .ToArray();
+        }
+
         private static ExternalDefinition GetOrCreateDefinition(ApplicationWrapper wrapper)
         {
             var app = wrapper.Document.Application;
@@ -87,8 +102,11 @@ namespace RevitGPT.Native
             if (!initialize)
             {
                 Guid parsed;
+                var conflicts = DuplicateOpenModels(doc, value);
                 return Data(new { found = existing != null, model_id = value,
-                    valid = Guid.TryParse(value, out parsed),
+                    valid = Guid.TryParse(value, out parsed) && conflicts.Length == 0,
+                    duplicate_open_model_count = conflicts.Length,
+                    duplicate_open_model_titles = conflicts,
                     parameter_name = Name, parameter_guid = DefinitionGuid.ToString(),
                     initialized = false });
             }
@@ -100,6 +118,9 @@ namespace RevitGPT.Native
             {
                 if (!Guid.TryParse(value, out currentGuid))
                     return Error(409, "Existing model anchor value is invalid; refusing overwrite.");
+                var duplicates = DuplicateOpenModels(doc, value);
+                if (duplicates.Length > 0)
+                    return Error(409, "Another open RVT has the same persistent Model ID; resolve copied-model identity before continuing.");
                 return Data(new { found = true, model_id = value, initialized = false,
                     parameter_guid = DefinitionGuid.ToString() });
             }
