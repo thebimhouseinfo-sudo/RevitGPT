@@ -7,6 +7,18 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const INTERNAL_FILE=path.join(ROOT,"runtimes","Revit-mcp","tool-manifest.json");
 const ALLOWED_USER_KINDS=new Set(["job","python","dynamo"]);
 const CAP=500;
+// Capture actual Node MCP registrations for fast, in-process discovery.
+// Registry metadata never gates a tool's execution.
+const liveManagedTools=new Map();
+export function noteManagedToolRegistration(name,{title,description}={}){
+  if(typeof name!=="string"||!name.trim())return;
+  liveManagedTools.set(name,{
+    id:"managed."+name,name,kind:"tool",registry:"internal",
+    title:title||name,summary:description||"Registered RevitGPT MCP tool",
+    execution:name,semantic_status:"indexed",status:"registered"
+  });
+}
+
 const cleanText=v=>typeof v==="string"?v.trim():"";
 
 export function mergeCapabilities(internal,user){
@@ -49,7 +61,7 @@ export async function effectiveRegistry({internalFile=INTERNAL_FILE,userFile=reg
   try{user=JSON.parse(await fs.readFile(userFile,"utf8"));}
   catch(e){if(e?.code!=="ENOENT")throw e;}
   if(user.version!==1||!Array.isArray(user.entries))throw new Error("USER_REGISTRY_MALFORMED");
-  return mergeCapabilities(internal.entries,user.entries);
+  return mergeCapabilities([...internal.entries,...liveManagedTools.values()],user.entries);
 }
 export async function lookupRegistry({kind,registry,query,limit=25,id}={}){
   const entries=await effectiveRegistry();
