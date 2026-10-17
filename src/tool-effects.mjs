@@ -16,7 +16,8 @@ const SYSTEM_SIDE_EFFECT = new Set([
   "job_promote_draft", "run_record_append", "knowledge_failure_append",
   "knowledge_promote", "revit_mcp_dev_snapshot", "revit_mcp_dev_edit",
   "revit_mcp_dev_create", "revit_mcp_dev_delete", "revit_mcp_dev_rollback",
-  "revit_mcp_dev_validate", "revit_mcp_dev_accept_local"
+  "revit_mcp_dev_validate", "revit_mcp_dev_accept_local",
+  "revit_mcp_dev_reload"
 ]);
 
 const CONTROL = new Set([
