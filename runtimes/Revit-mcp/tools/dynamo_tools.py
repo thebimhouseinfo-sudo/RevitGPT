@@ -1,4 +1,4 @@
-"""Bound Dynamo graph staging, native autorun and diagnostic load operations."""
+"""Owner-local Dynamo graph load/run plus backward-compatible staging."""
 from connection.bridge import load_dyn_file, run_dyn_file
 
 
@@ -20,7 +20,7 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def revit_load_dyn_file(path: str, document_id: str = None) -> dict:
-        """Open a locally staged .dyn graph in Dynamo MANUAL mode, never RUN.
+        """Open an owned or previously staged local .dyn graph in MANUAL mode, never RUN.
 
         Requires file preflight on the current bound Revit model.
         Unsupported nodes/packages/host API fail closed.
@@ -30,7 +30,7 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def revit_run_dyn_file(path: str, document_id: str = None) -> dict:
-        """Execute a preflighted, staged .dyn ONCE inside DynamoRevit.
+        """Execute a checksum-verified, owner-local or staged .dyn inside DynamoRevit.
 
         Requires explicit execution intent and the active bound Revit model.
         A dispatch acknowledgment is NOT proof of graph completion; inspect
