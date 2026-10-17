@@ -95,6 +95,7 @@
 ### M8 implementation checkpoint — 2026-10-17
 - **SOURCE IMPLEMENTED (partial):** confirmed actual DEV tool registrations in `src/revit-mcp-dev.mjs` guarded by `REVITGPT_DEV_MODE`; confirmed Python MCP uses a cached stdio tool inventory via `src/revit-upstream.mjs`. Added `revit_mcp_dev_reload` to explicitly reconnect Python upstream, fetch post-reload tool names and check an optional expected tool; wired through `src/index.mjs`, classified in `src/tool-effects.mjs` and wrote `tests/m8-mcp-dev-reload.test.mjs`.
 - **NOT YET VERIFIED:** Node test execution/CI result, actual Windows Python MCP reload, real new-tool/repair use cases, Revit model readback, Registry updates and Native-change reload behavior. No M8 DONE claim.
+- **2026-10-17 follow-up:** reviewed shared upstream lifecycle; explicit reload could interrupt concurrent chats. Added `RevitUpstream.reloadTools()` with in-flight-call rejection, `in_flight_calls` status and targeted tests for busy rejection + idle reload. Updated `src/index.mjs` to use this safe entry point. Source committed; **Node test execution, Windows reload and Revit live verification still pending**.
 - **NEXT ACTION:** run focused Node test + relevant regression, confirm DEV mode activation on intended environment, test an actual Python-tool change/reload and tool inventory; then choose a grounded new-tool and existing-tool-repair case and live test on Revit. Do not treat reload inventory as tool execution proof.
 
 
