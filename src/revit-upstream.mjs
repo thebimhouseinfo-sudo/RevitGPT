@@ -52,6 +52,8 @@ export class RevitUpstream {
     this.connecting = null;
     this.activation = null;
     this.generation = 0;
+    this.inFlightCalls = 0;
+    this.reloading = false;
   }
 
   get python() {
@@ -149,20 +151,36 @@ export class RevitUpstream {
     }
   }
 
-  async callTool(name, args = {}) {
-    await this.connect();
-    if (!this.client) throw new Error("REVIT_MCP_NOT_CONNECTED");
+  // An explicit DEV reload must not disconnect other chats' in-flight tools.
+  // Fail immediately if busy; never wait indefinitely or replay a call.
+  async reloadTools() {
+    if (this.reloading) throw new Error("REVIT_MCP_RELOAD_ALREADY_RUNNING");
+    if (this.inFlightCalls > 0 || this.connecting || this.activation)
+      throw new Error("REVIT_MCP_RELOAD_BUSY");
+    this.reloading = true;
     try {
-      return await this.client.callTool({ name, arguments: args });
-    } catch (error) {
-      this.lastError = error instanceof Error ? error.message : String(error);
-      // Error in one tool must not destroy another chat's Python MCP process.
-      // A true transport failure invalidates only the Python upstream and
-      // leaves the global workspace awake; its watcher may reconnect.
-      if (isUpstreamTransportFailure(error)) {
-        await this.deactivate();
+      await this.deactivate();
+      return await this.activate();
+    } finally {
+      this.reloading = false;
+    }
+  }
+
+  async callTool(name, args = {}) {
+    if (this.reloading) throw new Error("REVIT_MCP_RELOAD_IN_PROGRESS");
+    this.inFlightCalls++;
+    try {
+      await this.connect();
+      if (!this.client) throw new Error("REVIT_MCP_NOT_CONNECTED");
+      try {
+        return await this.client.callTool({ name, arguments: args });
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : String(error);
+        if (isUpstreamTransportFailure(error)) await this.deactivate();
+        throw error;
       }
-      throw error;
+    } finally {
+      this.inFlightCalls--;
     }
   }
 
@@ -171,6 +189,8 @@ export class RevitUpstream {
       phase: this.phase,
       connected: Boolean(this.client && this.transport),
       tool_count: this.tools.length,
+      in_flight_calls: this.inFlightCalls,
+      reloading: this.reloading,
       last_error: this.lastError,
       last_activation_ms: this.lastActivationMs,
       python: this.python,
