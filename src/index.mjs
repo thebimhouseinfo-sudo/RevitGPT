@@ -133,8 +133,7 @@ function createServer(sessionKey) {
     reloadUpstream:async()=>{
       // This is an explicit developer action, not automatic replay/retry.
       // Revit itself and the Native Add-in are not restarted here.
-      await revitUpstream.deactivate();
-      const tools=await revitUpstream.activate();
+      const tools=await revitUpstream.reloadTools();
       return {tools};
     }
   });
