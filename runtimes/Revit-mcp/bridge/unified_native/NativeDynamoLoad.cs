@@ -20,10 +20,20 @@ namespace RevitGPT.Native
         private static string Data(object x) => JsonConvert.SerializeObject(new { data = x });
         private static string Error(int c, string reason) =>
             JsonConvert.SerializeObject(new { error = new { code = c, message = reason } });
-        private static string ManagedRoot() =>
-            Path.GetFullPath(Path.Combine(Environment.GetFolderPath(
-                Environment.SpecialFolder.LocalApplicationData),
-                "RevitGPT", "dynamo", "staging")) + Path.DirectorySeparatorChar;
+        // P3: already-owned graph bundles are live-testable without staging or Registry.
+        // Still restricted to managed LocalAppData roots, never arbitrary external paths.
+        private static string[] TrustedRoots()
+        {
+            string appData = Path.Combine(Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData), "RevitGPT");
+            return new[] {
+                Path.Combine(appData, "dynamo", "staging"), // P2 compatibility
+                Path.Combine(appData, "libraries", "dynamo"),
+                Path.Combine(appData, "libraries", "jobs"),
+                Path.Combine(appData, "temp-jobs")
+            }.Select(p => Path.GetFullPath(p).TrimEnd(Path.DirectorySeparatorChar) +
+                Path.DirectorySeparatorChar).ToArray();
+        }
 
         private static bool IsLocalTrustedFile(string path)
         {
@@ -33,20 +43,26 @@ namespace RevitGPT.Native
             string full;
             try { full = Path.GetFullPath(path); }
             catch { return false; }
-            if (!full.StartsWith(ManagedRoot(), StringComparison.OrdinalIgnoreCase) ||
-                full.StartsWith("\\\\", StringComparison.Ordinal) || !File.Exists(full))
+            if (full.StartsWith("\\\\\\\\", StringComparison.Ordinal) || !File.Exists(full))
                 return false;
-            string part = full;
-            string rootDirectory = ManagedRoot().TrimEnd(Path.DirectorySeparatorChar);
-            while (!String.IsNullOrWhiteSpace(part) &&
-                (part.StartsWith(ManagedRoot(), StringComparison.OrdinalIgnoreCase) ||
-                 String.Equals(part, rootDirectory, StringComparison.OrdinalIgnoreCase)))
+            var root = TrustedRoots().FirstOrDefault(r =>
+                full.StartsWith(r, StringComparison.OrdinalIgnoreCase));
+            if (root == null) return false;
+            try
             {
-                if ((File.GetAttributes(part) & FileAttributes.ReparsePoint) != 0)
-                    return false;
-                part = Path.GetDirectoryName(part);
+                string part = full;
+                string rootDirectory = root.TrimEnd(Path.DirectorySeparatorChar);
+                while (!String.IsNullOrWhiteSpace(part) &&
+                    (part.StartsWith(root, StringComparison.OrdinalIgnoreCase) ||
+                     String.Equals(part, rootDirectory, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if ((File.GetAttributes(part) & FileAttributes.ReparsePoint) != 0)
+                        return false;
+                    part = Path.GetDirectoryName(part);
+                }
+                return true;
             }
-            return true;
+            catch { return false; }
         }
 
         private static string FindDynamoAdapter()
@@ -69,7 +85,7 @@ namespace RevitGPT.Native
                 bool autoRun = payload.Value<bool?>("run") ?? false;
                 string path = payload.Value<string>("path");
                 if (!IsLocalTrustedFile(path))
-                    return Error(403, "Only trusted local managed .dyn staging files are allowed.");
+                    return Error(403, "Only trusted local managed .dyn owner/staging files are allowed.");
                 path = Path.GetFullPath(path);
                 var info = new FileInfo(path);
                 if (info.Length == 0 || info.Length > 2 * 1024 * 1024)
@@ -82,7 +98,7 @@ namespace RevitGPT.Native
                 string expected = payload.Value<string>("sha256");
                 if (String.IsNullOrWhiteSpace(expected) ||
                     !String.Equals(digest, expected, StringComparison.OrdinalIgnoreCase))
-                    return Error(409, "Graph checksum mismatch; stage and preflight again.");
+                    return Error(409, "Graph checksum mismatch; reread and verify the owner-local graph.");
                 var graph = JObject.Parse(System.Text.Encoding.UTF8.GetString(bytes));
                 var nodes = graph["Nodes"] as JArray;
                 var edges = graph["Connectors"] as JArray;
