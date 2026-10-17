@@ -17,7 +17,7 @@ export function modelIdFromMcpResult(response){
 }
 
 // Used only with the live, natively-bound revit_get_model_anchor result;
-// no caller-provided title, file path, fake document GUID, or inferred model identity.
+// no caller-provided title, file path, generated Model ID, or inferred model identity.
 export async function beginModelRun({jobId,runId,readBoundModelAnchor}){
   if(typeof readBoundModelAnchor!=="function")throw new Error("BOUND_MODEL_ANCHOR_READER_REQUIRED");
   const response=await readBoundModelAnchor();
