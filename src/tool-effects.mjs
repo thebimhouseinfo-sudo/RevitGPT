@@ -12,7 +12,7 @@ const READ_ONLY = new Set([
 const SYSTEM_SIDE_EFFECT = new Set([
   "file_create", "file_edit", "library_create", "asset_import",
   "owned_bundle_create", "owned_file_write",
-  "capability_borrow", "capability_release",
+  "capability_borrow", "capability_release", "job_register_owned",
   "asset_register_external", "asset_export", "python_checkout",
   "python_scaffold", "python_validate", "python_promote_draft",
   "dynamo_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
