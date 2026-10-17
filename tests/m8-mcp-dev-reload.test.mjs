@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { registerRevitMcpDevTools } from "../src/revit-mcp-dev.mjs";
 import { effectForTool } from "../src/tool-effects.mjs";
+import { RevitUpstream } from "../src/revit-upstream.mjs";
 
 function captureDevTools() {
   const handlers = new Map();
@@ -49,4 +50,31 @@ test("M8 dev tools remain hidden outside explicit DEV mode", () => {
     if (prior === undefined) delete process.env.REVITGPT_DEV_MODE;
     else process.env.REVITGPT_DEV_MODE = prior;
   }
+});
+
+test("M8 reload refuses to interrupt in-flight upstream tool calls", async () => {
+  const upstream = new RevitUpstream();
+  let release;
+  upstream.phase = "active";
+  upstream.connect = async () => {};
+  upstream.client = { callTool: async () => new Promise(resolve => { release = resolve; }) };
+  const running = upstream.callTool("revit_list_levels", {});
+  assert.equal(upstream.inFlightCalls, 1);
+  await assert.rejects(() => upstream.reloadTools(), /REVIT_MCP_RELOAD_BUSY/);
+  assert.equal(upstream.reloading, false);
+  release({ ok: true });
+  await running;
+  assert.equal(upstream.inFlightCalls, 0);
+});
+
+test("M8 reload closes and reactivates an idle upstream only", async () => {
+  const upstream = new RevitUpstream();
+  let closeCount = 0, activateCount = 0;
+  upstream.deactivate = async () => { closeCount++; };
+  upstream.activate = async () => { activateCount++; return [{ name: "new_development_tool" }]; };
+  const inventory = await upstream.reloadTools();
+  assert.deepEqual(inventory.map(x => x.name), ["new_development_tool"]);
+  assert.equal(closeCount, 1);
+  assert.equal(activateCount, 1);
+  assert.equal(upstream.reloading, false);
 });
