@@ -14,6 +14,7 @@ import { logToolCall, logError } from "./log-store.mjs";
 import { currentOperationId } from "./work-tracker.mjs";
 import { lookupRegistry } from "./capability-registry.mjs";
 import { validateDynamoDraftFile, stageDynamoDraft } from "./dynamo-draft.mjs";
+import { ownedBundleRoot, createOwnedBundle, readOwnedFile, writeOwnedFile } from "./owned-bundles.mjs";
 
 const execFileAsync=promisify(execFile);
 const REPO_ROOT=path.resolve(process.cwd());
@@ -137,6 +138,32 @@ async function replaceLibraryRegistry(kind,libraryId,entries){
 }
 
 export function registerManagedTools(server){
+  // P3 owner-local authoring: reusable Jobs, Dynamo and temporary Job bundles
+  // can be prepared/tested without any Registry promotion procedure.
+  const ownedKind=z.enum(["job","dynamo","temp"]);
+  server.registerTool("owned_bundle_create",{
+    description:"Create an isolated reusable Job, standalone Dynamo or unregistered Temp Job folder; never automatically registers it.",
+    inputSchema:{kind:ownedKind,id:z.string()}
+  },async(a)=>guarded("owned_bundle_create",a,async()=>textResult({kind:a.kind,id:a.id,path:await createOwnedBundle(a.kind,a.id),registered:false})));
+  server.registerTool("owned_bundle_path",{
+    description:"Show one owned Job/Dynamo/Temp bundle location without changing registry.",
+    inputSchema:{kind:ownedKind,id:z.string()}
+  },async(a)=>guarded("owned_bundle_path",a,async()=>textResult({kind:a.kind,id:a.id,path:ownedBundleRoot(a.kind,a.id)})));
+  server.registerTool("owned_file_read",{
+    description:"Read an existing text file inside one owned bundle.",
+    inputSchema:{kind:ownedKind,id:z.string(),file:z.string()}
+  },async(a)=>guarded("owned_file_read",a,async()=>{const content=await readOwnedFile(a.kind,a.id,a.file);return textResult({content,sha256:sha256(content)});}));
+  server.registerTool("owned_file_write",{
+    description:"Create or hash-guard-edit a text file only inside the specified owned bundle; does not require Registry.",
+    inputSchema:{kind:ownedKind,id:z.string(),file:z.string(),content:z.string(),expected_sha256:z.string().length(64).optional()}
+  },async(a)=>guarded("owned_file_write",a,async()=>{
+    let existing;
+    if(a.expected_sha256!==undefined){existing=await readOwnedFile(a.kind,a.id,a.file);
+      if(sha256(existing)!==a.expected_sha256.toLowerCase())throw new Error("SHA256_MISMATCH");}
+    const file=await writeOwnedFile(a.kind,a.id,a.file,a.content,{expectedContent:existing});
+    return textResult({file,sha256:sha256(a.content),registered:false});
+  }));
+
   server.registerTool("file_roots",{description:"Show RevitGPT managed AppData roots.",inputSchema:{}},async()=>guarded("file_roots",{},async()=>textResult({appdata_root:getAppDataRoot(),roots:allowedManagedRoots()})));
 
   server.registerTool("file_list",{description:"List files under one managed AppData root.",inputSchema:{root:z.string()}},async({root})=>guarded("file_list",{root},async()=>{
