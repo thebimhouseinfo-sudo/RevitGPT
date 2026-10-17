@@ -446,7 +446,7 @@ Draft only. Promote after validation and real Revit test.
     const entry={id:a.id,kind:"job",title,summary:a.summary,
       library_id:a.library_id,relative_path:"JOB.md",path:path.join(root,"JOB.md"),
       steps_path:path.join(root,stepsFile),semantic_status:"indexed",
-      implementation_sha256:sha256(job+"\n"+steps),registered_at:new Date().toISOString()};
+      implementation_sha256:sha256(job+"\n"+steps),contract_sha256:sha256(job+"\n"+steps),registered_at:new Date().toISOString()};
     await registerEntry(entry);
     return textResult({registered:true,entry,note:"Registry indexes the Job; it does not establish real-host verification."});
   }));
@@ -465,12 +465,20 @@ Draft only. Promote after validation and real Revit test.
     let steps=null,stepsFile=null;
     for(const candidate of ["JOB_STEPS.md","JOB_STEPS"]){
       try{
-        steps=await readOwnedFile("job",entry.library_id,candidate);
+        if(entry.library_id)steps=await readOwnedFile("job",entry.library_id,candidate);
+        else {
+          const candidatePath=path.join(path.dirname(real),candidate);
+          const st=await fs.lstat(candidatePath);
+          if(st.isSymbolicLink()||!st.isFile())throw new Error("JOB_STEPS_INVALID_FILE");
+          const candidateReal=await fs.realpath(candidatePath);
+          if(!inside(rootReal,candidateReal))throw new Error("JOB_STEPS_OUTSIDE_LIBRARY");
+          steps=await fs.readFile(candidateReal,"utf8");
+        }
         stepsFile=candidate;break;
       }catch(e){if(e.code!=="ENOENT")throw e;}
     }
     const combined=steps===null?null:sha256(source+"\n"+steps);
-    const registeredHash=entry.implementation_sha256||null;
+    const registeredHash=entry.contract_sha256||null;
     return textResult({entry,source,sha256:sha256(source),steps,steps_file:stepsFile,
       contract_sha256:combined,contract_changed:registeredHash&&combined?combined!==registeredHash:null,
       note:"Read actual steps; Registry is discovery metadata, not authorization or step validation."});
