@@ -15,6 +15,7 @@ import { currentOperationId } from "./work-tracker.mjs";
 import { lookupRegistry } from "./capability-registry.mjs";
 import { validateDynamoDraftFile, stageDynamoDraft } from "./dynamo-draft.mjs";
 import { ownedBundleRoot, createOwnedBundle, readOwnedFile, writeOwnedFile } from "./owned-bundles.mjs";
+import { capabilityBorrow, capabilityRelease, capabilityBorrowStatus } from "./capability-borrow.mjs";
 
 const execFileAsync=promisify(execFile);
 const REPO_ROOT=path.resolve(process.cwd());
@@ -138,6 +139,19 @@ async function replaceLibraryRegistry(kind,libraryId,entries){
 }
 
 export function registerManagedTools(server){
+  server.registerTool("capability_borrow",{
+    description:"Record nonexclusive use of an available capability by a Job run; not a tool lock or authorization.",
+    inputSchema:{job_run_id:z.string(),capability_id:z.string()}
+  },async(a)=>guarded("capability_borrow",a,async()=>textResult(capabilityBorrow(a.job_run_id,a.capability_id))));
+  server.registerTool("capability_release",{
+    description:"Release one borrowed capability, or all borrowed records when the Job ends.",
+    inputSchema:{job_run_id:z.string(),capability_id:z.string().optional()}
+  },async(a)=>guarded("capability_release",a,async()=>textResult(capabilityRelease(a.job_run_id,a.capability_id))));
+  server.registerTool("capability_borrow_status",{
+    description:"Read this Job run's nonexclusive capability-use records.",
+    inputSchema:{job_run_id:z.string()}
+  },async(a)=>guarded("capability_borrow_status",a,async()=>textResult(capabilityBorrowStatus(a.job_run_id))));
+
   // P3 owner-local authoring: reusable Jobs, Dynamo and temporary Job bundles
   // can be prepared/tested without any Registry promotion procedure.
   const ownedKind=z.enum(["job","dynamo","temp"]);
