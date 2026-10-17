@@ -368,6 +368,21 @@ Draft only. Promote after validation and real Revit test.
   }));
 
 
+  server.registerTool("knowledge_user_rule_add",{
+    description:"Write one actual user-supplied working rule to source-controlled knowledge/ (not AppData cache). No invented model/HVAC conventions.",
+    inputSchema:{scope:z.enum(["revit","hvac","project"]),title:z.string().min(1).max(160),rule:z.string().min(1)}
+  },async(a)=>guarded("knowledge_user_rule_add",a,async()=>{
+    const directory=path.join(REPO_ROOT,"knowledge",a.scope,"user-rules");
+    await fs.mkdir(directory,{recursive:true});
+    const filename="user-"+crypto.randomUUID()+".md";
+    const file=path.join(directory,filename);
+    const title=a.title.replace(/[\r\n]+/g," ").trim();
+    const content="# "+title+"\n\nScope: "+a.scope+"\nProvenance: user-provided\n\n"+a.rule+"\n";
+    await fs.writeFile(file,content,{encoding:"utf8",flag:"wx"});
+    return textResult({file,scope:a.scope,sha256:sha256(content),source:"source-controlled",registered:false,
+      note:"Rule is in local source checkout; commit/push it to share across other installations."});
+  }));
+
   server.registerTool("knowledge_search",{
     description:"Read-only search of authoritative repo Knowledge first, then local AppData observations. Results include provenance and are not immutable model facts.",
     inputSchema:{query:z.string().min(2),limit:z.number().int().min(1).max(20).optional()}
