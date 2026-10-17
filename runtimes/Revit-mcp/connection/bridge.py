@@ -1225,6 +1225,23 @@ def bind_shared_parameter(shared_guid: str, categories: list[str], is_instance: 
     return result.get("data", result)
 
 
+def read_model_anchor(document_id: str | None = None) -> dict:
+    """Read the Project Information RevitGPT Model ID without modifying RVT."""
+    payload = {}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/model-anchor/read", payload=payload, method="POST")["data"]
+
+
+def initialize_model_anchor(document_id: str | None = None) -> dict:
+    """Explicitly initialize missing Project Information ID; requires subsequent RVT save."""
+    payload = {}
+    if document_id:
+        payload["document_id"] = document_id
+    return _send_request("/model-anchor/initialize", payload=payload,
+                         method="POST", timeout=WRITE_TIMEOUT)["data"]
+
+
 def save_model(dry_run: bool = False, document_id: str | None = None) -> dict:
     """Save the bound model to its existing file path; never Save As."""
     payload = {"dry_run": dry_run}
