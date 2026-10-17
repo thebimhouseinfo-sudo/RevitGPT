@@ -129,7 +129,15 @@ function createServer(sessionKey) {
   // Shared awake and model binding remain independent of Job recovery.
   wrapToolRegistration(server,{isAwake:()=>awakeIntent.isAwake()});
   registerManagedTools(server);
-  registerRevitMcpDevTools(server);
+  registerRevitMcpDevTools(server,{
+    reloadUpstream:async()=>{
+      // This is an explicit developer action, not automatic replay/retry.
+      // Revit itself and the Native Add-in are not restarted here.
+      await revitUpstream.deactivate();
+      const tools=await revitUpstream.activate();
+      return {tools};
+    }
+  });
 
   server.registerTool("revitgpt_command",{
     title:"RevitGPT Fake CLI",
