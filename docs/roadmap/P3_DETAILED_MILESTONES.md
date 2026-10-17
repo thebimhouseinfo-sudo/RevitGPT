@@ -13,6 +13,17 @@
 - Open non-human issues: collect actual CI workflow result, fix any failing Node/Python/.NET checks; review shared Native dispatcher for queue/completion evidence; improve source-only Job/MCP tests where evidence supports a fix. Do not invent Dynamo graph-complete callbacks or fabricated MCP use-case repair evidence.
 - Human-only end-to-end batch: one Revit 2024 install/build/test round for bound Model Anchor initialize → Save/reopen/rename; real Dynamo terminal/queue observations; new/repaired MCP tool execution and Registry; Saved/Temp Job scenarios. Preserve existing accepted P1/P2 evidence when valid.
 
+### Remaining offline work completed in this continuation (2026-10-17)
+
+- Created `.github/workflows/p3-offline.yml` to run Node contract tests, Python source/tests and Windows Native Revit 2024 reference compilation on pushes. This is **automation definition, not observed CI PASS** (GitHub commit check queries returned no runs/statuses).
+- M1: Added `model_run_result_begin` using the **live bound Revit Model ID**, never a caller-supplied project name/ID; tests `tests/p3-model-run-result.test.mjs`. Native `NativeModelAnchor` now reports duplicate IDs across concurrently open RVTs and refuses silent overwrite. Copy/detach when not simultaneously open still needs real host policy/evidence.
+- M3: Registry JSON updates serialized inside one Node process, duplicate Job registration checked within serialized edit; regression `tests/p3-registry-concurrency.test.mjs`. This is not Job execution locking and does not claim cross-process file lock.
+- M4: Temp Job terminal metadata, `temp_job_finish` and `temp_job_cleanup`, with explicitly supplied retention hours, preview default, and no deletion of active Jobs; regression `tests/p3-temp-cleanup.test.mjs`.
+- M5: Owner-local Dynamo Python Node graphs recognized in Python preflight and Native, while legacy staging Python Node execution remains restricted. Updated Dynamo Writer knowledge and offline `test_p3_owner_dynamo.py`. Added `dynamo_save_register` to copy a successfully tested owner-local Dynamo graph plus chosen text/data dependencies to new library and register **Dynamo only** (never Temp Job), regression `tests/p3-dynamo-save-register.test.mjs`. Binary package dependencies remain unsupported by this operation; report this rather than implying full arbitrary-package promotion.
+- M8: Existing DEV source edit/create paths no longer force snapshot/accept; optional snapshot remains. Symlink traversal rejected in DEV source operations; regression `tests/p3-mcp-dev-scope.test.mjs`.
+- Offline source-body syntax parsing passed on changed Node modules. **Not a substitute for `node --test`, Python unittest, .NET build or Revit live test.**
+- Remaining work is concentrated in actual CI output/error resolution, Native queue and Dynamo lifecycle measurement, Revit host tests, and a grounded real-use MCP repair demo; none are marked PASS by this checkpoint.
+
 ## Implementation checkpoint — 2026-10-17 (source, not live acceptance)
 
 Source on GitHub `main` has progressed beyond the initial M8 prototype:
