@@ -1241,6 +1241,7 @@ def _prepare_dyn_for_run(path: str) -> dict:
     from services.dynamo_preflight import validate_staged_dyn, stage_dynamo_graph
     base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "RevitGPT"
     source = Path(path)
-    if source.parent.resolve(strict=True) == (base / "workspace" / "dynamo-draft").resolve(strict=True):
+    legacy = base / "workspace" / "dynamo-draft"
+    if legacy.is_dir() and source.parent.resolve(strict=True) == legacy.resolve(strict=True):
         return stage_dynamo_graph(path)
     return validate_staged_dyn(path)
