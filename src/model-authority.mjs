@@ -4,7 +4,7 @@ const DIAGNOSTIC = new Set([
   "revit_get_runtime_info", "revit_get_active_document", "revit_list_documents"
 ]);
 const MODEL_READS = new Set([
-  "revit_list_view_filters", "revit_get_annotation", "revit_list_sheets", "revit_list_sheet_viewports",
+  "revit_get_model_anchor", "revit_list_view_filters", "revit_get_annotation", "revit_list_sheets", "revit_list_sheet_viewports",
   "revit_list_schedules", "revit_get_schedule",
   "revit_get_active_view", "revit_get_selection",
   "revit_query_elements", "revit_get_view_properties", "revit_list_views", "revit_list_levels", "revit_list_elements",
@@ -23,7 +23,7 @@ export function requiresActiveBoundModel(name) {
   return UI_ACTIONS.has(name) || UI_SCOPED_READS.has(name) || UI_SCOPED_WRITES.has(name);
 }
 const MODEL_WRITES = new Set([
-  "revit_save_model", "revit_load_dyn_file", "revit_run_dyn_file", "revit_create_or_duplicate_view", "revit_manage_view_filters", "revit_batch_tag", "revit_update_annotation", "revit_update_schedule", "revit_create_slab", "revit_format_view", "revit_manage_sheet", "revit_batch_set_parameters", "revit_copy_parameters", "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
+  "revit_initialize_model_anchor", "revit_save_model", "revit_load_dyn_file", "revit_run_dyn_file", "revit_create_or_duplicate_view", "revit_manage_view_filters", "revit_batch_tag", "revit_update_annotation", "revit_update_schedule", "revit_create_slab", "revit_format_view", "revit_manage_sheet", "revit_batch_set_parameters", "revit_copy_parameters", "revit_create_architecture", "revit_transform_elements", "revit_place_family_instance", "revit_create_duct", "revit_create_pipe",
   "revit_set_parameter", "revit_delete_elements", "revit_move_element",
   "revit_create_text_note", "revit_create_tag", "revit_create_dimension",
   "revit_create_spot_elevation", "revit_create_detail_line"
