@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Autodesk.Revit.DB;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -33,10 +34,27 @@ namespace RevitGPT.Native
         // A copied/detached RVT can retain the same Project Information value.
         // Detect concurrently open conflicting documents, but NEVER rewrite IDs
         // automatically or treat project title/path as the model's identity.
+        private static bool ValidModelId(string value)
+        {
+            return !String.IsNullOrWhiteSpace(value) && Regex.IsMatch(value,
+                @"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}_\d{8}T\d{9}Z_[0-9a-f]{8}$");
+        }
+
+        private static string GenerateModelId(Document doc)
+        {
+            // Snapshot the model name ONLY at initial creation; later renames must not rekey.
+            string slug = Regex.Replace(doc.Title ?? "Model", @"[^A-Za-z0-9]+", "_").Trim('_');
+            if (String.IsNullOrEmpty(slug)) slug = "Model";
+            if (slug.Length > 64) slug = slug.Substring(0, 64).TrimEnd('_');
+            string timestamp = DateTime.UtcNow.ToString("yyyyMMddTHHmmssfffZ",
+                System.Globalization.CultureInfo.InvariantCulture);
+            string random = Guid.NewGuid().ToString("N").Substring(0, 8);
+            return slug + "_" + timestamp + "_" + random;
+        }
+
         private static string[] DuplicateOpenModels(Document doc, string value)
         {
-            Guid parsed;
-            if (!Guid.TryParse(value, out parsed)) return new string[0];
+            if (!ValidModelId(value)) return new string[0];
             return doc.Application.Documents.Cast<Document>()
                 .Where(other => other != doc && !other.IsFamilyDocument && !other.IsLinked)
                 .Where(other => String.Equals(CurrentValue(Existing(other)), value,
@@ -101,10 +119,9 @@ namespace RevitGPT.Native
             var value = CurrentValue(existing);
             if (!initialize)
             {
-                Guid parsed;
                 var conflicts = DuplicateOpenModels(doc, value);
                 return Data(new { found = existing != null, model_id = value,
-                    valid = Guid.TryParse(value, out parsed) && conflicts.Length == 0,
+                    valid = ValidModelId(value) && conflicts.Length == 0,
                     duplicate_open_model_count = conflicts.Length,
                     duplicate_open_model_titles = conflicts,
                     parameter_name = Name, parameter_guid = DefinitionGuid.ToString(),
@@ -113,10 +130,9 @@ namespace RevitGPT.Native
 
             if (existing != null && existing.StorageType != StorageType.String)
                 return Error(409, "Existing anchor parameter has the wrong storage type.");
-            Guid currentGuid;
             if (!String.IsNullOrWhiteSpace(value))
             {
-                if (!Guid.TryParse(value, out currentGuid))
+                if (!ValidModelId(value))
                     return Error(409, "Existing model anchor value is invalid; refusing overwrite.");
                 var duplicates = DuplicateOpenModels(doc, value);
                 if (duplicates.Length > 0)
@@ -159,8 +175,8 @@ namespace RevitGPT.Native
                         return Error(409, "Model ID parameter is unavailable or not writable.");
                     }
                     string id = CurrentValue(parameter);
-                    if (String.IsNullOrWhiteSpace(id)) id = Guid.NewGuid().ToString("D");
-                    else if (!Guid.TryParse(id, out currentGuid))
+                    if (String.IsNullOrWhiteSpace(id)) id = GenerateModelId(doc);
+                    else if (!ValidModelId(id))
                     {
                         transaction.RollBack();
                         return Error(409, "Existing model ID is invalid; refusing overwrite.");
