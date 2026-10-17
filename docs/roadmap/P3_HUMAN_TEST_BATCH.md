@@ -40,8 +40,8 @@
 
 ## P3-06 — Working Knowledge and Model Anchor integration
 1. Give an explicit user Revit/HVAC convention. Builder records it in authoritative `knowledge/`, searches it and uses it in a subsequent Job. No invented standards or stale AppData copy overriding source.
-2. Verify the Project Information shared parameter `RevitGPT_Model_ID` initializes once on an intentionally bound disposable RVT, survives Save/reopen and project rename; copied model conflict is diagnosed, never silently rekeyed.
-3. Verify separate Job runs isolate results by persisted model UUID and run ID.
+2. Verify the Project Information shared parameter `RevitGPT_Model_ID` is created by RevitGPT if absent and initialized once as `<model-name-snapshot>_<UTC timestamp>_<random-hex>` on an intentionally bound disposable RVT, survives Save/reopen and project rename; copied model conflict is diagnosed, never silently rekeyed.
+3. Verify separate Job runs isolate results by persisted generated Model ID and run ID.
 **PASS:** Knowledge changes actual workflow behavior and Model Anchor persists across project name/phase changes.
 
 ## P3-07 — Integrated scenario / two chats
