@@ -57,7 +57,7 @@ async function registerEntry(entry,{rejectCollision=false}={}){
       throw new Error("REGISTRY_ID_COLLISION");
     reg.entries=(reg.entries||[]).filter(x=>x.id!==entry.id);
     reg.entries.push(entry);
-    await atomicWrite(p,JSON.stringify(reg,null,2)+"\\n");
+    await atomicWrite(p,JSON.stringify(reg,null,2)+"\n");
   });
 }
 async function registerLibrary(lib){
@@ -66,7 +66,7 @@ async function registerLibrary(lib){
     const reg=await readJson(p,{version:1,libraries:[]});
     reg.libraries=(reg.libraries||[]).filter(x=>x.id!==lib.id);
     reg.libraries.push(lib);
-    await atomicWrite(p,JSON.stringify(reg,null,2)+"\\n");
+    await atomicWrite(p,JSON.stringify(reg,null,2)+"\n");
   });
 }
 async function walk(root,limit=1000){
