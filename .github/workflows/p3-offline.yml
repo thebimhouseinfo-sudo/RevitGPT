@@ -42,3 +42,14 @@ jobs:
         run: python -m compileall -q connection tools services tests
       - name: P3 offline route tests
         run: python -m unittest discover -s tests -p "test_p3_*.py" -v
+  native-compile:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Compile Native Revit API adapter against CI-only 2024 references
+        shell: pwsh
+        run: |
+          dotnet build runtimes/Revit-mcp/bridge/unified_native/RevitGPT.Native.csproj --configuration Release -p:UseNugetRevitApi=true --nologo
