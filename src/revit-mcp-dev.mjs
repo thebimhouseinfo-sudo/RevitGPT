@@ -37,7 +37,7 @@ const result=(o)=>({content:[{type:"text",text:JSON.stringify(o,null,2)}],struct
 
 export function isDevMode(){return String(process.env.REVITGPT_DEV_MODE||"").toLowerCase()==="1" || String(process.env.REVITGPT_DEV_MODE||"").toLowerCase()==="true";}
 
-export function registerRevitMcpDevTools(server){
+export function registerRevitMcpDevTools(server,{reloadUpstream}={}){
   if(!isDevMode()) return;
 
   server.registerTool("revit_mcp_dev_root",{description:"Show the development-only Revit MCP source boundary.",inputSchema:{}},async()=>result({root:RUNTIME_ROOT,snapshot_root:SNAPSHOT_ROOT}));
@@ -59,6 +59,24 @@ export function registerRevitMcpDevTools(server){
   server.registerTool("revit_mcp_dev_rollback",{description:"Restore the exact Revit MCP source snapshot for one dev execution.",inputSchema:{execution_id:z.string()}},async (a)=>guarded("revit_mcp_dev_rollback",a,async()=>{const sp=path.join(SNAPSHOT_ROOT,a.execution_id+".json"),snap=JSON.parse(await fs.readFile(sp,"utf8"));const current=await walk(RUNTIME_ROOT);const wanted=new Set(snap.files.map(x=>path.resolve(RUNTIME_ROOT,x.relative)));for(const p of current){if(!wanted.has(path.resolve(p)))await fs.unlink(p).catch(()=>{});}for(const file of snap.files){const p=runtimePath(file.relative);await fs.mkdir(path.dirname(p),{recursive:true});await fs.writeFile(p,Buffer.from(file.base64,"base64"));}return result({restored:true,file_count:snap.files.length});}));
 
   server.registerTool("revit_mcp_dev_validate",{description:"Compile/import/test the Revit MCP source candidate.",inputSchema:{execution_id:z.string()}},async (a)=>guarded("revit_mcp_dev_validate",a,async()=>{await fs.access(path.join(SNAPSHOT_ROOT,a.execution_id+".json"));const python=process.env.REVIT_MCP_PYTHON||path.join(RUNTIME_ROOT,".venv","Scripts","python.exe");const checks=[];for(const [label,args,cwd] of [["compile",["-m","compileall","-q","."],RUNTIME_ROOT],["unit",["-m","unittest","discover","-s","tests","-p","test_bridge.py"],RUNTIME_ROOT]]){try{const {stdout,stderr}=await execFileAsync(python,args,{cwd,timeout:120000});checks.push({label,ok:true,stdout:String(stdout||""),stderr:String(stderr||"")});}catch(e){checks.push({label,ok:false,error:e.message,stdout:String(e.stdout||""),stderr:String(e.stderr||"")});break;}}return result({valid:checks.every(x=>x.ok),checks});}));
+
+  // A source file edit does not refresh the already connected Python stdio MCP process.
+  // An explicit DEV-only reload reconnects upstream and observes the new tool inventory;
+  // registration/Registry is not a prerequisite to testing development tools.
+  server.registerTool("revit_mcp_dev_reload",{
+    description:"DEV ONLY: restart the Python MCP upstream and read the actual updated tool inventory. Does not restart Revit or install Native Add-in.",
+    inputSchema:{expected_tool:z.string().min(1).optional()}
+  },async (a)=>guarded("revit_mcp_dev_reload",a,async()=>{
+    if(typeof reloadUpstream!=="function")throw new Error("MCP_DEV_RELOAD_NOT_WIRED");
+    const outcome=await reloadUpstream();
+    const names=outcome.tools.map(t=>t.name);
+    const expected=a.expected_tool??null;
+    return result({reloaded:true,upstream_connected:true,tool_count:names.length,
+      tool_names:names,expected_tool:expected,
+      expected_tool_visible:expected===null?null:names.includes(expected),
+      // This asserts inventory visibility only; execution must still be tested.
+      execution_verified:false,native_reinstalled:false});
+  }));
 
   server.registerTool("revit_mcp_dev_accept_local",{description:"Accept a validated local Revit MCP candidate and close its rollback baseline.",inputSchema:{execution_id:z.string()}},async (a)=>guarded("revit_mcp_dev_accept_local",a,async()=>{const sp=path.join(SNAPSHOT_ROOT,a.execution_id+".json"),snap=JSON.parse(await fs.readFile(sp,"utf8"));snap.accepted=true;snap.accepted_at=new Date().toISOString();await fs.writeFile(sp,JSON.stringify(snap,null,2),"utf8");return result({accepted:true,snapshot_path:sp});}));
 }
