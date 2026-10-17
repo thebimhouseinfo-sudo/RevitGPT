@@ -92,6 +92,13 @@
 
 ## M8 — MCP Dev & Repair Capability (must complete in P3)
 
+### M8 implementation checkpoint — 2026-10-17
+- **SOURCE IMPLEMENTED (partial):** confirmed actual DEV tool registrations in `src/revit-mcp-dev.mjs` guarded by `REVITGPT_DEV_MODE`; confirmed Python MCP uses a cached stdio tool inventory via `src/revit-upstream.mjs`. Added `revit_mcp_dev_reload` to explicitly reconnect Python upstream, fetch post-reload tool names and check an optional expected tool; wired through `src/index.mjs`, classified in `src/tool-effects.mjs` and wrote `tests/m8-mcp-dev-reload.test.mjs`.
+- **NOT YET VERIFIED:** Node test execution/CI result, actual Windows Python MCP reload, real new-tool/repair use cases, Revit model readback, Registry updates and Native-change reload behavior. No M8 DONE claim.
+- **NEXT ACTION:** run focused Node test + relevant regression, confirm DEV mode activation on intended environment, test an actual Python-tool change/reload and tool inventory; then choose a grounded new-tool and existing-tool-repair case and live test on Revit. Do not treat reload inventory as tool execution proof.
+
+
+
 **Outcome within P3:** A **working, live-verified MCP Dev & Repair capability** exists: Builder can create a new tool, repair an existing tool (including one previously PASS but wrong for real use), load/reload the changed implementation, run a relevant live test and publish the successful capability to the discovery Registry. **M8 must reach DONE during P3.** The later expansion and improvement of the full P2 MCP toolset remains continuous and is not required for M8 DONE.
 
 - **M8.1 [INSPECT / CR-08]** Trace all existing MCP tool registrations through repository modules, including Python MCP, upstream/native bridge and any separately exposed development surface. Check the **actual tool inventory at runtime** rather than assuming the `revit_mcp_dev_*` family is implemented: `revit_mcp_dev_root/list/read/search/snapshot/edit/create/delete/rollback/validate/accept_local` are **candidate names to verify, not confirmed available tools**. Record each actual name, entrypoint, permission boundary and capability; reuse working functions and add only the narrow missing operation. Source absence in `src/index.mjs`/`src/managed-tools.mjs` alone is not proof of absence elsewhere.
