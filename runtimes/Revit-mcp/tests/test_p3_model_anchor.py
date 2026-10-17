@@ -28,6 +28,9 @@ class AnchorBridgeTests(unittest.TestCase):
             self.assertIn(expected,source)
         self.assertIn('"/model-anchor/read"',router)
         self.assertIn('"/model-anchor/initialize"',router)
+        self.assertIn("DuplicateOpenModels",source)
+        self.assertIn("duplicate_open_model_count",source)
+        self.assertIn("resolve copied-model identity",source)
 
 if __name__=="__main__":
     unittest.main()
