@@ -2,7 +2,7 @@ import { classifyModelOperation } from "./model-authority.mjs";
 
 const READ_ONLY = new Set([
   "file_roots", "file_list", "file_read", "file_search",
-  "owned_bundle_path", "owned_file_read",
+  "owned_bundle_path", "owned_file_read", "capability_borrow_status",
   "library_list", "registry_list", "registry_search", "registry_get",
   "job_list", "job_get", "skill_list", "skill_get", "knowledge_search",
   "revit_mcp_dev_root", "revit_mcp_dev_list", "revit_mcp_dev_read", "revit_mcp_dev_search",
@@ -12,6 +12,7 @@ const READ_ONLY = new Set([
 const SYSTEM_SIDE_EFFECT = new Set([
   "file_create", "file_edit", "library_create", "asset_import",
   "owned_bundle_create", "owned_file_write",
+  "capability_borrow", "capability_release",
   "asset_register_external", "asset_export", "python_checkout",
   "python_scaffold", "python_validate", "python_promote_draft",
   "dynamo_register", "dynamo_draft_stage", "job_draft_new", "job_draft_validate",
