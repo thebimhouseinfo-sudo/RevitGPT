@@ -380,7 +380,7 @@ Draft only. Promote after validation and real Revit test.
     for(const [root,provenance] of [[authoritative,"source-controlled"],[local,"local-observation"]]){
       for(const file of await walk(root,250)){
         if(!file.endsWith(".md"))continue;
-        const relative=path.relative(root,file).replaceAll("\\\\","/");
+        const relative=path.relative(root,file).split(path.sep).join("/");
         if(provenance!=="source-controlled"&&seen.has(relative))continue;
         try{
           const stat=await fs.lstat(file);
