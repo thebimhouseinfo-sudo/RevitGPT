@@ -24,6 +24,13 @@
 - Offline source-body syntax parsing passed on changed Node modules. **Not a substitute for `node --test`, Python unittest, .NET build or Revit live test.**
 - Remaining work is concentrated in actual CI output/error resolution, Native queue and Dynamo lifecycle measurement, Revit host tests, and a grounded real-use MCP repair demo; none are marked PASS by this checkpoint.
 
+### Consolidated test/install handoff — 2026-10-17
+
+- New `scripts/p3-test-and-install.ps1` runs Node/Python offline tests and builds Native against locally installed Revit 2024 API; `-InstallNative` deliberately installs a new Git-SHA-versioned Native build only when Revit is closed, then restarts the tray/runtime and invokes doctor. No forced replacement of existing immutable installed binaries; preserve user `.env`.
+- New `docs/roadmap/P3_HUMAN_TEST_BATCH.md` consolidates final human tests of Model Anchor, shared queue/Dynamo lifecycle, Job/Temp, MCP Dev new/repair, Registry and Knowledge.
+- GitHub Actions workflow was committed but **no runs/status were returned** by workflow-status lookup in this session. Native/API compilation or runtime verification must not be inferred from source presence.
+- **Handoff is NOT P3 DONE**. Autonomous/offline source work has progressed; remaining source defects, if CI/build reveals any, must be fixed from actual failures before live acceptance. Live Revit evidence is required for M1/M2/M5/M7/M8. No fabricated terminal graph completion, tool-repair case or host test results.
+
 ## Implementation checkpoint — 2026-10-17 (source, not live acceptance)
 
 Source on GitHub `main` has progressed beyond the initial M8 prototype:
