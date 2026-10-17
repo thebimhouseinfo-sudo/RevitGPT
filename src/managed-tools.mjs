@@ -42,19 +42,32 @@ async function atomicWrite(file,content){
   await fs.writeFile(temp,content,"utf8");
   await fs.rename(temp,file);
 }
-async function registerEntry(entry){
-  const p=registryCapabilitiesPath();
-  const reg=await readJson(p,{version:1,entries:[]});
-  reg.entries=(reg.entries||[]).filter(x=>x.id!==entry.id);
-  reg.entries.push(entry);
-  await atomicWrite(p,JSON.stringify(reg,null,2)+"\n");
+// Serialize only short Registry JSON edits. This is NOT a tool/Job lease.
+let registryWriter=Promise.resolve();
+function withRegistryWrite(fn){
+  const task=registryWriter.catch(()=>undefined).then(fn);
+  registryWriter=task.catch(()=>undefined);
+  return task;
+}
+async function registerEntry(entry,{rejectCollision=false}={}){
+  return withRegistryWrite(async()=>{
+    const p=registryCapabilitiesPath();
+    const reg=await readJson(p,{version:1,entries:[]});
+    if(rejectCollision&&(reg.entries||[]).some(x=>x.id===entry.id))
+      throw new Error("REGISTRY_ID_COLLISION");
+    reg.entries=(reg.entries||[]).filter(x=>x.id!==entry.id);
+    reg.entries.push(entry);
+    await atomicWrite(p,JSON.stringify(reg,null,2)+"\\n");
+  });
 }
 async function registerLibrary(lib){
-  const p=registryLibrariesPath();
-  const reg=await readJson(p,{version:1,libraries:[]});
-  reg.libraries=(reg.libraries||[]).filter(x=>x.id!==lib.id);
-  reg.libraries.push(lib);
-  await atomicWrite(p,JSON.stringify(reg,null,2)+"\n");
+  return withRegistryWrite(async()=>{
+    const p=registryLibrariesPath();
+    const reg=await readJson(p,{version:1,libraries:[]});
+    reg.libraries=(reg.libraries||[]).filter(x=>x.id!==lib.id);
+    reg.libraries.push(lib);
+    await atomicWrite(p,JSON.stringify(reg,null,2)+"\\n");
+  });
 }
 async function walk(root,limit=1000){
   const out=[];
@@ -447,7 +460,7 @@ Draft only. Promote after validation and real Revit test.
       library_id:a.library_id,relative_path:"JOB.md",path:path.join(root,"JOB.md"),
       steps_path:path.join(root,stepsFile),semantic_status:"indexed",
       implementation_sha256:sha256(job+"\n"+steps),contract_sha256:sha256(job+"\n"+steps),registered_at:new Date().toISOString()};
-    await registerEntry(entry);
+    await registerEntry(entry,{rejectCollision:true});
     return textResult({registered:true,entry,note:"Registry indexes the Job; it does not establish real-host verification."});
   }));
 
