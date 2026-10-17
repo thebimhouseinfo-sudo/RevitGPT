@@ -344,6 +344,52 @@ Draft only. Promote after validation and real Revit test.
     await registerEntry(entry); return textResult(entry);
   }));
 
+  server.registerTool("dynamo_save_register",{
+    description:"On explicit user Save/Register request, copy a successfully tested Dynamo graph plus selected text/data dependencies from its owned Job or Temp bundle into a new Dynamo library and catalog it. Never register the Temp Job.",
+    inputSchema:{
+      source_kind:z.enum(["job","temp"]),source_id:z.string(),graph_file:z.string(),
+      dependency_files:z.array(z.string()).max(50).optional().default([]),
+      library_id:z.string().regex(/^[A-Za-z0-9._-]+$/),
+      id:z.string().regex(/^[A-Za-z0-9._:-]+$/),summary:z.string()
+    }
+  },async(a)=>guarded("dynamo_save_register",a,async()=>{
+    const sourceName=a.graph_file;
+    if(path.extname(sourceName).toLowerCase()!==".dyn")throw new Error("DYNAMO_GRAPH_EXTENSION_REQUIRED");
+    const files=[sourceName,...a.dependency_files];
+    if(new Set(files.map(x=>x.toLowerCase())).size!==files.length)throw new Error("DYNAMO_DEPENDENCY_DUPLICATE");
+    const entries=[];
+    for(const file of files){
+      const suffix=path.extname(file).toLowerCase();
+      if(![".dyn",".dyf",".json",".csv",".txt",".md"].includes(suffix))
+        throw new Error("DYNAMO_DEPENDENCY_UNSUPPORTED_TEXT_TYPE: "+suffix);
+      const content=await readOwnedFile(a.source_kind,a.source_id,file);
+      entries.push({file,content});
+    }
+    const existing=await lookupRegistry({id:a.id}).catch(error=>{
+      if(error.message==="REGISTRY_ENTRY_NOT_FOUND")return null;
+      throw error;
+    });
+    if(existing)throw new Error("REGISTRY_ID_COLLISION");
+    const folder=await createOwnedBundle("dynamo",a.library_id);
+    try{
+      for(const entry of entries)await writeOwnedFile("dynamo",a.library_id,entry.file,entry.content);
+      const record={id:a.id,kind:"dynamo",title:path.basename(sourceName),summary:a.summary,
+        library_id:a.library_id,relative_path:sourceName,
+        path:path.join(folder,...sourceName.split(/[\\/]/)),
+        sha256:sha256(entries[0].content),semantic_status:"indexed",
+        registered_at:new Date().toISOString()};
+      await registerEntry(record,{rejectCollision:true});
+      await registerLibrary({id:a.library_id,kind:"dynamo",name:record.title,
+        mode:"managed",managed_path:folder,enabled:true,origin:"owner-local-save"});
+      return textResult({registered:true,entry:record,
+        files:entries.map(x=>x.file),source_preserved:true,temp_job_registered:false});
+    }catch(error){
+      // Only this invocation's newly created Dynamo folder is removed.
+      await fs.rm(folder,{recursive:true,force:true});
+      throw error;
+    }
+  }));
+
   server.registerTool("dynamo_register",{description:"Register a user-owned Dynamo .dyn already copied into a managed Dynamo library.",inputSchema:{library_id:z.string(),relative_path:z.string(),id:z.string(),summary:z.string()}},async (a)=>guarded("dynamo_register",a,async()=>{
     const p=path.resolve(dynamoLibrariesRoot(),a.library_id,a.relative_path); if(!inside(path.join(dynamoLibrariesRoot(),a.library_id),p)||path.extname(p).toLowerCase()!==".dyn")throw new Error("MANAGED_DYN_PATH_REQUIRED");
     const bytes=await fs.readFile(p); const entry={id:a.id,kind:"dynamo",library_id:a.library_id,relative_path:a.relative_path,path:p,summary:a.summary,sha256:sha256(bytes),status:"active",updated_at:new Date().toISOString()};
