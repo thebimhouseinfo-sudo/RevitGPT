@@ -13,6 +13,8 @@ namespace RevitGPT.Native
             "POST /operation/status",
             "GET /document/active",
             "POST /document/save",
+            "POST /model-anchor/read",
+            "POST /model-anchor/initialize",
             "GET /binding/status",
             "GET /documents",
             "GET /views",
