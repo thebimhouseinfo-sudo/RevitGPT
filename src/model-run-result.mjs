@@ -13,7 +13,7 @@ export function modelIdFromMcpResult(response){
     const text=body.result.content.find(item=>item?.type==="text")?.text;
     if(typeof text!=="string")throw new Error("MODEL_ANCHOR_RESPONSE_MISSING");
     try{body=JSON.parse(text);}catch{throw new Error("MODEL_ANCHOR_RESPONSE_INVALID_JSON");}
-  }else if(!body?.result?.data && !body?.data && !body?.model_id){
+  }else if(!body?.result?.data && !body?.result?.model_id && !body?.data && !body?.model_id){
     const text=response?.content?.find(item=>item?.type==="text")?.text;
     if(typeof text!=="string")throw new Error("MODEL_ANCHOR_RESPONSE_MISSING");
     try{body=JSON.parse(text);}catch{throw new Error("MODEL_ANCHOR_RESPONSE_INVALID_JSON");}
