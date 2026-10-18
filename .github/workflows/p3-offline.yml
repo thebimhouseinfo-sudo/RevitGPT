@@ -27,7 +27,7 @@ jobs:
             node --check "$source"
           done
       - name: P3 contract tests
-        run: node --test tests/p3-*.test.mjs tests/m8-mcp-dev-reload.test.mjs
+        run: node --test tests/p3-*.test.mjs tests/m8-mcp-dev-reload.test.mjs tests/p1-p2-compat-upstream.test.mjs
   python-contract:
     runs-on: ubuntu-latest
     defaults:
@@ -44,6 +44,8 @@ jobs:
         run: |
           python -m unittest discover -s tests -p "test_p3_*.py" -v
           python -m unittest discover -s tests -p "test_native_route_contract.py" -v
+          python -m unittest discover -s tests -p "test_p1_ribbon_regression.py" -v
+          python -m unittest discover -s tests -p "test_p2_dynamo_backward_compat.py" -v
   native-compile:
     runs-on: windows-latest
     steps:
