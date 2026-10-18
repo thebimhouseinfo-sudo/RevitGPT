@@ -41,7 +41,9 @@ jobs:
       - name: Compile Python modules
         run: python -m compileall -q connection tools services tests
       - name: P3 offline route tests
-        run: python -m unittest discover -s tests -p "test_p3_*.py" -v
+        run: |
+          python -m unittest discover -s tests -p "test_p3_*.py" -v
+          python -m unittest discover -s tests -p "test_native_route_contract.py" -v
   native-compile:
     runs-on: windows-latest
     steps:
