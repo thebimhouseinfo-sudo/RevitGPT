@@ -1,5 +1,17 @@
 import { randomUUID } from "node:crypto";
 
+// DEV-only new Python MCP tools are conservatively treated as model mutations.
+// Inventory confirmation happens at the call site before registration.
+const DEVELOPER_TOOLS = new Set();
+export function registerDeveloperModelTool(name) {
+  if(typeof name!=="string"||!/^revit_[a-z][a-z0-9_]{2,100}$/.test(name))
+    throw new Error("DEV_MODEL_TOOL_INVALID_NAME");
+  if(DIAGNOSTIC.has(name)||MODEL_READS.has(name)||MODEL_WRITES.has(name)||UI_ACTIONS.has(name))
+    return false;
+  DEVELOPER_TOOLS.add(name);
+  return true;
+}
+
 const DIAGNOSTIC = new Set([
   "revit_get_runtime_info", "revit_get_active_document", "revit_list_documents"
 ]);
@@ -40,7 +52,7 @@ export function classifyModelOperation(name, args = {}) {
     if (name === "revit_select_related" && args?.apply === false) return "READ_ONLY";
     return "UI_SIDE_EFFECT";
   }
-  if (MODEL_WRITES.has(name)) return "MODEL_MUTATION";
+  if (MODEL_WRITES.has(name) || DEVELOPER_TOOLS.has(name)) return "MODEL_MUTATION";
   return null;
 }
 
@@ -106,7 +118,7 @@ export class SessionModelAuthority {
   }
   async authorize(name, input = {}) {
     if (DIAGNOSTIC.has(name)) return { ...input };
-    if (!MODEL_READS.has(name) && !UI_ACTIONS.has(name) && !MODEL_WRITES.has(name))
+    if (!MODEL_READS.has(name) && !UI_ACTIONS.has(name) && !MODEL_WRITES.has(name) && !DEVELOPER_TOOLS.has(name))
       throw new Error("MODEL_TOOL_NOT_ALLOWED");
     if (input === null || typeof input !== "object" || Array.isArray(input))
       throw new Error("MODEL_TOOL_ARGUMENTS_INVALID");
@@ -116,7 +128,7 @@ export class SessionModelAuthority {
     let snapshot;
     try {
       const native=await this.readStatus();
-      snapshot = currentBinding(native,requiresActiveBoundModel(name));
+      snapshot = currentBinding(native,requiresActiveBoundModel(name) || DEVELOPER_TOOLS.has(name));
       if(this.hostIdentity) await this.hostIdentity.observe(native);
     } catch(error) {
       this.lease = null;
