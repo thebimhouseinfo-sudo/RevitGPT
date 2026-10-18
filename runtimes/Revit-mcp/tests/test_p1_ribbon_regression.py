@@ -8,7 +8,7 @@ class P1RibbonRegression(unittest.TestCase):
     def test_visible_reopen_button_is_registered(self):
         source=(BASE/"RevitGptApplication.cs").read_text(encoding="utf-8")
         self.assertIn('app.CreateRibbonPanel("RevitGPT")',source)
-        self.assertIn('new PushButtonData("RevitGPT_OpenPane", "RevitGPT",',source)
+        self.assertIn('new PushButtonData("RevitGPT_OpenPane", " ",',source)
         self.assertIn('typeof(OpenRevitGptPaneCommand).FullName',source)
         self.assertIn('NativePaneDiagnostics.Record("ribbon_registered")',source)
         self.assertIn('NativePaneDiagnostics.Record("ribbon_failed"',source)
