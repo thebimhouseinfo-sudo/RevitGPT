@@ -1,3 +1,12 @@
+### 2026-10-18 — Pre-human-test source fix batch
+
+- Fixed `src/model-run-result.mjs` to parse **actual nested MCP `structuredContent.result.content[].text`** and reject nested `isError`; added regression instead of accepting only idealized flat envelopes.
+- P3 test/install script and CI now run `test_native_route_contract.py`, which enforces **full Python ↔ Native route parity**, so an omitted route such as `/model-anchor/read` blocks offline installation before it reaches a live RVT.
+- M8 DEV mode can call a newly reloaded `revit_*` Python tool **only when observed in live upstream inventory**; it then receives conservative model-mutation classification and Native active-bound-model authorization. No Registry promotion or snapshot approval gate; no blanket allowance outside DEV. Added `tests/p3-m8-new-tool.test.mjs`.
+- **Evidence boundary:** GitHub source committed. The Windows Node/Python/Native build and Revit 2024 end-to-end tests for this commit batch have NOT yet been observed; do not label runtime or workflow PASS until the batch runner succeeds and actual Builder/Writer/Dev & Repair workflows are tested.
+- Use `scripts/p3-test-and-install.ps1 -InstallNative` on Windows with Revit closed; its checks must pass before installation. Follow `docs/roadmap/P3_HUMAN_TEST_BATCH.md` to test P3 workflows, not a P1/P2 MCP inventory sweep.
+
+
 > **M1 identity correction (2026-10-17):** Model Anchor is **created by RevitGPT** as a Shared Parameter bound to Project Information (not assumed preexisting and not a Revit Global Parameter). Its **value** is `<sanitized model name at creation>_<yyyyMMddTHHmmssfffZ>_<8 hex random>`; once assigned it remains unchanged when the model/project name or phase changes. The Shared Parameter definition GUID identifies the field, not the model. Native and Node validators now accept this generated value, not UUID-only model keys. Real Revit build/live tests still pending.
 
 # RevitGPT P3 — Detailed Milestones and Tasks (M1–M8)
