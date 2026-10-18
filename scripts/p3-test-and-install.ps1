@@ -32,6 +32,8 @@ try {
   Require-Ok "P3 Python tests"
   & $python -m unittest discover -s tests -p "test_native_route_contract.py" -v
   Require-Ok "Native/Python route parity"
+  & $python -m unittest discover -s tests -p "test_p1_ribbon_regression.py" -v
+  Require-Ok "P1 ribbon regression"
 } finally { Pop-Location }
 dotnet build "runtimes\Revit-mcp\bridge\unified_native\RevitGPT.Native.csproj" --configuration Release --nologo
 Require-Ok "Native build against local Revit 2024 API"
