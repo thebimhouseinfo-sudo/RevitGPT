@@ -11,6 +11,16 @@ from unittest.mock import patch
 from services.dynamo_preflight import validate_staged_dyn, DynamoPreflightError
 
 
+class ColdDynamoLoadContract(unittest.TestCase):
+    def test_cold_manual_load_suppresses_start_screen_without_requesting_run(self):
+        source = (Path(__file__).resolve().parents[1] /
+                  'bridge/unified_native/NativeDynamoLoad.cs').read_text(encoding='utf-8')
+        self.assertIn('bool coldManualLoad = coldDynamoHost && !autoRun;', source)
+        self.assertIn('"dynShowUI", (autoRun || coldManualLoad) ? "False" : "True"', source)
+        self.assertIn('"dynAutomation", (autoRun || coldManualLoad) ? "True" : "False"', source)
+        self.assertIn('"dynPathExecute", autoRun ? "True" : "False"', source)
+        self.assertIn('"dynForceManualRun", autoRun ? "False" : "True"', source)
+
 class OwnerLocalDynamoTests(unittest.TestCase):
     def test_owned_dynamo_and_temp_are_preflighted_without_staging(self):
         with TemporaryDirectory() as tmp, patch.dict(os.environ, {"LOCALAPPDATA": tmp}):
