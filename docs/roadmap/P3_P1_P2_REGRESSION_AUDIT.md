@@ -20,3 +20,18 @@ Baseline: `4b10a8284fe7b044d7576ecf71dc2525d13c59af` (accepted P1/P2, icon-only 
 - P1 acceptance: registered icon-only Ribbon on Add-Ins tab; after manually closing panel, click icon and show same pane (no rebind), listener remains healthy. Check `native-pane.ndjson` if failure.
 - P2 compatibility acceptance: one legacy staged .dyn graph LOAD-only and one known existing read/write MCP workflow, with before/after evidence and no unwarranted promotion. P3 acceptance remains Job Builder/Operator, Dynamo Writer, MCP Dev & Repair; these P1/P2 cases are only minimal regression smoke tests.
 - No code review, compile or offline test alone proves the rendered Ribbon is visible. Do not mark full P1/P2 compatibility PASS without evidence.
+
+
+## P1/P2 behavior simulation expansion (2026-10-18)
+
+Scope: only legacy P1/P2 execution behavior touched by P3. **Do not treat this as P3 feature acceptance.**
+
+Added `tests/p1-p2-compat-upstream.test.mjs` scenarios: baseline tool read/write effects, Native binding injection and document mismatch rejection, two simultaneous legacy MCP calls while DEV reload is attempted, ordinary API error not tearing down Python transport, and new calls failing closed during reload. Added `runtimes/Revit-mcp/tests/test_p2_dynamo_backward_compat.py`: legacy draft → immutable staging → preflight roundtrip; staged Python Nodes still blocked; external graph rejected. These now run through CI and `scripts/p3-test-and-install.ps1`.
+
+**Simulation limits:** tests are committed but Windows/CI execution for this new batch is not yet observed. They simulate Node RPC and Python preflight, not loaded Revit host, ribbon icon rendering, Revit ExternalEvent scheduling or Dynamo completion. Existing P1/P2 real-host verification cannot be replaced by mocked tests; use targeted runtime inspection only if a compatibility problem is observed.
+
+Audit judgement by observed source changes:
+- **Confirmed source regression restored:** post-P3 P1 icon-only ribbon label was changed, then restored exactly to accepted baseline.
+- **Potential interruption mitigated, not a confirmed regression:** Python upstream reload refuses active in-flight calls. A call still in the upstream's pre-admission stage can race with reload, producing a bounded error rather than silently mutating the wrong model; needs host observation if seen.
+- **Legacy P2 Dynamo preflight is preserved by design** with staging still allowed and normal code block load rules unchanged; path restrictions are intentionally extended, not replaced. New simulation covers this.
+- **No evidence to claim complete P1/P2 breakage:** other modifications add routes and P3 tools, while core P1 Ribbon/panel command and official installer are unchanged relative to pre-P3 baseline. Physical user-observed missing Ribbon icon still requires installed DLL/icon and `native-pane.ndjson` inspection.
