@@ -18,7 +18,8 @@ Require-Ok "npm ci"
 Get-ChildItem src -Filter *.mjs | ForEach-Object { node --check $_.FullName; Require-Ok "Node syntax: $($_.Name)" }
 Get-ChildItem tests -Filter *.test.mjs | ForEach-Object { node --check $_.FullName; Require-Ok "Node test syntax: $($_.Name)" }
  $testPaths = @((Get-ChildItem -Path tests -Filter "p3-*.test.mjs").FullName) + @(Join-Path $repo "tests\m8-mcp-dev-reload.test.mjs")
-node --test @testPaths
+ $legacyTestPath = Join-Path $repo "tests\p1-p2-compat-upstream.test.mjs"
+node --test @testPaths $legacyTestPath
 Require-Ok "P3 Node tests"
 $python = Join-Path $repo "runtimes\Revit-mcp\.venv\Scripts\python.exe"
 if (-not (Test-Path $python)) {
@@ -34,6 +35,8 @@ try {
   Require-Ok "Native/Python route parity"
   & $python -m unittest discover -s tests -p "test_p1_ribbon_regression.py" -v
   Require-Ok "P1 ribbon regression"
+  & $python -m unittest discover -s tests -p "test_p2_dynamo_backward_compat.py" -v
+  Require-Ok "P2 legacy Dynamo compatibility"
 } finally { Pop-Location }
 dotnet build "runtimes\Revit-mcp\bridge\unified_native\RevitGPT.Native.csproj" --configuration Release --nologo
 Require-Ok "Native build against local Revit 2024 API"
