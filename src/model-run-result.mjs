@@ -26,13 +26,15 @@ export function modelIdFromMcpResult(response){
 
 // Used only with the live, natively-bound revit_get_model_anchor result;
 // no caller-provided title, file path, generated Model ID, or inferred model identity.
-export async function beginModelRun({jobId,runId,readBoundModelAnchor}){
+export async function beginModelRun({jobId,runId,readBoundModelAnchor,now=()=>new Date()}){
   if(typeof readBoundModelAnchor!=="function")throw new Error("BOUND_MODEL_ANCHOR_READER_REQUIRED");
   const response=await readBoundModelAnchor();
   const modelId=modelIdFromMcpResult(response);
-  const results=modelRunResultRoot(modelId,jobId,runId);
+  const timestamp=now().toISOString().replace(/[-:]/g,"").replace(/\./g,"");
+  const stampedRunId=`${timestamp}_${runId}`;
+  const results=modelRunResultRoot(modelId,jobId,stampedRunId);
   await fs.mkdir(path.dirname(results),{recursive:true});
   try{await fs.mkdir(results);}
   catch(e){if(e.code==="EEXIST")throw new Error("MODEL_RUN_RESULTS_ALREADY_EXIST");throw e;}
-  return {model_id:modelId,job_id:jobId,run_id:runId,results_path:results};
+  return {model_id:modelId,job_id:jobId,run_id:runId,run_timestamp_utc:timestamp,run_folder_id:stampedRunId,results_path:results};
 }
