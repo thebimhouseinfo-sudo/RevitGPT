@@ -35,3 +35,20 @@ Audit judgement by observed source changes:
 - **Potential interruption mitigated, not a confirmed regression:** Python upstream reload refuses active in-flight calls. A call still in the upstream's pre-admission stage can race with reload, producing a bounded error rather than silently mutating the wrong model; needs host observation if seen.
 - **Legacy P2 Dynamo preflight is preserved by design** with staging still allowed and normal code block load rules unchanged; path restrictions are intentionally extended, not replaced. New simulation covers this.
 - **No evidence to claim complete P1/P2 breakage:** other modifications add routes and P3 tools, while core P1 Ribbon/panel command and official installer are unchanged relative to pre-P3 baseline. Physical user-observed missing Ribbon icon still requires installed DLL/icon and `native-pane.ndjson` inspection.
+
+
+## Direct execution of old-path source simulations — 2026-10-18
+
+A JavaScript V8 harness loaded the **actual current GitHub source bodies** from `src/revit-upstream.mjs` and `src/model-authority.mjs`. External MCP SDK/OS dependencies were mocked; no Revit instance was used. **8 PASS / 0 FAIL**:
+1. Original read/write tool effect classification preserved (levels/view/documents/parameters; save/set/load/run).
+2. New upstream starts with idle in-flight/reload counters.
+3. In-flight accounting increments synchronously on a legacy call.
+4. DEV reload rejects an active legacy call with `REVIT_MCP_RELOAD_BUSY`.
+5. Counter resets after the call resolves.
+6. Ordinary `Bridge HTTP 400` application error does **not** disconnect healthy upstream.
+7. Existing P1 native bound document ID is passed through authorization.
+8. Explicit document ID mismatch is rejected.
+
+Additional concurrency probe: an old call waiting inside `connect()` still counts as in-flight and the attempted DEV reload yielded `REVIT_MCP_RELOAD_BUSY` with **zero disconnects**. The upstream segment of the previously suspected race was not reproduced.
+
+**Not yet executed:** Python `test_p2_dynamo_backward_compat.py` against full repo because this execution environment cannot clone the repository or load its installed packages. Both regression suites are committed and wired into local `scripts/p3-test-and-install.ps1` / GitHub CI, but running them on the user's Windows checkout is still necessary for a whole-project PASS. The 8 V8 source-body simulations are not a real Native Revit ribbon, WebView, or Dynamo host test. Do not conflate them with host integration PASS.
