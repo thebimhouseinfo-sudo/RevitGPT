@@ -122,7 +122,7 @@ namespace RevitGPT.Native
             {
                 var conflicts = DuplicateOpenModels(doc, value);
                 return Data(new { found = existing != null, model_id = value,
-                    valid = ValidModelId(value) && conflicts.Length == 0,
+                    valid = ValidModelId(value),
                     duplicate_open_model_count = conflicts.Length,
                     duplicate_open_model_titles = conflicts,
                     parameter_name = Name, parameter_guid = DefinitionGuid.ToString(),
@@ -135,9 +135,8 @@ namespace RevitGPT.Native
             {
                 if (!ValidModelId(value))
                     return Error(409, "Existing model anchor value is invalid; refusing overwrite.");
-                var duplicates = DuplicateOpenModels(doc, value);
-                if (duplicates.Length > 0)
-                    return Error(409, "Another open RVT has the same persistent Model ID; resolve copied-model identity before continuing.");
+                // Same Anchor may legitimately identify exchanged, copied or restored
+                // revisions of the same logical project. Never block or rekey.
                 return Data(new { found = true, model_id = value, initialized = false,
                     parameter_guid = DefinitionGuid.ToString() });
             }
