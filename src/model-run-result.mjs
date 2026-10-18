@@ -3,9 +3,17 @@ import path from "node:path";
 import { modelRunResultRoot } from "./model-anchor-paths.mjs";
 
 export function modelIdFromMcpResult(response){
-  if(response?.isError)throw new Error("MODEL_ANCHOR_UPSTREAM_ERROR");
-  let body=response?.structuredContent;
-  if(!body){
+  if(response?.isError || response?.structuredContent?.result?.isError)
+    throw new Error("MODEL_ANCHOR_UPSTREAM_ERROR");
+  let body=response?.structuredContent ?? response;
+  // SDK results may carry a structured envelope or text content in a
+  // nested `result`; always check errors before parsing a successful payload.
+  if(body?.result?.isError)throw new Error("MODEL_ANCHOR_UPSTREAM_ERROR");
+  if(body?.result?.content && !body?.result?.data){
+    const text=body.result.content.find(item=>item?.type==="text")?.text;
+    if(typeof text!=="string")throw new Error("MODEL_ANCHOR_RESPONSE_MISSING");
+    try{body=JSON.parse(text);}catch{throw new Error("MODEL_ANCHOR_RESPONSE_INVALID_JSON");}
+  }else if(!body?.result?.data && !body?.data && !body?.model_id){
     const text=response?.content?.find(item=>item?.type==="text")?.text;
     if(typeof text!=="string")throw new Error("MODEL_ANCHOR_RESPONSE_MISSING");
     try{body=JSON.parse(text);}catch{throw new Error("MODEL_ANCHOR_RESPONSE_INVALID_JSON");}
