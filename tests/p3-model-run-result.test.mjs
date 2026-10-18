@@ -31,6 +31,8 @@ test("native-bound generated model ID must be present and valid before run outpu
 });
 test("M1 parses MCP text and structured result but refuses guessed identity",()=>{
   assert.equal(modelIdFromMcpResult({structuredContent:{valid:true,model_id:ID}}),ID);
+  assert.equal(modelIdFromMcpResult({structuredContent:{result:{content:[{type:"text",text:JSON.stringify({valid:true,model_id:ID})}],isError:false}}}),ID);
+  assert.throws(()=>modelIdFromMcpResult({structuredContent:{result:{content:[{type:"text",text:"Bridge HTTP 404"}],isError:true}}}),/MODEL_ANCHOR_UPSTREAM_ERROR/);
   assert.equal(modelIdFromMcpResult({structuredContent:{result:{valid:true,model_id:ID}}}),ID);
   assert.throws(()=>modelIdFromMcpResult({structuredContent:{model_id:"Project Name",valid:false}}),/MODEL_ANCHOR_MISSING_OR_INVALID/);
   assert.throws(()=>modelIdFromMcpResult({isError:true}),/MODEL_ANCHOR_UPSTREAM_ERROR/);
