@@ -34,6 +34,10 @@ class AnchorBridgeTests(unittest.TestCase):
         self.assertIn('"POST /model-anchor/initialize"',routes)
         self.assertIn('path == "/model-anchor/initialize"',protocol)
         self.assertIn("DuplicateOpenModels",source)
+        # Different Revit DB.Document managed wrappers can refer to the SAME RVT.
+        # Native bound/document IDs already use GetHashCode(); never count self as a copy.
+        self.assertIn("other.GetHashCode() != doc.GetHashCode()",source)
+        self.assertNotIn("other != doc &&",source)
         self.assertIn('"yyyyMMddTHHmmssfffZ"',source)
         self.assertIn('Guid.NewGuid().ToString("N").Substring(0, 8)',source)
         self.assertIn("duplicate_open_model_count",source)
