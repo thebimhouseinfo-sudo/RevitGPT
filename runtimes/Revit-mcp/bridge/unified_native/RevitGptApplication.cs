@@ -55,13 +55,13 @@ namespace RevitGPT.Native
             try
             {
                 var panel = app.CreateRibbonPanel("RevitGPT"); // Add-Ins tab
-                var open = new PushButtonData("RevitGPT_OpenPane", " ",
+                var open = new PushButtonData("RevitGPT_OpenPane", "RevitGPT",
                     Assembly.GetExecutingAssembly().Location,
                     typeof(OpenRevitGptPaneCommand).FullName);
                 var button = panel.AddItem(open) as PushButton;
                 if (button != null)
                 {
-                    button.ToolTip = "Show the existing RevitGPT panel without rebinding or restarting ChatGPT.";
+                    // Always provide visible text fallback: Revit collapses an icon-only\n                    // command to an unusable blank area if WPF image loading fails.\n                    button.ToolTip = "Show the existing RevitGPT panel without rebinding or restarting ChatGPT.";
                     // The versioned installer stages this file alongside RevitGPT.Native.dll.
                     // Image is loaded per Revit startup; no rebuild needed for a changed PNG.
                     var iconPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "iconaddin.png");
