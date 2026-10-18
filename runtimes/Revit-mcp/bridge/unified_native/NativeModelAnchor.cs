@@ -56,7 +56,8 @@ namespace RevitGPT.Native
         {
             if (!ValidModelId(value)) return new string[0];
             return doc.Application.Documents.Cast<Document>()
-                .Where(other => other != doc && !other.IsFamilyDocument && !other.IsLinked)
+                .Where(other => other != null && other.GetHashCode() != doc.GetHashCode() &&
+                    !other.IsFamilyDocument && !other.IsLinked)
                 .Where(other => String.Equals(CurrentValue(Existing(other)), value,
                     StringComparison.OrdinalIgnoreCase))
                 .Select(other => other.Title)
