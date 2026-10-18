@@ -55,7 +55,7 @@ namespace RevitGPT.Native
             try
             {
                 var panel = app.CreateRibbonPanel("RevitGPT"); // Add-Ins tab
-                var open = new PushButtonData("RevitGPT_OpenPane", " ",
+                var open = new PushButtonData("RevitGPT_OpenPane", "RevitGPT",
                     Assembly.GetExecutingAssembly().Location,
                     typeof(OpenRevitGptPaneCommand).FullName);
                 var button = panel.AddItem(open) as PushButton;
@@ -88,7 +88,8 @@ namespace RevitGPT.Native
                         }
                     }
                 }
-                NativePaneDiagnostics.Record("ribbon_registered");
+                if (button == null) NativePaneDiagnostics.Record("ribbon_button_missing");
+                else NativePaneDiagnostics.Record("ribbon_registered");
             }
             catch (Exception error)
             {
