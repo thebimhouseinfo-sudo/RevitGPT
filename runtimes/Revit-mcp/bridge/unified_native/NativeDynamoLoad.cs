@@ -143,6 +143,7 @@ namespace RevitGPT.Native
                 var dynamoAssembly = AppDomain.CurrentDomain.GetAssemblies()
                     .FirstOrDefault(a => String.Equals(a.GetName().Name, "DynamoRevitDS",
                         StringComparison.OrdinalIgnoreCase));
+                bool coldDynamoHost = dynamoAssembly == null;
                 if (dynamoAssembly == null)
                 {
                     var adapterPath = FindDynamoAdapter();
@@ -157,9 +158,13 @@ namespace RevitGPT.Native
                 object command = Activator.CreateInstance(commandType);
                 object data = Activator.CreateInstance(dataType);
                 dataType.GetProperty("Application")?.SetValue(data, app);
+                // Experimental first-launch path: avoid opening the Dynamo Start UI
+                // while a LOAD-only graph is being prepared. Execution stays disabled
+                // by dynPathExecute=False and dynForceManualRun=True.
+                bool coldManualLoad = coldDynamoHost && !autoRun;
                 var journal = new Dictionary<string, string>(StringComparer.Ordinal) {
-                    { "dynShowUI", autoRun ? "False" : "True" },
-                    { "dynAutomation", autoRun ? "True" : "False" },
+                    { "dynShowUI", (autoRun || coldManualLoad) ? "False" : "True" },
+                    { "dynAutomation", (autoRun || coldManualLoad) ? "True" : "False" },
                     { "dynPath", path },
                     { "dynPathExecute", autoRun ? "True" : "False" },
                     { "dynForceManualRun", autoRun ? "False" : "True" },
