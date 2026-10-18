@@ -1,3 +1,5 @@
+> **P2 Dynamo compatibility and run-results decision:** Default `.dyn` workflow must be **author → headless LOAD → headless RUN → verify readback**, with `dynShowUI=False` for both LOAD/RUN and distinct execution flags. Opening Dynamo's interactive Start/workspace UI is **fallback only on explicit request**, never an automatic effect of LOAD or a timeout retry. Same logical Model Anchor shared across moved/renamed/copied/exchanged RVT files maps to one `models/<anchor>` directory. Each execution stores results under `jobs/<job>/runs/<UTC timestamp>_<run ID>/results`, preventing collision between revisions of the same project. Preserve existing run folders. Source changes require offline/Native live verification before PASS.
+
 ### 2026-10-18 — Pre-human-test source fix batch
 
 - Fixed `src/model-run-result.mjs` to parse **actual nested MCP `structuredContent.result.content[].text`** and reject nested `isError`; added regression instead of accepting only idealized flat envelopes.
