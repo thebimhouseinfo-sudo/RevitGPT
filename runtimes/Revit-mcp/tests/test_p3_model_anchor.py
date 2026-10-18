@@ -41,7 +41,9 @@ class AnchorBridgeTests(unittest.TestCase):
         self.assertIn('"yyyyMMddTHHmmssfffZ"',source)
         self.assertIn('Guid.NewGuid().ToString("N").Substring(0, 8)',source)
         self.assertIn("duplicate_open_model_count",source)
-        self.assertIn("resolve copied-model identity",source)
+        self.assertIn("valid = ValidModelId(value)",source)
+        self.assertNotIn("valid = ValidModelId(value) && conflicts.Length == 0",source)
+        self.assertNotIn("Another open RVT has the same persistent Model ID",source)
 
 if __name__=="__main__":
     unittest.main()
