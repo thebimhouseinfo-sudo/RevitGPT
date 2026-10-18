@@ -17,7 +17,7 @@ import { createSessionManager, extractRequestId, isInitializeRequest, isPriority
 import { buildLegacyDiscoverFallback } from "./mcp-discover-compat.mjs";
 import { logControl, logError, logToolCall } from "./log-store.mjs";
 import { probeBridgeHealth } from "./bridge-health.mjs";
-import { fetchNativeBindingStatus, SessionModelAuthority } from "./model-authority.mjs";
+import { fetchNativeBindingStatus, SessionModelAuthority, classifyModelOperation, registerDeveloperModelTool } from "./model-authority.mjs";
 import { callReadOnlyTool, ensureReadRuntime } from "./read-intent-gate.mjs";
 import { handleRetiredPanelCommand } from "./retired-panel-commands.mjs";
 import { executeRevitCommand } from "./revit-fake-cli.mjs";
@@ -131,7 +131,7 @@ function createServer(sessionKey) {
   wrapToolRegistration(server,{isAwake:()=>awakeIntent.isAwake()});
   registerManagedTools(server);
   server.registerTool("model_run_result_begin",{
-    description:"Create an owned run-results folder under the model's persistent Project Information UUID read live from the native bound Revit document. Requires an already initialized model ID.",
+    description:"Create an owned run-results folder under the model's RevitGPT-generated persistent Project Information ID read live from the native bound Revit document. Requires an already initialized model ID.",
     inputSchema:{
       job_id:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
       run_id:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/)
@@ -351,6 +351,16 @@ function createServer(sessionKey) {
           content: [{ type: "text", text: "Native binding: " + String(native.status) }],
           structuredContent: { native_binding: native }
         };
+      }
+      // During MCP Dev & Repair a freshly loaded Python tool is not yet in
+      // the static Node list. Only DEV mode and the LIVE upstream inventory
+      // can nominate it for conservative bound-model execution. Registry
+      // indexing is discovery and is never a prerequisite to this test.
+      if(isDevMode() && classifyModelOperation(name,args||{})===null){
+        const inventory=await ensureExplicitReadReady();
+        if(!inventory.some(t=>t.name===name))
+          throw new Error("REVIT_MCP_DEV_TOOL_NOT_IN_UPSTREAM_INVENTORY");
+        registerDeveloperModelTool(name);
       }
       const started=Date.now();
       let result;
